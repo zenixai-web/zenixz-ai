@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="Logo 3.png">
+    <title>Contact & About Us — Zenix AI</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts & FontAwesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- Dynamic Tech Ambient Background -->
+    <div class="bg-glow-container">
+        <div class="bg-grid-overlay"></div>
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+    </div>
+
+    <!-- Header Navigation -->
+    <header class="site-header">
+        <div class="nav-container">
+            <a href="index.html" class="brand-box">
+                <img src="Logo 3.png" alt="Zenix Logo">
+                <span class="brand-text">Zenix <span class="accent-text">AI</span></span>
+            </a>
+            <nav class="nav-menu">
+                <a href="index.html">Home</a>
+                <a href="services.html">Services</a>
+                <a href="solutions.html">Solutions</a>
+                <a href="contact.html" style="color: var(--accent-cyan);">Contact</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Page Header / Hero -->
+    <section class="hero-section" style="padding: 90px 0 40px;">
+        <div class="container hero-content">
+            <div class="hero-tag glow-badge fade-in">Get In Touch</div>
+            <h1 class="hero-title fade-in">Let's Build the <span class="shimmer-text">Future of AI</span> Together</h1>
+            <p class="hero-desc fade-in">Have a project in mind or want to automate your business customer support? Reach out to our engineering team directly.</p>
+        </div>
+    </section>
+
+    <!-- About & Contact Section -->
+    <section class="services-section" style="border-top: none; padding-top: 20px;">
+        <div class="container">
+            
+            <!-- About ZenixZ AI Section -->
+            <div class="feature-card reveal-on-scroll visible" style="margin-bottom: 50px; background: rgba(13, 13, 18, 0.85); border-color: rgba(59, 130, 246, 0.3);">
+                <div class="card-glow-bg" style="opacity: 1;"></div>
+                <h2 style="font-size: 1.8rem; margin-bottom: 15px; color: var(--text-primary);"><i class="fa-solid fa-sparkles" style="color: var(--accent-cyan);"></i> About ZenixZ AI</h2>
+                <p style="color: var(--text-secondary); line-height: 1.8; font-size: 1.05rem;">
+                    At <strong>ZenixZ AI</strong>, we specialize in engineering high-performance software architectures and customized Artificial Intelligence solutions. Our core focus is helping modern enterprises eliminate communication bottlenecks, capture 100% of incoming customer leads, and scale operations through intelligent 24/7 conversational agents.
+                </p>
+                <p style="color: var(--text-secondary); line-height: 1.8; font-size: 1.05rem; margin-top: 12px;">
+                    From fine-tuning domain-specific models to seamlessly connecting automated AI workflows into personal messaging platforms (WhatsApp, Telegram, and Web UI), we provide production-grade, secure systems built for global scale.
+                </p>
+            </div>
+
+            <!-- Contact Grid: Direct Info + Message Form -->
+            <div class="grid-3" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 30px;">
+                
+                <!-- Left: Direct Info Cards -->
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <div class="contact-card reveal-on-scroll visible">
+                        <i class="fa-solid fa-envelope contact-icon"></i>
+                        <h3>Official Support Email</h3>
+                        <p><a href="mailto:support@zenixai.online">support@zenixai.online</a></p>
+                    </div>
+
+                    <div class="contact-card reveal-on-scroll visible">
+                        <i class="fa-solid fa-phone contact-icon"></i>
+                        <h3>Direct Phone / WhatsApp</h3>
+                        <p><a href="tel:0717953018">+94 71 795 3018</a></p>
+                    </div>
+
+                    <div class="contact-card reveal-on-scroll visible">
+                        <i class="fa-solid fa-location-dot contact-icon"></i>
+                        <h3>Operations Hub</h3>
+                        <p style="color: var(--text-secondary);">Sri Lanka (Global Digital Lab)</p>
+                    </div>
+                </div>
+
+                <!-- Right: Interactive Message Form -->
+                <div class="feature-card reveal-on-scroll visible" style="grid-column: span 2; background: var(--surface-color);">
+                    <h3 style="font-size: 1.5rem; margin-bottom: 20px; color: var(--text-primary);">Send Us a Message</h3>
+                    
+                    <form style="display: flex; flex-direction: column; gap: 18px;" onsubmit="event.preventDefault(); alert('Thank you! Your message has been submitted. We will contact you shortly.');">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                            <div>
+                                <label style="display: block; font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 6px;">Your Name</label>
+                                <input type="text" placeholder="John Doe" required style="width: 100%; background: var(--bg-color); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 12px; color: var(--text-primary); outline: none;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 6px;">Email Address</label>
+                                <input type="email" placeholder="john@example.com" required style="width: 100%; background: var(--bg-color); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 12px; color: var(--text-primary); outline: none;">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label style="display: block; font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 6px;">Subject</label>
+                            <input type="text" placeholder="Custom AI Bot Inquiry / Project Scope" required style="width: 100%; background: var(--bg-color); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 12px; color: var(--text-primary); outline: none;">
+                        </div>
+
+                        <div>
+                            <label style="display: block; font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 6px;">Message</label>
+                            <textarea rows="5" placeholder="Tell us about your business requirement..." required style="width: 100%; background: var(--bg-color); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 12px; color: var(--text-primary); outline: none; resize: vertical;"></textarea>
+                        </div>
+
+                        <button type="submit" class="btn-primary glow-btn" style="align-self: flex-start; cursor: pointer;">
+                            <span>Submit Inquiry <i class="fa-solid fa-paper-plane"></i></span>
+                        </button>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container footer-content">
+            <p>&copy; 2026 ZenixZ AI. All Rights Reserved.</p>
+            <div class="footer-links">
+                <a href="index.html">Home</a>
+                <a href="services.html">Services</a>
+                <a href="solutions.html">Solutions</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
