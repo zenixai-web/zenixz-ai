@@ -4,36 +4,93 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="Logo 3.png">
-    <title>Solutions — Zenix AI</title>
+    <title>Enterprise Solutions & Capabilities — Zenix AI</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Custom Fixes for Background Animation, Logo, Mobile Menu, and Horizontal Overflow Prevention -->
+    <!-- Custom Fixes for Background Animation, Dropdown Menu, Logo, and Horizontal Overflow Prevention -->
     <style>
-        /* HTML සහ Body මඟින් පැත්තට ස්ක්‍රීන් එක ඇදී යාම (Horizontal Scroll) වැළැක්වීම */
         html, body {
             overflow-x: hidden;
             max-width: 100vw;
         }
 
-        /* ලෝගෝ එක ලොකු කර පෙන්වීම (Text ඉවත් කර ඇත) */
         .brand-box img {
             height: 65px;
             width: auto;
         }
 
-        /* මොබයිල් වීව් එකේදී මෙනු අකුරු ප්‍රමාණය කුඩා කර ලෝගෝ එක සමඟ මර්ජ් වීම වැළැක්වීම */
+        /* Header Dropdown Styling */
+        .nav-item.dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(15px);
+            min-width: 270px;
+            background: rgba(10, 12, 18, 0.98);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .nav-item.dropdown:hover .dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(5px);
+        }
+
+        .dropdown-menu a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .dropdown-menu a:hover {
+            background: rgba(6, 182, 212, 0.12);
+            color: #ffffff;
+        }
+
         @media (max-width: 768px) {
             .nav-container {
                 padding: 0 10px;
                 gap: 5px;
             }
             .nav-menu {
-                gap: 8px; /* ලින්ක් අතර පරතරය අඩු කිරීම */
+                gap: 6px;
             }
-            .nav-menu a {
-                font-size: 13px; /* අකුරු ප්‍රමාණය කුඩා කිරීම */
+            .nav-menu a, .dropdown-link {
+                font-size: 12px;
+                padding: 4px 6px;
+            }
+            .dropdown-menu {
+                left: 50%;
+                transform: translateX(-50%) translateY(10px);
+                min-width: 230px;
+                max-width: 90vw;
+                padding: 6px;
+            }
+            .dropdown-menu a {
+                font-size: 12px;
+                padding: 8px 10px;
+                white-space: normal;
             }
         }
     </style>
@@ -48,76 +105,109 @@
         <div class="glow-orb orb-3"></div>
     </div>
 
+    <!-- Header Navigation with Dropdown Menu -->
     <header class="site-header">
         <div class="nav-container">
             <a href="index.html" class="brand-box">
-                <img src="Logo 3.png" alt="ZenixZ Logo">
+                <img src="Logo 3.png" alt="Zenix Logo">
             </a>
             <nav class="nav-menu">
                 <a href="index.html">Home</a>
-                <a href="services.html">Services</a>
+                
+                <!-- Services with Dropdown -->
+                <div class="nav-item dropdown">
+                    <a href="services.html" class="dropdown-link">Services <i class="fa-solid fa-chevron-down dropdown-icon"></i></a>
+                    <div class="dropdown-menu">
+                        <a href="web-development.html"><i class="fa-solid fa-laptop-code"></i> Business Web Development</a>
+                        <a href="ai-chatbot.html"><i class="fa-solid fa-brain"></i> Advanced AI Chatbots</a>
+                        <a href="domain-email.html"><i class="fa-solid fa-envelope-circle-check"></i> Domain & Custom Email</a>
+                        <a href="payment-gateway.html"><i class="fa-solid fa-credit-card"></i> Secure Payment Gateways</a>
+                        <a href="chat-integration.html"><i class="fa-solid fa-comments"></i> WhatsApp & Telegram Integration</a>
+                        <a href="business-growth.html"><i class="fa-solid fa-chart-line"></i> Business Growth & AI Strategy</a>
+                    </div>
+                </div>
+
                 <a href="solutions.html" style="color: var(--accent-cyan);">Solutions</a>
+                <a href="pricing.html">Pricing</a>
                 <a href="contact.html">Contact</a>
             </nav>
         </div>
     </header>
 
+    <!-- Hero Section -->
     <section class="hero-section" style="padding: 80px 0 40px;">
         <div class="container hero-content">
-            <h1 style="font-size: 2.5rem; margin-bottom: 15px;" class="hero-title fade-in">Enterprise <span class="shimmer-text">AI Solutions</span></h1>
-            <p style="color: var(--text-secondary); max-width: 600px; margin: 0 auto;" class="hero-desc fade-in">Transforming customer service bottlenecks into high-conversion automated sales pipelines.</p>
+            <h1 style="font-size: 2.5rem; margin-bottom: 15px;" class="hero-title fade-in">Why Automated AI Solutions <span class="shimmer-text">Outperform Manual Chatting</span></h1>
+            <p style="color: var(--text-secondary); max-width: 680px; margin: 0 auto;" class="hero-desc fade-in">Stop losing high-intent buyers due to slow manual replies. Scale your customer service to handle 15+ buyers simultaneously with automated stock checks and order routing.</p>
         </div>
     </section>
 
+    <!-- Solutions Grid Section -->
     <section class="services-section" style="border-top: none;">
         <div class="container">
             <div class="grid-3">
+                
+                <!-- Solution 1: Simultaneous Multi-User Scale -->
                 <div class="feature-card reveal-on-scroll">
                     <div class="card-glow-bg"></div>
-                    <div class="card-icon"><i class="fa-solid fa-clock"></i></div>
-                    <h3>24/7 Uninterrupted Support</h3>
-                    <p>Never miss a customer again. Our bot handles inquiries round-the-clock, ensuring midnight shoppers get immediate answers and complete purchases.</p>
+                    <div class="card-icon"><i class="fa-solid fa-users-viewfinder"></i></div>
+                    <h3>Simultaneous 10+ Buyer Handling</h3>
+                    <p>In manual WhatsApp chatting, if you are stuck replying to one browser, ready-to-buy customers get frustrated and leave. Our AI bot handles 15+ users at once without a single lag.</p>
                 </div>
+
+                <!-- Solution 2: Real-time Stock & Inventory Validation -->
                 <div class="feature-card reveal-on-scroll">
                     <div class="card-glow-bg"></div>
-                    <div class="card-icon"><i class="fa-solid fa-comments-dollar"></i></div>
-                    <h3>Zero Missed Orders & Leads</h3>
-                    <p>Every single message is tracked and converted. Eliminate lost sales caused by delayed human responses during peak hours.</p>
+                    <div class="card-icon"><i class="fa-solid fa-database"></i></div>
+                    <h3>Real-Time Database Stock Check</h3>
+                    <p>The bot instantly checks your inventory database to confirm if an item is available, answers product specs, and guides buyers to the right checkout option smoothly.</p>
                 </div>
+
+                <!-- Solution 3: Flexible Payment Routing (Card, Bank Slip, COD) -->
                 <div class="feature-card reveal-on-scroll">
                     <div class="card-glow-bg"></div>
-                    <div class="card-icon"><i class="fa-solid fa-comments"></i></div>
-                    <h3>Personal Messaging Integration</h3>
-                    <p>Seamlessly deliver the AI bot directly into your personal or business messaging apps (WhatsApp, Telegram, Messenger) where your customers already are.</p>
+                    <div class="card-icon"><i class="fa-solid fa-credit-card"></i></div>
+                    <h3>Flexible Payment & Slip Verification</h3>
+                    <p>Supports instant card checkouts, Cash on Delivery (COD), and Bank Transfers. For bank transfers, it generates an Order ID and instructs buyers to send the payment slip securely.</p>
                 </div>
+
+                <!-- Solution 4: Instant Telegram & Gmail Order Sync -->
                 <div class="feature-card reveal-on-scroll">
                     <div class="card-glow-bg"></div>
-                    <div class="card-icon"><i class="fa-solid fa-wallet"></i></div>
-                    <h3>Dramatic Cost Reduction</h3>
-                    <p>Reduce the heavy overhead expenses of hiring large 24/7 support call centers by automating up to 85% of repetitive customer chats.</p>
+                    <div class="card-icon"><i class="fa-solid fa-share-nodes"></i></div>
+                    <h3>Instant Telegram & Gmail Routing</h3>
+                    <p>Every confirmed COD order or bank payment detail is formatted and routed straight to your Telegram, WhatsApp, or Gmail inbox instantly for zero order omissions.</p>
                 </div>
+
+                <!-- Solution 5: High-Performance Web Architecture -->
                 <div class="feature-card reveal-on-scroll">
                     <div class="card-glow-bg"></div>
-                    <div class="card-icon"><i class="fa-solid fa-circle-question"></i></div>
-                    <h3>Answer Any Complex Question</h3>
-                    <p>Customers can ask any custom question about your products, shipping status, or sizing, and the bot will reply intelligently within seconds.</p>
+                    <div class="card-icon"><i class="fa-solid fa-laptop-code"></i></div>
+                    <h3>High-Speed Business Websites</h3>
+                    <p>Lightning-fast corporate and e-commerce websites built with sub-second loading speeds, customized domain names, and official corporate emails.</p>
                 </div>
+
+                <!-- Solution 6: Strategic Growth & Cost Saving -->
                 <div class="feature-card reveal-on-scroll">
                     <div class="card-glow-bg"></div>
                     <div class="card-icon"><i class="fa-solid fa-chart-line"></i></div>
-                    <h3>Scale Without Extra Staff</h3>
-                    <p>Scale your sales volume 10x without needing to expand your customer support team linearly, maximizing your profit margins.</p>
+                    <h3>Massive Cost & Time Reduction</h3>
+                    <p>Cut down heavy expenses on 24/7 human support call centers while eliminating the risk of human errors during peak sales hours.</p>
                 </div>
+
             </div>
         </div>
     </section>
 
+    <!-- Footer -->
     <footer>
         <div class="container footer-content">
             <p>&copy; 2026 ZenixZ AI. All Rights Reserved.</p>
             <div class="footer-links">
                 <a href="index.html">Home</a>
                 <a href="services.html">Services</a>
+                <a href="solutions.html">Solutions</a>
+                <a href="pricing.html">Pricing</a>
                 <a href="contact.html">Contact</a>
             </div>
         </div>

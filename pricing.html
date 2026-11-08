@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="Logo 3.png">
+    <title>Pricing Plans — Zenix AI</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts & FontAwesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom Fixes for Pricing Cards, Alignment, Ticks/Crosses, and Mobile Responsiveness -->
+    <style>
+        html, body {
+            overflow-x: hidden;
+            max-width: 100vw;
+        }
+        .brand-box img {
+            height: 65px;
+            width: auto;
+        }
+
+        /* Consistent Pricing Card Layout so Buttons Align at the Bottom */
+        .pricing-card {
+            background: rgba(13, 15, 23, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 30px 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(6, 182, 212, 0.4);
+            box-shadow: 0 15px 35px rgba(6, 182, 212, 0.15);
+        }
+
+        .pricing-card.popular {
+            border-color: var(--accent-blue);
+            background: rgba(15, 20, 35, 0.95);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.2);
+        }
+
+        /* Feature List Styling with Ticks and Crosses */
+        .pricing-features {
+            list-style: none;
+            text-align: left;
+            font-size: 0.85rem;
+            margin: 20px 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex-grow: 1;
+        }
+
+        .pricing-features li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .pricing-features li.included {
+            color: var(--text-primary);
+        }
+
+        .pricing-features li.included i {
+            color: #10b981; /* Green Tick */
+        }
+
+        .pricing-features li.excluded {
+            color: rgba(148, 163, 184, 0.4); /* Faded Text */
+            text-decoration: line-through;
+        }
+
+        .pricing-features li.excluded i {
+            color: #ef4444; /* Red Cross */
+        }
+
+        /* Header Dropdown Styling */
+        .nav-item.dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(15px);
+            min-width: 270px;
+            background: rgba(10, 12, 18, 0.98);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .nav-item.dropdown:hover .dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(5px);
+        }
+
+        .dropdown-menu a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .dropdown-menu a:hover {
+            background: rgba(6, 182, 212, 0.12);
+            color: #ffffff;
+        }
+
+        @media (max-width: 768px) {
+            .nav-container {
+                padding: 0 10px;
+                gap: 5px;
+            }
+            .nav-menu {
+                gap: 6px;
+            }
+            .nav-menu a, .dropdown-link {
+                font-size: 12px;
+                padding: 4px 6px;
+            }
+            .dropdown-menu {
+                left: 50%;
+                transform: translateX(-50%) translateY(10px);
+                min-width: 230px;
+                max-width: 90vw;
+                padding: 6px;
+            }
+            .dropdown-menu a {
+                font-size: 12px;
+                padding: 8px 10px;
+                white-space: normal;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Dynamic Tech Ambient Background -->
+    <div class="bg-glow-container">
+        <div class="bg-grid-overlay"></div>
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+    </div>
+
+    <!-- Header Navigation with Dropdown Menu -->
+    <header class="site-header">
+        <div class="nav-container">
+            <a href="index.html" class="brand-box">
+                <img src="Logo 3.png" alt="Zenix Logo">
+            </a>
+            <nav class="nav-menu">
+                <a href="index.html">Home</a>
+                
+                <!-- Services with Dropdown -->
+                <div class="nav-item dropdown">
+                    <a href="services.html" class="dropdown-link">Services <i class="fa-solid fa-chevron-down dropdown-icon"></i></a>
+                    <div class="dropdown-menu">
+                        <a href="web-development.html"><i class="fa-solid fa-laptop-code"></i> Business Web Development</a>
+                        <a href="ai-chatbot.html"><i class="fa-solid fa-brain"></i> Advanced AI Chatbots</a>
+                        <a href="domain-email.html"><i class="fa-solid fa-envelope-circle-check"></i> Domain & Custom Email</a>
+                        <a href="payment-gateway.html"><i class="fa-solid fa-credit-card"></i> Secure Payment Gateways</a>
+                        <a href="chat-integration.html"><i class="fa-solid fa-comments"></i> WhatsApp & Telegram Integration</a>
+                        <a href="business-growth.html"><i class="fa-solid fa-chart-line"></i> Business Growth & AI Strategy</a>
+                    </div>
+                </div>
+
+                <a href="solutions.html">Solutions</a>
+                <a href="pricing.html" style="color: var(--accent-cyan);">Pricing</a>
+                <a href="contact.html">Contact</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero-section" style="padding: 60px 0 30px;">
+        <div class="container hero-content">
+            <div class="hero-tag glow-badge fade-in">Transparent Packages</div>
+            <h1 class="hero-title fade-in" style="font-size: 2.4rem;">Deployment & <span class="shimmer-text">Pricing Plans</span></h1>
+            <p class="hero-desc fade-in" style="font-size: 1rem; margin-bottom: 30px;">Choose the ideal plan to scale your business automation, live inventory checks, and multi-user chat routing.</p>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="services-section" style="border-top: none; padding-top: 10px;">
+        <div class="container" style="max-width: 980px;">
+            <div class="grid-3" style="gap: 20px; align-items: stretch;">
+                
+                <!-- Starter Plan -->
+                <div class="pricing-card reveal-on-scroll visible">
+                    <div>
+                        <h3 style="font-size: 1.3rem; margin-bottom: 6px; color: #fff;">Starter Bot & Site</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem;">For simple websites & basic FAQs</p>
+                        <div style="font-size: 2rem; font-weight: 800; color: var(--accent-cyan); margin: 15px 0 10px;">$49 <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-secondary);">/ setup</span></div>
+                        
+                        <ul class="pricing-features">
+                            <li class="included"><i class="fa-solid fa-check"></i> Responsive Landing Page</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> 24/7 Web Chat Widget Support</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Basic FAQ Knowledge Base</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Email Lead Alerts (Gmail)</li>
+                            <li class="excluded"><i class="fa-solid fa-xmark"></i> Simultaneous 10+ Buyer Handling</li>
+                            <li class="excluded"><i class="fa-solid fa-xmark"></i> Real-Time Database Stock Check</li>
+                            <li class="excluded"><i class="fa-solid fa-xmark"></i> Order ID & WhatsApp Slip Routing</li>
+                            <li class="excluded"><i class="fa-solid fa-xmark"></i> Telegram / WhatsApp COD Sync</li>
+                        </ul>
+                    </div>
+                    <a href="contact.html" class="btn-secondary" style="width: 100%; justify-content: center; padding: 10px; font-size: 0.9rem; text-decoration: none;">Choose Starter</a>
+                </div>
+
+                <!-- Professional Plan (Popular) -->
+                <div class="pricing-card popular reveal-on-scroll visible">
+                    <div style="position: absolute; top: 12px; right: 12px; font-size: 0.7rem; background: var(--accent-blue); color: #fff; padding: 3px 10px; border-radius: 8px; font-weight: 600;">POPULAR</div>
+                    <div>
+                        <h3 style="font-size: 1.3rem; margin-bottom: 6px; color: #fff;">Pro Business Suite</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem;">For 10+ buyers, Stock checks & COD/Slips</p>
+                        <div style="font-size: 2rem; font-weight: 800; color: #ffffff; margin: 15px 0 10px;">$149 <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-secondary);">/ setup</span></div>
+                        
+                        <ul class="pricing-features">
+                            <li class="included"><i class="fa-solid fa-check"></i> Responsive Landing Page</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Simultaneous 10+ Buyer Handling</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Real-Time Database Stock Check</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Order ID & WhatsApp Slip Routing</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Telegram & WhatsApp COD Sync</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Domain & Custom Business Email</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Secure Payment Gateway Setup</li>
+                            <li class="excluded"><i class="fa-solid fa-xmark"></i> Full Fine-Tuned LLM Models</li>
+                        </ul>
+                    </div>
+                    <a href="contact.html" class="btn-primary glow-btn" style="width: 100%; justify-content: center; padding: 10px; font-size: 0.9rem; text-decoration: none;">Choose Pro Suite</a>
+                </div>
+
+                <!-- Enterprise Plan -->
+                <div class="pricing-card reveal-on-scroll visible">
+                    <div>
+                        <h3 style="font-size: 1.3rem; margin-bottom: 6px; color: #fff;">Enterprise Custom</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem;">For advanced e-commerce & custom apps</p>
+                        <div style="font-size: 2rem; font-weight: 800; color: var(--accent-purple); margin: 15px 0 10px;">Custom</div>
+                        
+                        <ul class="pricing-features">
+                            <li class="included"><i class="fa-solid fa-check"></i> Everything in Pro Business Suite</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Full Fine-Tuned LLM AI Models</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Advanced CRM & Google Sheets Sync</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Custom Database Architecture</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Multi-App API Webhooks</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Analytics & Insights Dashboard</li>
+                            <li class="included"><i class="fa-solid fa-check"></i> Dedicated 24/7 VIP Maintenance</li>
+                        </ul>
+                    </div>
+                    <a href="contact.html" class="btn-secondary" style="width: 100%; justify-content: center; padding: 10px; font-size: 0.9rem; text-decoration: none;">Contact Sales</a>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container footer-content" style="max-width: 980px;">
+            <p>&copy; 2026 ZenixZ AI. All Rights Reserved.</p>
+            <div class="footer-links">
+                <a href="index.html">Home</a>
+                <a href="services.html">Services</a>
+                <a href="solutions.html">Solutions</a>
+                <a href="contact.html">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

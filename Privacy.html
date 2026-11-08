@@ -19,21 +19,34 @@
         <div class="glow-orb orb-2"></div>
     </div>
 
-    <!-- Header Navigation -->
-    <header class="site-header">
-        <div class="nav-container">
-            <a href="index.html" class="brand-box">
-                <img src="Logo 3.png" alt="Zenix Logo">
-                <span class="brand-text">Zenix <span class="accent-text">AI</span></span>
-            </a>
-            <nav class="nav-menu">
-                <a href="index.html">Home</a>
-                <a href="services.html">Services</a>
-                <a href="solutions.html">Solutions</a>
-                <a href="contact.html">Contact</a>
-            </nav>
-        </div>
-    </header>
+   <!-- Header Navigation with Dropdown Menu -->
+<header class="site-header">
+    <div class="nav-container">
+        <a href="index.html" class="brand-box">
+            <img src="Logo 3.png" alt="Zenix Logo">
+        </a>
+        <nav class="nav-menu">
+            <a href="index.html">Home</a>
+            
+            <!-- Services with Dropdown -->
+            <div class="nav-item dropdown">
+                <a href="services.html" class="dropdown-link">Services <i class="fa-solid fa-chevron-down dropdown-icon"></i></a>
+                <div class="dropdown-menu">
+                    <a href="web-development.html"><i class="fa-solid fa-laptop-code"></i> Business Web Development</a>
+                    <a href="ai-chatbot.html"><i class="fa-solid fa-brain"></i> Advanced AI Chatbots</a>
+                    <a href="domain-email.html"><i class="fa-solid fa-envelope-circle-check"></i> Domain & Custom Email</a>
+                    <a href="payment-gateway.html"><i class="fa-solid fa-credit-card"></i> Secure Payment Gateways</a>
+                    <a href="chat-integration.html"><i class="fa-solid fa-comments"></i> WhatsApp & Telegram Integration</a>
+                    <a href="business-growth.html"><i class="fa-solid fa-chart-line"></i> Business Growth & AI Strategy</a>
+                </div>
+            </div>
+
+            <a href="solutions.html">Solutions</a>
+            <a href="pricing.html">Pricing</a>
+            <a href="contact.html">Contact</a>
+        </nav>
+    </div>
+</header>
 
     <!-- Page Header / Hero -->
     <section class="hero-section" style="padding: 80px 0 40px;">

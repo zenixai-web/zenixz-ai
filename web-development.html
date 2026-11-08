@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="Logo 3.png">
+    <title>Business Website Development — Zenix AI</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        html, body { overflow-x: hidden; max-width: 100vw; }
+        .brand-box img { height: 65px; width: auto; }
+        .detail-box {
+            background: rgba(13, 15, 23, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 35px;
+            margin-bottom: 30px;
+        }
+        .highlight-list {
+            list-style: none;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .highlight-list li {
+            background: rgba(6, 182, 212, 0.06);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 0.92rem;
+            color: var(--text-primary);
+        }
+        .highlight-list li i { color: var(--accent-cyan); margin-right: 8px; }
+    </style>
+</head>
+<body>
+
+    <div class="bg-glow-container">
+        <div class="bg-grid-overlay"></div>
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+    </div>
+<!-- Header Navigation with Dropdown Menu -->
+<header class="site-header">
+    <div class="nav-container">
+        <a href="index.html" class="brand-box">
+            <img src="Logo 3.png" alt="Zenix Logo">
+        </a>
+        <nav class="nav-menu">
+            <a href="index.html">Home</a>
+            
+            <!-- Services with Dropdown -->
+            <div class="nav-item dropdown">
+                <a href="services.html" class="dropdown-link">Services <i class="fa-solid fa-chevron-down dropdown-icon"></i></a>
+                <div class="dropdown-menu">
+                    <a href="web-development.html"><i class="fa-solid fa-laptop-code"></i> Business Web Development</a>
+                    <a href="ai-chatbot.html"><i class="fa-solid fa-brain"></i> Advanced AI Chatbots</a>
+                    <a href="domain-email.html"><i class="fa-solid fa-envelope-circle-check"></i> Domain & Custom Email</a>
+                    <a href="payment-gateway.html"><i class="fa-solid fa-credit-card"></i> Secure Payment Gateways</a>
+                    <a href="chat-integration.html"><i class="fa-solid fa-comments"></i> WhatsApp & Telegram Integration</a>
+                    <a href="business-growth.html"><i class="fa-solid fa-chart-line"></i> Business Growth & AI Strategy</a>
+                </div>
+            </div>
+
+            <a href="solutions.html">Solutions</a>
+            <a href="pricing.html">Pricing</a>
+            <a href="contact.html">Contact</a>
+        </nav>
+    </div>
+</header>
+
+    <section class="hero-section" style="padding: 60px 0 30px;">
+        <div class="container hero-content">
+            <div class="hero-tag glow-badge fade-in">High-Performance Web Architecture</div>
+            <h1 class="hero-title fade-in" style="font-size: 2.5rem;">Business <span class="shimmer-text">Website Development</span></h1>
+            <p class="hero-desc fade-in">We design and engineer lightning-fast, conversion-optimized enterprise websites engineered for global reach and maximal lead capturing.</p>
+        </div>
+    </section>
+
+    <section class="services-section" style="border-top: none; padding-top: 10px;">
+        <div class="container" style="max-width: 950px;">
+            
+            <div class="detail-box reveal-on-scroll visible">
+                <h2 style="color: #fff; margin-bottom: 15px;"><i class="fa-solid fa-code" style="color: var(--accent-cyan);"></i> How We Engineer Your Website</h2>
+                <p style="color: var(--text-secondary); line-height: 1.8;">
+                    A modern business website is more than just a digital brochure; it is your primary 24/7 sales engine. At Zenix AI, we avoid bloated code and focus on speed, ultra-responsive UI scaling across all mobile screens, and clean SEO architecture.
+                </p>
+
+                <h3 style="color: #fff; margin-top: 30px; margin-bottom: 15px;">Key Optimization Highlights</h3>
+                <ul class="highlight-list">
+                    <li><i class="fa-solid fa-bolt"></i> <strong>Sub-Second Load Times:</strong> Optimized image assets and lightweight code.</li>
+                    <li><i class="fa-solid fa-mobile-screen"></i> <strong>100% Mobile Responsive:</strong> Perfect scaling on smartphones and tablets.</li>
+                    <li><i class="fa-solid fa-magnifying-glass"></i> <strong>SEO-Ready Architecture:</strong> Structured schema markup for search engines.</li>
+                    <li><i class="fa-solid fa-shield-halved"></i> <strong>Cloudflare Security:</strong> Free SSL, DDoS mitigation, and DNS caching.</li>
+                </ul>
+
+                <div style="margin-top: 35px; text-align: center;">
+                    <a href="contact.html" class="btn-primary glow-btn" style="padding: 12px 30px;">
+                        <span>Get Started With Your Website <i class="fa-solid fa-arrow-right"></i></span>
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <footer>
+        <div class="container footer-content" style="max-width: 980px;">
+            <p>&copy; 2026 ZenixZ AI. All Rights Reserved.</p>
+            <div class="footer-links">
+                <a href="index.html">Home</a>
+                <a href="services.html">Services</a>
+                <a href="pricing.html">Pricing</a>
+                <a href="contact.html">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

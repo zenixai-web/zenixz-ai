@@ -16,3 +16,16 @@ document.addEventListener('DOMContentLoaded', () => {
     revealElements.forEach(el => observer.observe(el));
 
 });
+document.addEventListener('keydown', function(e) {
+    // F12 කී එක
+    if (e.key === 'F12') {
+        e.preventDefault();
+    }
+    // Ctrl+Shift+I හෝ Ctrl+Shift+J හෝ Ctrl+U බ්ලොක් කිරීමට
+    if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
+        e.preventDefault();
+    }
+    if (e.ctrlKey && e.key === 'u') {
+        e.preventDefault();
+    }
+});

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="Logo 3.png">
+    <title>Domain & Custom Business Email — Zenix AI</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts & FontAwesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom Fixes for Mobile Responsiveness & Dropdown Styling -->
+    <style>
+        html, body {
+            overflow-x: hidden;
+            max-width: 100vw;
+        }
+
+        .brand-box img {
+            height: 65px;
+            width: auto;
+        }
+
+        /* Detail Container Box */
+        .detail-box {
+            background: rgba(13, 15, 23, 0.9);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+            border-radius: 16px;
+            padding: 35px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Highlighted Feature Grid */
+        .highlight-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 25px;
+        }
+
+        .highlight-card {
+            background: rgba(6, 182, 212, 0.05);
+            border: 1px solid rgba(6, 182, 212, 0.15);
+            padding: 20px;
+            border-radius: 12px;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .highlight-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(6, 182, 212, 0.4);
+        }
+
+        .highlight-card i {
+            font-size: 1.5rem;
+            color: var(--accent-cyan);
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .highlight-card h4 {
+            color: var(--text-primary);
+            font-size: 1.05rem;
+            margin-bottom: 6px;
+        }
+
+        .highlight-card p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        /* Email Preview Mockup Box */
+        .email-mockup-box {
+            background: rgba(10, 12, 18, 0.95);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+
+        .email-mockup-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 12px;
+            margin-bottom: 15px;
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+        }
+
+        /* Header Dropdown Styling */
+        .nav-item.dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(15px);
+            min-width: 270px;
+            background: rgba(10, 12, 18, 0.98);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .nav-item.dropdown:hover .dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(5px);
+        }
+
+        .dropdown-menu a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .dropdown-menu a:hover {
+            background: rgba(6, 182, 212, 0.12);
+            color: #ffffff;
+        }
+
+        @media (max-width: 768px) {
+            .nav-container {
+                padding: 0 10px;
+                gap: 5px;
+            }
+            .nav-menu {
+                gap: 6px;
+            }
+            .nav-menu a, .dropdown-link {
+                font-size: 12px;
+                padding: 4px 6px;
+            }
+            .detail-box {
+                padding: 20px;
+            }
+            .dropdown-menu {
+                left: 50%;
+                transform: translateX(-50%) translateY(10px);
+                min-width: 230px;
+                max-width: 90vw;
+                padding: 6px;
+            }
+            .dropdown-menu a {
+                font-size: 12px;
+                padding: 8px 10px;
+                white-space: normal;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Dynamic Tech Ambient Background -->
+    <div class="bg-glow-container">
+        <div class="bg-grid-overlay"></div>
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+    </div>
+
+    <!-- Header Navigation with Dropdown Menu -->
+    <header class="site-header">
+        <div class="nav-container">
+            <a href="index.html" class="brand-box">
+                <img src="Logo 3.png" alt="Zenix Logo">
+            </a>
+            <nav class="nav-menu">
+                <a href="index.html">Home</a>
+                
+                <!-- Services Dropdown -->
+                <div class="nav-item dropdown">
+                    <a href="services.html" style="color: var(--accent-cyan);" class="dropdown-link">Services <i class="fa-solid fa-chevron-down dropdown-icon"></i></a>
+                    <div class="dropdown-menu">
+                        <a href="web-development.html"><i class="fa-solid fa-laptop-code"></i> Web Development</a>
+                        <a href="ai-chatbot.html"><i class="fa-solid fa-brain"></i> Advanced AI Chatbots</a>
+                        <a href="domain-email.html"><i class="fa-solid fa-envelope-circle-check"></i> Domain & Custom Email</a>
+                        <a href="payment-gateway.html"><i class="fa-solid fa-credit-card"></i> Payment Gateways</a>
+                        <a href="chat-integration.html"><i class="fa-solid fa-comments"></i> WhatsApp & Telegram</a>
+                        <a href="business-growth.html"><i class="fa-solid fa-chart-line"></i> Growth & AI Strategy</a>
+                    </div>
+                </div>
+
+                <a href="solutions.html">Solutions</a>
+                <a href="pricing.html">Pricing</a>
+                <a href="contact.html">Contact</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Page Hero Section -->
+    <section class="hero-section" style="padding: 60px 0 30px;">
+        <div class="container hero-content">
+            <div class="hero-tag glow-badge fade-in">Brand Authority & Security</div>
+            <h1 class="hero-title fade-in" style="font-size: 2.5rem;">Domain & <span class="shimmer-text">Custom Business Email</span></h1>
+            <p class="hero-desc fade-in" style="font-size: 1rem;">Establish corporate credibility with custom domain registration, DNS routing, and branded official email infrastructure.</p>
+        </div>
+    </section>
+
+    <!-- Detailed Content Section -->
+    <section class="services-section" style="border-top: none; padding-top: 10px;">
+        <div class="container" style="max-width: 950px;">
+            
+            <div class="detail-box reveal-on-scroll visible">
+                <h2 style="color: #fff; font-size: 1.6rem; margin-bottom: 15px;">
+                    <i class="fa-solid fa-envelope-circle-check" style="color: var(--accent-cyan); margin-right: 8px;"></i> Elevate Business Trust With Official Emails
+                </h2>
+                <p style="color: var(--text-secondary); line-height: 1.8; font-size: 0.98rem;">
+                    Sending client proposals or support replies from a free <code>@gmail.com</code> address can hurt your business reputation. At <strong>Zenix AI</strong>, we handle end-to-end custom domain provisioning, SSL setup, and secure email routing (e.g., <code>support@yourcompany.com</code>) to instantly build client confidence and improve email inbox deliverability.
+                </p>
+
+                <h3 style="color: #fff; font-size: 1.3rem; margin-top: 30px; margin-bottom: 15px;">Key Infrastructure Features</h3>
+                
+                <div class="highlight-grid">
+                    <div class="highlight-card">
+                        <i class="fa-solid fa-globe"></i>
+                        <h4>Custom Domain Setup</h4>
+                        <p>Complete domain registration, TLD selection (.com, .online, .io), and global DNS propagation through Cloudflare.</p>
+                    </div>
+
+                    <div class="highlight-card">
+                        <i class="fa-solid fa-at"></i>
+                        <h4>Branded Email Accounts</h4>
+                        <p>Professional mailboxes (e.g., <code>contact@yourdomain.com</code>, <code>info@yourdomain.com</code>) connected to your inbox.</p>
+                    </div>
+
+                    <div class="highlight-card">
+                        <i class="fa-solid fa-shield-cat"></i>
+                        <h4>DKIM, SPF & DMARC Auth</h4>
+                        <p>Advanced DNS security records configured to prevent your business emails from ending up in customer spam folders.</p>
+                    </div>
+
+                    <div class="highlight-card">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <h4>High Email Deliverability</h4>
+                        <p>Optimized mail server routing ensuring your client quotes, invoices, and updates arrive instantly.</p>
+                    </div>
+                </div>
+
+                <!-- Business Email Preview Sample -->
+                <div class="email-mockup-box">
+                    <div class="email-mockup-header">
+                        <i class="fa-solid fa-circle-check" style="color: #10b981;"></i>
+                        <span>Example Professional Email Signature & Communication</span>
+                    </div>
+                    <div style="color: var(--text-primary); font-size: 0.9rem; line-height: 1.6;">
+                        <p style="margin-bottom: 8px;"><strong>From:</strong> Support Team &lt;support@zenixai.online&gt;</p>
+                        <p style="margin-bottom: 12px;"><strong>Subject:</strong> Your Project Proposal & AI Architecture Scope</p>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem;">"Hello, thank you for reaching out to Zenix AI. We have successfully configured your custom domain and AI assistant workflow. Your business is now ready to capture leads 24/7..."</p>
+                    </div>
+                </div>
+
+                <!-- Call to Action Box -->
+                <div style="margin-top: 40px; text-align: center; background: rgba(6, 182, 212, 0.08); padding: 25px; border-radius: 12px; border: 1px solid rgba(6, 182, 212, 0.2);">
+                    <h3 style="color: #fff; margin-bottom: 10px;">Ready for a Professional Business Email?</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px;">Let us configure your custom domain and corporate mailboxes today.</p>
+                    <a href="contact.html" class="btn-primary glow-btn" style="padding: 12px 28px; text-decoration: none;">
+                        <span>Setup Custom Domain & Email <i class="fa-solid fa-arrow-right"></i></span>
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container footer-content" style="max-width: 980px;">
+            <p>&copy; 2026 ZenixZ AI. All Rights Reserved.</p>
+            <div class="footer-links">
+                <a href="index.html">Home</a>
+                <a href="services.html">Services</a>
+                <a href="pricing.html">Pricing</a>
+                <a href="contact.html">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
