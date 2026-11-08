@@ -3,12 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zenix AI </title>
+    <title>Zenix AI</title>
     <link rel="icon" type="image/png" href="Logo 3.png">
     <link rel="stylesheet" href="style.css">
     <!-- Google Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom Fixes for Horizontal Scroll, Logo, and Mobile Menu -->
+    <style>
+        /* HTML සහ Body මඟින් පැත්තට ස්ක්‍රීන් එක ඇදී යාම (Horizontal Scroll) වැළැක්වීම */
+        html, body {
+            overflow-x: hidden;
+            max-width: 100vw;
+        }
+
+        /* ලෝගෝ එක ලොකු කර පෙන්වීම (Text ඉවත් කර ඇත) */
+        .brand-box img {
+            height: 65px;
+            width: auto;
+        }
+
+        /* මොබයිල් වීව් එකේදී මෙනු අකුරු ප්‍රමාණය කුඩා කර ලෝගෝ එක සමඟ මර්ජ් වීම වැළැක්වීම */
+        @media (max-width: 768px) {
+            .nav-container {
+                padding: 0 10px;
+                gap: 5px;
+            }
+            .nav-menu {
+                gap: 8px; /* ලින්ක් අතර පරතරය අඩු කිරීම */
+            }
+            .nav-menu a {
+                font-size: 13px; /* අකුරු ප්‍රමාණය කුඩා කිරීම */
+            }
+        }
+    </style>
 </head>
 <body>
 
@@ -23,13 +52,13 @@
     <!-- Header Navigation -->
     <header class="site-header">
         <div class="nav-container">
-            <!-- Left Aligned Logo -->
-            <a href="#" class="brand-box">
+            <!-- Left Aligned Logo (Text Removed & Zoomed) -->
+            <a href="index.html" class="brand-box">
                 <img id="siteLogo" src="Logo 3.png" alt="ZenixZ AI Logo">
-                <span class="brand-text">Zenix <span class="accent-text">AI</span></span>
             </a>
 
             <nav class="nav-menu">
+                <a href="index.html" style="color: var(--accent-cyan);">Home</a>
                 <a href="services.html">Services</a>
                 <a href="solutions.html">Solutions</a>
                 <a href="contact.html">Contact</a>
