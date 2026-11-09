@@ -16,20 +16,24 @@ document.addEventListener('DOMContentLoaded', () => {
     revealElements.forEach(el => observer.observe(el));
 
 });
+
+// --- Developer Tools & Source Code Inspection Block ---
 document.addEventListener('keydown', function(e) {
-    // F12 කී එක
+    // F12 කී එක බ්ලොක් කිරීමට
     if (e.key === 'F12') {
         e.preventDefault();
     }
-    // Ctrl+Shift+I හෝ Ctrl+Shift+J හෝ Ctrl+U බ්ලොක් කිරීමට
+    // Ctrl+Shift+I හෝ Ctrl+Shift+J හෝ Ctrl+Shift+C බ්ලොක් කිරීමට
     if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
         e.preventDefault();
     }
+    // Ctrl+U (View Source) බ්ලොක් කිරීමට
     if (e.ctrlKey && e.key === 'u') {
         e.preventDefault();
     }
 });
-// Smooth Scroll-Synced Growth Curve Animation
+
+// --- Smooth Scroll-Synced Growth Curve Animation ---
 window.addEventListener('scroll', () => {
     const chartBox = document.getElementById('growthChartBox');
     const curvePath = document.getElementById('hdCurvePath');
@@ -38,18 +42,17 @@ window.addEventListener('scroll', () => {
         const rect = chartBox.getBoundingClientRect();
         const windowHeight = window.innerHeight;
         
-        // Calculate scroll ratio relative to element position
         let scrollFraction = (windowHeight - rect.top) / (windowHeight + rect.height * 0.6);
         scrollFraction = Math.max(0, Math.min(1, scrollFraction));
         
         const pathLength = 1000;
         const drawLength = pathLength * scrollFraction;
         
-        // Dynamic Offset based on Scroll Position
         curvePath.style.strokeDashoffset = pathLength - drawLength;
     }
 });
-// Optimized Scroll-Synced Bar Chart Animation for Mobiles
+
+// --- Optimized Scroll-Synced Bar Chart Animation for Mobiles & Desktop ---
 let isTicking = false;
 
 window.addEventListener('scroll', () => {
