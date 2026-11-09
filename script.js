@@ -29,3 +29,56 @@ document.addEventListener('keydown', function(e) {
         e.preventDefault();
     }
 });
+// Smooth Scroll-Synced Growth Curve Animation
+window.addEventListener('scroll', () => {
+    const chartBox = document.getElementById('growthChartBox');
+    const curvePath = document.getElementById('hdCurvePath');
+    
+    if (chartBox && curvePath) {
+        const rect = chartBox.getBoundingClientRect();
+        const windowHeight = window.innerHeight;
+        
+        // Calculate scroll ratio relative to element position
+        let scrollFraction = (windowHeight - rect.top) / (windowHeight + rect.height * 0.6);
+        scrollFraction = Math.max(0, Math.min(1, scrollFraction));
+        
+        const pathLength = 1000;
+        const drawLength = pathLength * scrollFraction;
+        
+        // Dynamic Offset based on Scroll Position
+        curvePath.style.strokeDashoffset = pathLength - drawLength;
+    }
+});
+// Optimized Scroll-Synced Bar Chart Animation for Mobiles
+let isTicking = false;
+
+window.addEventListener('scroll', () => {
+    if (!isTicking) {
+        window.requestAnimationFrame(() => {
+            const chartBox = document.getElementById('growthChartBox');
+            
+            if (chartBox) {
+                const rect = chartBox.getBoundingClientRect();
+                const windowHeight = window.innerHeight;
+                
+                let scrollFraction = (windowHeight - rect.top) / (windowHeight + rect.height * 0.5);
+                scrollFraction = Math.max(0, Math.min(1, scrollFraction));
+                
+                const bars = chartBox.querySelectorAll('.bar-fill');
+                bars.forEach(bar => {
+                    const targetHeightPercent = parseFloat(bar.getAttribute('data-height'));
+                    const currentHeight = targetHeightPercent * scrollFraction;
+                    bar.style.height = currentHeight + '%';
+                    
+                    if (scrollFraction > 0.4) {
+                        bar.classList.add('active-value');
+                    } else {
+                        bar.classList.remove('active-value');
+                    }
+                });
+            }
+            isTicking = false;
+        });
+        isTicking = true;
+    }
+});
