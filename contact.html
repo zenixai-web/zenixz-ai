@@ -10,34 +10,205 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Custom Fixes for Logo, Mobile Menu, and Horizontal Overflow Prevention -->
+    <!-- Custom Fixes for Logo, Mobile Menu, Dropdown Alignment, and Horizontal Overflow Prevention -->
     <style>
-        /* HTML සහ Body මඟින් පැත්තට ස්ක්‍රීන් එක ඇදී යාම (Horizontal Scroll) වැළැක්වීම */
         html, body {
             overflow-x: hidden;
             max-width: 100vw;
         }
 
-        /* ලෝගෝ එක ලොකු කර පෙන්වීම */
         .brand-box img {
             height: 65px;
             width: auto;
         }
 
-        /* මොබයිල් වීව් එකේදී මෙනු අකුරු ප්‍රමාණය කුඩා කර ලෝගෝ එක සමඟ මර්ජ් වීම වැළැක්වීම */
+        /* Mobile Menu Toggle Button */
+        .mobile-menu-toggle {
+            display: none;
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            font-size: 1.6rem;
+            cursor: pointer;
+            padding: 5px 10px;
+            z-index: 1001;
+            transition: transform 0.2s ease;
+        }
+
+        .mobile-menu-toggle:active {
+            transform: scale(0.9);
+        }
+
+        /* Navigation Dropdown Core Styling (Desktop) */
+        .nav-item.dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-link {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        .dropdown-icon {
+            font-size: 0.75rem;
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item.dropdown:hover .dropdown-icon {
+            transform: rotate(180deg);
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(15px);
+            min-width: 270px;
+            background: rgba(10, 12, 18, 0.98);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7), 0 0 15px rgba(6, 182, 212, 0.15);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 1000;
+        }
+
+        .nav-item.dropdown:hover .dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(5px);
+        }
+
+        .dropdown-menu a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .dropdown-menu a i {
+            color: var(--accent-cyan);
+            font-size: 0.95rem;
+            width: 20px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .dropdown-menu a:hover {
+            background: rgba(6, 182, 212, 0.12);
+            color: #ffffff;
+            transform: translateX(4px);
+        }
+
+        /* ==========================================
+           Mobile & Tablet Perfect Fit Media Query
+           ========================================== */
         @media (max-width: 768px) {
+            .mobile-menu-toggle {
+                display: block;
+            }
+
             .nav-container {
-                padding: 0 10px;
+                padding: 0 15px;
                 gap: 5px;
             }
+
             .nav-menu {
-                gap: 8px; /* ලින්ක් අතර පරතරය අඩු කිරීම */
+                position: fixed;
+                top: 0;
+                right: -100%;
+                width: 85%;
+                max-width: 310px;
+                height: 100vh;
+                background: rgba(10, 12, 18, 0.98);
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                border-left: 1px solid rgba(6, 182, 212, 0.3);
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 85px 20px 30px;
+                gap: 15px;
+                transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+                z-index: 1000;
+                box-shadow: -15px 0 40px rgba(0, 0, 0, 0.8);
+                overflow-y: auto;
+                box-sizing: border-box;
             }
-            .nav-menu a {
-                font-size: 13px; /* අකුරු ප්‍රමාණය කුඩා කිරීම */
+
+            .nav-menu.active {
+                right: 0;
             }
-            .brand-text {
-                display: none; /* මොබයිල් එකේදී අමතර අකුරු ඉවත් කර ඉඩ සකසා ගැනීම */
+
+            .nav-menu > a, .dropdown-link {
+                font-size: 0.95rem;
+                width: 100%;
+                padding: 4px 0;
+            }
+
+            .nav-item.dropdown {
+                width: 100%;
+            }
+
+            /* Dropdown Box Fitted Perfectly Inside Mobile Sidebar */
+            .dropdown-menu {
+                position: static !important;
+                left: auto !important;
+                right: auto !important;
+                top: auto !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+                transform: none !important;
+                box-shadow: none !important;
+                border: 1px solid rgba(6, 182, 212, 0.18) !important;
+                background: rgba(255, 255, 255, 0.03) !important;
+                margin-top: 10px !important;
+                padding: 8px 10px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+                display: none;
+                border-radius: 10px !important;
+            }
+
+            .nav-item.dropdown.active .dropdown-menu {
+                display: block !important;
+            }
+
+            .dropdown-menu a {
+                font-size: 0.85rem !important;
+                padding: 10px 12px !important;
+                white-space: normal !important;
+                display: flex !important;
+                align-items: center !important;
+                gap: 12px !important;
+                color: var(--text-secondary) !important;
+                border-radius: 6px !important;
+                transform: none !important;
+                box-sizing: border-box !important;
+            }
+
+            .dropdown-menu a i {
+                font-size: 0.95rem !important;
+                width: 20px !important;
+                text-align: center !important;
+                flex-shrink: 0 !important;
+                color: var(--accent-cyan) !important;
+            }
+
+            .dropdown-menu a:hover {
+                background: rgba(6, 182, 212, 0.12) !important;
+                color: #ffffff !important;
             }
         }
     </style>
@@ -51,18 +222,26 @@
         <div class="glow-orb orb-2"></div>
     </div>
 
-    <!-- Header Navigation with Dropdown Menu -->
+    <!-- Header Navigation with Dropdown Menu & Mobile Toggle -->
     <header class="site-header">
         <div class="nav-container">
             <a href="index.html" class="brand-box">
                 <img src="Logo 3.png" alt="Zenix Logo">
             </a>
-            <nav class="nav-menu">
+
+            <!-- Mobile Toggle Button (☰ -> ✖) -->
+            <button class="mobile-menu-toggle" id="mobileMenuBtn" aria-label="Toggle Menu">
+                <i class="fa-solid fa-bars" id="menuIcon"></i>
+            </button>
+
+            <nav class="nav-menu" id="navMenu">
                 <a href="index.html">Home</a>
                 
                 <!-- Services with Dropdown -->
-                <div class="nav-item dropdown">
-                    <a href="services.html" class="dropdown-link">Services <i class="fa-solid fa-chevron-down dropdown-icon"></i></a>
+                <div class="nav-item dropdown" id="servicesDropdown">
+                    <a href="javascript:void(0)" id="dropdownToggle" class="dropdown-link">
+                        Services <i class="fa-solid fa-chevron-down dropdown-icon" id="arrowIcon"></i>
+                    </a>
                     <div class="dropdown-menu">
                         <a href="web-development.html"><i class="fa-solid fa-laptop-code"></i> Business Web Development</a>
                         <a href="ai-chatbot.html"><i class="fa-solid fa-brain"></i> Advanced AI Chatbots</a>
@@ -75,7 +254,7 @@
 
                 <a href="solutions.html">Solutions</a>
                 <a href="pricing.html">Pricing</a>
-                <a href="contact.html">Contact</a>
+                <a href="contact.html" style="color: var(--accent-cyan);">Contact</a>
                 <a href="https://web.facebook.com/profile.php?id=61596125531182" target="_blank" aria-label="Facebook Page"><i class="fa-brands fa-facebook"></i></a>
             </nav>
         </div>
@@ -142,12 +321,6 @@
                 <div class="feature-card reveal-on-scroll visible" style="grid-column: span 2; background: var(--surface-color);">
                     <h3 style="font-size: 1.5rem; margin-bottom: 20px; color: var(--text-primary);">Send Us a Message</h3>
                     
-                    <!-- 
-                      NOTE: ඔබේ ඊමේල් ලිපිනයට (support@zenixzai.online) මැසේජ් ගෙන්වා ගැනීමට, 
-                      https://formspree.io වෙත ගොස් නොමිලේ Account එකක් සාදා, 
-                      ඔබේ Form එකේ action="" එකට ලැබෙන URL එක දාන්න. 
-                      උදාහරණයක් ලෙස: action="https://formspree.io/f/your_form_id"
-                    -->
                     <form action="https://formspree.io/f/mgaabgyr" method="POST" style="display: flex; flex-direction: column; gap: 18px;">
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                             <div>
@@ -183,16 +356,58 @@
     <!-- Footer -->
     <footer>
         <div class="container footer-content">
-            <p>&copy; 2026 Zenix AI. All Rights Reserved.</p>
+            <p>© 2026 Zenix AI. All Rights Reserved.</p>
             <div class="footer-links">
                 <a href="index.html">Home</a>
                 <a href="services.html">Services</a>
                 <a href="solutions.html">Solutions</a>
+                <a href="pricing.html">Pricing</a>
+                <a href="contact.html">Contact</a>
                 <a href="https://web.facebook.com/profile.php?id=61596125531182" target="_blank" aria-label="Facebook"><i class="fa-brands fa-facebook"></i></a>
             </div>
         </div>
     </footer>
 
+    <!-- JavaScript for Mobile Menu & Dropdown Toggle -->
+    <script>
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const menuIcon = document.getElementById('menuIcon');
+        const navMenu = document.getElementById('navMenu');
+        const dropdownToggle = document.getElementById('dropdownToggle');
+        const servicesDropdown = document.getElementById('servicesDropdown');
+        const arrowIcon = document.getElementById('arrowIcon');
+
+        // Toggle Mobile Menu & Change Icon (☰ <-> ✖)
+        if (mobileMenuBtn) {
+            mobileMenuBtn.addEventListener('click', () => {
+                navMenu.classList.toggle('active');
+                
+                if (navMenu.classList.contains('active')) {
+                    menuIcon.classList.remove('fa-bars');
+                    menuIcon.classList.add('fa-xmark');
+                } else {
+                    menuIcon.classList.remove('fa-xmark');
+                    menuIcon.classList.add('fa-bars');
+                }
+            });
+        }
+
+        // Toggle Dropdown & Rotate Arrow Icon on Mobile
+        if (dropdownToggle) {
+            dropdownToggle.addEventListener('click', (e) => {
+                if (window.innerWidth <= 768) {
+                    e.preventDefault();
+                    servicesDropdown.classList.toggle('active');
+
+                    if (servicesDropdown.classList.contains('active')) {
+                        arrowIcon.style.transform = 'rotate(180deg)';
+                    } else {
+                        arrowIcon.style.transform = 'rotate(0deg)';
+                    }
+                }
+            });
+        }
+    </script>
     <script src="script.js"></script>
 </body>
 </html>
