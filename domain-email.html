@@ -119,8 +119,7 @@
         .dropdown-menu {
             position: absolute;
             top: 100%;
-            left: 50%;
-            transform: translateX(-50%) translateY(15px);
+            left: 0;
             min-width: 270px;
             background: rgba(10, 12, 18, 0.98);
             border: 1px solid rgba(6, 182, 212, 0.3);
@@ -129,6 +128,7 @@
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
             opacity: 0;
             visibility: hidden;
+            transform: translateY(15px);
             transition: all 0.3s ease;
             z-index: 1000;
         }
@@ -136,7 +136,12 @@
         .nav-item.dropdown:hover .dropdown-menu {
             opacity: 1;
             visibility: visible;
-            transform: translateX(-50%) translateY(5px);
+            transform: translateY(5px);
+        }
+
+        /* Desktop Hover Arrow Rotate */
+        .nav-item.dropdown:hover #arrowIcon {
+            transform: rotate(180deg);
         }
 
         .dropdown-menu a {
@@ -330,7 +335,7 @@
                         <span>Example Professional Email Signature & Communication</span>
                     </div>
                     <div style="color: var(--text-primary); font-size: 0.9rem; line-height: 1.6;">
-                        <p style="margin-bottom: 8px;"><strong>From:</strong> Support Team &lt;support@zenixai.online&gt;</p>
+                        <p style="margin-bottom: 8px;"><strong>From:</strong> Support Team <support@zenixai.online></p>
                         <p style="margin-bottom: 12px;"><strong>Subject:</strong> Your Project Proposal & AI Architecture Scope</p>
                         <p style="color: var(--text-secondary); font-size: 0.85rem;">"Hello, thank you for reaching out to Zenix AI. We have successfully configured your custom domain and AI assistant workflow. Your business is now ready to capture leads 24/7..."</p>
                     </div>
@@ -352,7 +357,7 @@
     <!-- Footer -->
     <footer>
         <div class="container footer-content" style="max-width: 980px;">
-            <p>&copy; 2026 Zenix AI. All Rights Reserved.</p>
+            <p>© 2026 Zenix AI. All Rights Reserved.</p>
             <div class="footer-links">
                 <a href="index.html">Home</a>
                 <a href="services.html">Services</a>
