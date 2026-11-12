@@ -6,12 +6,21 @@
     <link rel="icon" type="image/png" href="Logo 3.png">
     <title>Business Website Development — Zenix AI</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts & FontAwesome Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- Custom Fixes for Mobile Responsiveness, Dropdown Alignment & Page Styling -->
     <style>
-        html, body { overflow-x: hidden; max-width: 100vw; }
-        .brand-box img { height: 65px; width: auto; }
+        html, body {
+            overflow-x: hidden;
+            max-width: 100vw;
+        }
+
+        .brand-box img {
+            height: 65px;
+            width: auto;
+        }
 
         /* Mobile Menu Toggle Button */
         .mobile-menu-toggle {
@@ -30,6 +39,79 @@
             transform: scale(0.9);
         }
 
+        /* Navigation Dropdown Core Styling (Desktop) */
+        .nav-item.dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-link {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        .dropdown-icon {
+            font-size: 0.75rem;
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item.dropdown:hover .dropdown-icon {
+            transform: rotate(180deg);
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(15px);
+            min-width: 270px;
+            background: rgba(10, 12, 18, 0.98);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7), 0 0 15px rgba(6, 182, 212, 0.15);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 1000;
+        }
+
+        .nav-item.dropdown:hover .dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(5px);
+        }
+
+        .dropdown-menu a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            color: var(--text-secondary, #94a3b8);
+            font-size: 0.88rem;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .dropdown-menu a i {
+            color: var(--accent-cyan, #06b6d4);
+            font-size: 0.95rem;
+            width: 20px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .dropdown-menu a:hover {
+            background: rgba(6, 182, 212, 0.12);
+            color: #ffffff;
+            transform: translateX(4px);
+        }
+
+        /* Detail Container Box */
         .detail-box {
             background: rgba(13, 15, 23, 0.9);
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -46,6 +128,7 @@
             gap: 15px;
             margin-top: 20px;
         }
+
         .highlight-list li {
             background: rgba(6, 182, 212, 0.06);
             border: 1px solid rgba(6, 182, 212, 0.2);
@@ -54,7 +137,11 @@
             font-size: 0.92rem;
             color: var(--text-primary);
         }
-        .highlight-list li i { color: var(--accent-cyan); margin-right: 8px; }
+
+        .highlight-list li i {
+            color: var(--accent-cyan);
+            margin-right: 8px;
+        }
 
         /* Visual Graphic Cards for Website Benefits */
         .website-benefits-grid {
@@ -144,7 +231,7 @@
         .bar-fill {
             width: 100%;
             max-width: 65px;
-            background: linear-gradient(180deg, #ef4444, #f97316); /* Red/Orange for Low Performance / Manual Limits */
+            background: linear-gradient(180deg, #ef4444, #f97316);
             border-radius: 10px 10px 0 0;
             height: 35%;
             position: relative;
@@ -159,13 +246,13 @@
         }
 
         .bar-fill.ai-optimized {
-            background: linear-gradient(180deg, var(--accent-cyan, #06b6d4), var(--accent-blue, #3b82f6)); /* Blue for Good Performance */
+            background: linear-gradient(180deg, var(--accent-cyan, #06b6d4), var(--accent-blue, #3b82f6));
             height: 85%;
             box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
         }
 
         .bar-fill.highlight-profit {
-            background: linear-gradient(180deg, var(--accent-purple, #8b5cf6), var(--accent-cyan, #06b6d4)); /* Purple/Cyan for Peak Performance */
+            background: linear-gradient(180deg, var(--accent-purple, #8b5cf6), var(--accent-cyan, #06b6d4));
             height: 98%;
             box-shadow: 0 0 25px rgba(139, 92, 246, 0.6);
         }
@@ -179,94 +266,38 @@
             line-height: 1.4;
         }
 
-        /* Header Dropdown Styling */
-        .nav-item.dropdown {
-            position: relative;
-            display: inline-block;
-        }
-
-        .dropdown-menu {
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            transform: translateX(-50%) translateY(15px);
-            min-width: 270px;
-            background: rgba(10, 12, 18, 0.98);
-            border: 1px solid rgba(6, 182, 212, 0.3);
-            border-radius: 12px;
-            padding: 10px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-            z-index: 1000;
-        }
-
-        .nav-item.dropdown:hover .dropdown-menu {
-            opacity: 1;
-            visibility: visible;
-            transform: translateX(-50%) translateY(5px);
-        }
-
-        .nav-item.dropdown:hover #arrowIcon {
-            transform: rotate(180deg);
-        }
-
-        .dropdown-menu a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 10px 14px;
-            color: var(--text-secondary);
-            font-size: 0.88rem;
-            border-radius: 8px;
-            text-decoration: none;
-            transition: background 0.2s;
-            white-space: nowrap;
-        }
-
-        .dropdown-menu a i {
-            color: var(--accent-cyan);
-            font-size: 0.95rem;
-            width: 20px;
-            text-align: center;
-            flex-shrink: 0;
-        }
-
-        .dropdown-menu a:hover {
-            background: rgba(6, 182, 212, 0.12);
-            color: #ffffff;
-        }
-
+        /* ==========================================
+           Mobile & Tablet Perfect Fit Media Query
+           ========================================== */
         @media (max-width: 768px) {
             .mobile-menu-toggle {
                 display: block;
             }
 
             .nav-container {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 10px 20px;
+                padding: 0 15px;
+                gap: 5px;
             }
 
             .nav-menu {
                 position: fixed;
                 top: 0;
                 right: -100%;
-                width: 80%;
-                max-width: 300px;
+                width: 85%;
+                max-width: 310px;
                 height: 100vh;
                 background: rgba(10, 12, 18, 0.98);
-                backdrop-filter: blur(15px);
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
                 border-left: 1px solid rgba(6, 182, 212, 0.3);
                 flex-direction: column;
                 align-items: flex-start;
-                padding: 80px 25px 30px;
-                gap: 20px;
-                transition: right 0.4s ease;
+                padding: 85px 20px 30px;
+                gap: 15px;
+                transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
                 z-index: 1000;
-                box-shadow: -10px 0 30px rgba(0, 0, 0, 0.8);
+                box-shadow: -15px 0 40px rgba(0, 0, 0, 0.8);
+                overflow-y: auto;
                 box-sizing: border-box;
             }
 
@@ -274,41 +305,80 @@
                 right: 0;
             }
 
-            .nav-menu a, .dropdown-link {
-                font-size: 1rem;
+            .nav-menu > a, .dropdown-link {
+                font-size: 0.95rem;
                 width: 100%;
-                padding: 0;
+                padding: 4px 0;
             }
 
             .nav-item.dropdown {
                 width: 100%;
             }
 
+            /* Dropdown Box Fitted Perfectly Inside Mobile Sidebar */
             .dropdown-menu {
-                position: static;
-                opacity: 1;
-                visibility: visible;
-                transform: none;
-                box-shadow: none;
-                border: none;
-                background: rgba(255, 255, 255, 0.03);
-                margin-top: 10px;
-                padding-left: 10px;
-                min-width: 100%;
+                position: static !important;
+                left: auto !important;
+                right: auto !important;
+                top: auto !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+                transform: none !important;
+                box-shadow: none !important;
+                border: 1px solid rgba(6, 182, 212, 0.18) !important;
+                background: rgba(255, 255, 255, 0.03) !important;
+                margin-top: 10px !important;
+                padding: 8px 10px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
                 display: none;
+                border-radius: 10px !important;
             }
 
             .nav-item.dropdown.active .dropdown-menu {
-                display: block;
+                display: block !important;
+            }
+
+            .dropdown-menu a {
+                font-size: 0.85rem !important;
+                padding: 10px 12px !important;
+                white-space: normal !important;
+                display: flex !important;
+                align-items: center !important;
+                gap: 12px !important;
+                color: var(--text-secondary, #94a3b8) !important;
+                border-radius: 6px !important;
+                transform: none !important;
+                box-sizing: border-box !important;
+            }
+
+            .dropdown-menu a i {
+                font-size: 0.95rem !important;
+                width: 20px !important;
+                text-align: center !important;
+                flex-shrink: 0 !important;
+                color: var(--accent-cyan, #06b6d4) !important;
+            }
+
+            .dropdown-menu a:hover {
+                background: rgba(6, 182, 212, 0.12) !important;
+                color: #ffffff !important;
+            }
+
+            .detail-box {
+                padding: 20px;
             }
 
             .growth-chart-container {
                 padding: 20px 10px;
             }
+
             .chart-grid-bars {
                 height: 200px;
                 gap: 8px;
             }
+
             .bar-fill {
                 max-width: 38px;
                 font-size: 0.65rem;
@@ -318,6 +388,7 @@
 </head>
 <body>
 
+    <!-- Dynamic Tech Ambient Background -->
     <div class="bg-glow-container">
         <div class="bg-grid-overlay"></div>
         <div class="glow-orb orb-1"></div>
@@ -339,10 +410,10 @@
             <nav class="nav-menu" id="navMenu">
                 <a href="index.html">Home</a>
                 
-                <!-- Services with Dropdown -->
+                <!-- Services Dropdown -->
                 <div class="nav-item dropdown" id="servicesDropdown">
-                    <a href="javascript:void(0)" id="dropdownToggle" class="dropdown-link" style="display: flex; justify-content: space-between; align-items: center;">
-                        Services <i class="fa-solid fa-chevron-down dropdown-icon" id="arrowIcon" style="font-size: 0.75rem; margin-left: 6px; transition: transform 0.3s ease;"></i>
+                    <a href="javascript:void(0)" id="dropdownToggle" class="dropdown-link" style="color: var(--accent-cyan, #06b6d4);">
+                        Services <i class="fa-solid fa-chevron-down dropdown-icon" id="arrowIcon"></i>
                     </a>
                     <div class="dropdown-menu">
                         <a href="web-development.html"><i class="fa-solid fa-laptop-code"></i> Business Web Development</a>
@@ -377,7 +448,7 @@
             <div class="detail-box reveal-on-scroll visible">
                 <h2 style="color: #fff; margin-bottom: 15px;"><i class="fa-solid fa-code" style="color: var(--accent-cyan);"></i> How We Engineer Your Website</h2>
                 <p style="color: var(--text-secondary); line-height: 1.8;">
-                    A modern business website is more than just a digital brochure; it is your primary 24/7 sales engine[cite: 1]. At Zenix AI, we avoid bloated code and focus on speed, ultra-responsive UI scaling across all mobile screens, and clean SEO architecture[cite: 1].
+                    A modern business website is more than just a digital brochure; it is your primary 24/7 sales engine. At Zenix AI, we avoid bloated code and focus on speed, ultra-responsive UI scaling across all mobile screens, and clean SEO architecture.
                 </p>
 
                 <!-- Visual Benefits / Graphical Grid -->
@@ -443,10 +514,10 @@
 
                 <h3 style="color: #fff; margin-top: 35px; margin-bottom: 15px;">Key Optimization Highlights</h3>
                 <ul class="highlight-list">
-                    <li><i class="fa-solid fa-bolt"></i> <strong>Sub-Second Load Times:</strong> Optimized image assets and lightweight code[cite: 1].</li>
-                    <li><i class="fa-solid fa-mobile-screen"></i> <strong>100% Mobile Responsive:</strong> Perfect scaling on smartphones and tablets[cite: 1].</li>
-                    <li><i class="fa-solid fa-magnifying-glass"></i> <strong>SEO-Ready Architecture:</strong> Structured schema markup for search engines[cite: 1].</li>
-                    <li><i class="fa-solid fa-shield-halved"></i> <strong>Cloudflare Security:</strong> Free SSL, DDoS mitigation, and DNS caching[cite: 1].</li>
+                    <li><i class="fa-solid fa-bolt"></i> <strong>Sub-Second Load Times:</strong> Optimized image assets and lightweight code.</li>
+                    <li><i class="fa-solid fa-mobile-screen"></i> <strong>100% Mobile Responsive:</strong> Perfect scaling on smartphones and tablets.</li>
+                    <li><i class="fa-solid fa-magnifying-glass"></i> <strong>SEO-Ready Architecture:</strong> Structured schema markup for search engines.</li>
+                    <li><i class="fa-solid fa-shield-halved"></i> <strong>Cloudflare Security:</strong> Free SSL, DDoS mitigation, and DNS caching.</li>
                 </ul>
 
                 <div style="margin-top: 35px; text-align: center;">
@@ -461,7 +532,7 @@
 
     <footer>
         <div class="container footer-content" style="max-width: 980px;">
-            <p>© 2026 Zenix AI. All Rights Reserved[cite: 1].</p>
+            <p>© 2026 Zenix AI. All Rights Reserved.</p>
             <div class="footer-links">
                 <a href="index.html">Home</a>
                 <a href="services.html">Services</a>
