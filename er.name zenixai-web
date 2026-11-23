@@ -1,0 +1,11 @@
+[33mcommit 52d5fc6e14adf559d391186b413fbaa8ac4a29af[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: slwadda1 <freefier52502@gmail.com>
+Date:   Mon Nov 23 17:33:31 2026 +0530
+
+    Initial commit: Zenix AI website, OTP backend, and dashboard
+
+[33mcommit 800e8308fd934d942031942863c2ce05913a1948[m
+Author: slwadda1 <freefier52502@gmail.com>
+Date:   Thu Nov 12 12:23:13 2026 +0530
+
+    Update web-development.html with detailed performance benchmark bar chart and mobile menu fixes
