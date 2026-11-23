@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="si" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zenix AI — Client Dashboard</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #131b33;
+      --panel-2: #192444;
+      --text: #eef2ff;
+      --muted: #9aa7cc;
+      --accent: #4f7cff;
+      --accent-2: #22c55e;
+      --warn: #f59e0b;
+      --border: rgba(255, 255, 255, 0.1);
+      --banner-bg: rgba(245, 158, 11, 0.12);
+      --banner-border: rgba(245, 158, 11, 0.32);
+      --banner-text: #fde68a;
+    }
+
+    html[data-theme="light"] {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --panel-2: #eef2f8;
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #2563eb;
+      --accent-2: #16a34a;
+      --warn: #d97706;
+      --border: rgba(15, 23, 42, 0.12);
+      --banner-bg: #fffbeb;
+      --banner-border: #fcd34d;
+      --banner-text: #92400e;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .topbar {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .store-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .store-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .badge {
+      background: rgba(79, 124, 255, 0.16);
+      color: var(--accent);
+      border: 1px solid rgba(79, 124, 255, 0.35);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .controls-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    select,
+    input,
+    textarea,
+    button {
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    select {
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 8px 12px;
+      min-width: 185px;
+    }
+
+    .btn {
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      padding: 9px 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      opacity: 0.92;
+    }
+
+    .btn-ghost {
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--accent);
+    }
+
+    .container {
+      max-width: 1120px;
+      margin: 22px auto;
+      padding: 0 20px 44px;
+    }
+
+    .sync-banner {
+      background: var(--banner-bg);
+      border: 1px solid var(--banner-border);
+      color: var(--banner-text);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 13px;
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .session-strip {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 16px;
+      margin-bottom: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .session-strip strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .card-label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .card-value {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .card-sub {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(148, 163, 184, 0.2);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent-2);
+      border-radius: 999px;
+      transition: width 0.25s ease;
+    }
+
+    .progress-fill.warn {
+      background: var(--warn);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .field input,
+    .field textarea {
+      width: 100%;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 10px 12px;
+    }
+
+    .field textarea {
+      min-height: 86px;
+      resize: vertical;
+    }
+
+    .ok-msg {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--accent-2);
+      min-height: 18px;
+    }
+
+    .contact-item {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    .contact-item:last-child {
+      border-bottom: none;
+    }
+
+    .contact-item span {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="store-group">
+      <span class="store-title" id="storeTitle">Client Dashboard</span>
+      <span class="badge" id="clientBadge">ID: -</span>
+    </div>
+
+    <div class="controls-group">
+      <label for="agentSelect" style="font-size: 13px; color: var(--muted);">Agent:</label>
+      <select id="agentSelect"></select>
+      <button class="btn-ghost" id="themeBtn" type="button" title="Toggle Dark / Light Theme">☀️ Light</button>
+      <button class="btn-ghost" id="refreshBtn" type="button">↻ Sync Now</button>
+      <button class="btn-ghost" id="logoutBtn" type="button">Logout</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="sync-banner" id="syncBanner">
+      <strong>Update Schedule & Server Delay Notice:</strong>
+      Usage data is updated daily before <strong>12:00 AM</strong>. After publishing changes, server/CDN propagation may take approximately <strong>30–60 minutes</strong> to appear.
+    </div>
+
+    <div class="session-strip" id="sessionStrip">
+      <span>Client ID: <strong id="metaClientId">-</strong></span>
+      <span>Account / Email: <strong id="metaEmail">-</strong></span>
+      <span>Session Expires: <strong id="metaExpiry">-</strong></span>
+    </div>
+
+    <div class="meta-row">
+      <span id="scopeLabel">View: All Agents (Total)</span>
+      <span id="lastSyncedLabel">Last Synced: -</span>
+    </div>
+
+    <section class="grid-4">
+      <div class="card">
+        <div class="card-label">Conversations / Customers</div>
+        <div class="card-value" id="convVal">0 / 0</div>
+        <div class="card-sub" id="convRem">Remaining: 0</div>
+        <div class="progress-track"><div class="progress-fill" id="convBar"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">File Storage</div>
+        <div class="card-value" id="fileVal">0 / 0 MB</div>
+        <div class="card-sub" id="fileRem">Remaining: 0 MB</div>
+        <div class="progress-track"><div class="progress-fill" id="fileBar"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Vector DB Storage</div>
+        <div class="card-value" id="vecVal">0 / 0 MB</div>
+        <div class="card-sub" id="vecRem">Remaining: 0 MB</div>
+        <div class="progress-track"><div class="progress-fill" id="vecBar"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Table Rows</div>
+        <div class="card-value" id="rowVal">0 / 0</div>
+        <div class="card-sub" id="rowRem">Remaining: 0</div>
+        <div class="progress-track"><div class="progress-fill" id="rowBar"></div></div>
+      </div>
+    </section>
+
+    <section class="grid-2">
+      <div class="card">
+        <h3 style="margin-bottom: 12px; font-size: 16px;">Personal Message to Support</h3>
+        <form id="msgForm">
+          <div class="field">
+            <label for="msgSub">Subject</label>
+            <input id="msgSub" type="text" placeholder="උදා: Usage / Plan Inquiry" required />
+          </div>
+          <div class="field">
+            <label for="msgText">Message</label>
+            <textarea id="msgText" placeholder="ඔබගේ පණිවිඩය ලියන්න..." required></textarea>
+          </div>
+          <button class="btn" type="submit">Send Message</button>
+          <div class="ok-msg" id="msgStatus"></div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom: 12px; font-size: 16px;">Direct Contact Details</h3>
+        <div class="contact-item">
+          <span>Provider</span>
+          Zenix AI (zenixai.online)
+        </div>
+        <div class="contact-item">
+          <span>Phone / WhatsApp</span>
+          +94 XX XXX XXXX
+        </div>
+        <div class="contact-item">
+          <span>Email</span>
+          support@zenixai.online
+        </div>
+        <div class="contact-item">
+          <span>Support Hours</span>
+          Mon – Sat, 9:00 AM – 8:00 PM (+05:30)
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Theme initialization (Dark / Light)
+    const THEME_KEY = "zenix_dashboard_theme";
+    const themeBtn = document.getElementById("themeBtn");
+
+    function applyTheme(theme) {
+      const next = theme === "light" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem(THEME_KEY, next);
+      themeBtn.textContent = next === "light" ? "🌙 Dark" : "☀️ Light";
+    }
+
+    applyTheme(localStorage.getItem(THEME_KEY) || "dark");
+    themeBtn.addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-theme");
+      applyTheme(current === "dark" ? "light" : "dark");
+    });
+
+    // 1. Security Guard: Verified pass නැතිව dashboard open කරන්න බැහැ
+    const authPassRaw = sessionStorage.getItem("zenix_auth_pass");
+    if (!authPassRaw) {
+      window.location.replace("./login.html");
+    }
+
+    let authPass = null;
+    try {
+      authPass = JSON.parse(authPassRaw);
+    } catch {
+      sessionStorage.removeItem("zenix_auth_pass");
+      window.location.replace("./login.html");
+    }
+
+    if (!authPass || !authPass.client_id || Date.now() > Number(authPass.expires_at || 0)) {
+      sessionStorage.removeItem("zenix_auth_pass");
+      window.location.replace("./login.html");
+    }
+
+    // Login pass details display
+    document.getElementById("metaClientId").textContent = authPass.client_id;
+    document.getElementById("metaEmail").textContent =
+      authPass.email || authPass.user_email || authPass.client_email || "Verified Session";
+    document.getElementById("metaExpiry").textContent = authPass.expires_at
+      ? new Date(Number(authPass.expires_at)).toLocaleString()
+      : "-";
+
+    const FALLBACK_DATA = {
+      sync_meta: {
+        schedule: "Daily before 12:00 AM (+05:30)",
+        propagation_note: "Server/CDN updates may take 30–60 minutes to reflect.",
+        last_synced_at: "Before 12:00 AM Daily Sync"
+      },
+      clients: {
+        [authPass.client_id]: {
+          store_name: `${authPass.client_id} Store`,
+          agents: {
+            bot_1: {
+              label: "Main Order Agent",
+              conversations_used: 45,
+              conversations_limit: 100,
+              file_storage_mb: 20,
+              file_storage_limit_mb: 100,
+              vector_db_mb: 15,
+              vector_db_limit_mb: 100,
+              table_rows_used: 250,
+              table_rows_limit: 1000
+            }
+          }
+        }
+      }
+    };
+
+    let currentDataset = FALLBACK_DATA;
+    const agentSelect = document.getElementById("agentSelect");
+
+    function setBar(el, used, limit) {
+      const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+      el.style.width = pct + "%";
+      el.classList.toggle("warn", pct >= 80);
+    }
+
+    function sumAgents(agents) {
+      return Object.values(agents || {}).reduce(
+        (acc, a) => {
+          acc.conversations_used += Number(a.conversations_used || 0);
+          acc.conversations_limit += Number(a.conversations_limit || 0);
+          acc.file_storage_mb += Number(a.file_storage_mb || 0);
+          acc.file_storage_limit_mb += Number(a.file_storage_limit_mb || 0);
+          acc.vector_db_mb += Number(a.vector_db_mb || 0);
+          acc.vector_db_limit_mb += Number(a.vector_db_limit_mb || 0);
+          acc.table_rows_used += Number(a.table_rows_used || 0);
+          acc.table_rows_limit += Number(a.table_rows_limit || 0);
+          return acc;
+        },
+        {
+          conversations_used: 0,
+          conversations_limit: 0,
+          file_storage_mb: 0,
+          file_storage_limit_mb: 0,
+          vector_db_mb: 0,
+          vector_db_limit_mb: 0,
+          table_rows_used: 0,
+          table_rows_limit: 0
+        }
+      );
+    }
+
+    function renderStats(m, label) {
+      const convUsed = Number(m.conversations_used || 0);
+      const convLimit = Number(m.conversations_limit || 0);
+      const fileUsed = Number(m.file_storage_mb || 0);
+      const fileLimit = Number(m.file_storage_limit_mb || 0);
+      const vecUsed = Number(m.vector_db_mb || 0);
+      const vecLimit = Number(m.vector_db_limit_mb || 0);
+      const rowUsed = Number(m.table_rows_used || 0);
+      const rowLimit = Number(m.table_rows_limit || 0);
+
+      document.getElementById("scopeLabel").textContent = "View: " + label;
+      document.getElementById("convVal").textContent = `${convUsed} / ${convLimit}`;
+      document.getElementById("convRem").textContent = `Remaining: ${Math.max(0, convLimit - convUsed)}`;
+      setBar(document.getElementById("convBar"), convUsed, convLimit);
+
+      document.getElementById("fileVal").textContent = `${fileUsed} / ${fileLimit} MB`;
+      document.getElementById("fileRem").textContent = `Remaining: ${Math.max(0, fileLimit - fileUsed)} MB`;
+      setBar(document.getElementById("fileBar"), fileUsed, fileLimit);
+
+      document.getElementById("vecVal").textContent = `${vecUsed} / ${vecLimit} MB`;
+      document.getElementById("vecRem").textContent = `Remaining: ${Math.max(0, vecLimit - vecUsed)} MB`;
+      setBar(document.getElementById("vecBar"), vecUsed, vecLimit);
+
+      document.getElementById("rowVal").textContent = `${rowUsed} / ${rowLimit}`;
+      document.getElementById("rowRem").textContent = `Remaining: ${Math.max(0, rowLimit - rowUsed)}`;
+      setBar(document.getElementById("rowBar"), rowUsed, rowLimit);
+    }
+
+    function renderDashboard() {
+      const meta = currentDataset.sync_meta || {};
+      document.getElementById("lastSyncedLabel").textContent =
+        `Last Synced: ${meta.last_synced_at || "-"} (${meta.schedule || "Daily before 12:00 AM"})`;
+
+      const clientData =
+        (currentDataset.clients && currentDataset.clients[authPass.client_id]) ||
+        Object.values(currentDataset.clients || {})[0] ||
+        { store_name: authPass.client_id, agents: {} };
+
+      document.getElementById("storeTitle").textContent = clientData.store_name || authPass.client_id;
+      document.getElementById("clientBadge").textContent = `ID: ${authPass.client_id}`;
+
+      const prev = agentSelect.value || "__all__";
+      agentSelect.innerHTML = `<option value="__all__">All Agents (Total)</option>`;
+      for (const [key, ag] of Object.entries(clientData.agents || {})) {
+        const opt = document.createElement("option");
+        opt.value = key;
+        opt.textContent = ag.label || key;
+        agentSelect.appendChild(opt);
+      }
+
+      if ([...agentSelect.options].some((o) => o.value === prev)) {
+        agentSelect.value = prev;
+      }
+
+      if (agentSelect.value === "__all__") {
+        renderStats(sumAgents(clientData.agents), "All Agents (Total)");
+      } else {
+        const selected = clientData.agents[agentSelect.value];
+        if (selected) {
+          renderStats(selected, selected.label || agentSelect.value);
+        } else {
+          renderStats(sumAgents(clientData.agents), "All Agents (Total)");
+        }
+      }
+    }
+
+    async function loadUsageJson() {
+      try {
+        const res = await fetch(`data/usage.json?t=${Date.now()}`, { cache: "no-store" });
+        if (res.ok) {
+          currentDataset = await res.json();
+        }
+      } catch {
+        // Fallback data will be used when offline or under file://
+      }
+      renderDashboard();
+    }
+
+    agentSelect.addEventListener("change", renderDashboard);
+    document.getElementById("refreshBtn").addEventListener("click", loadUsageJson);
+
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      sessionStorage.removeItem("zenix_auth_pass");
+      window.location.replace("./login.html");
+    });
+
+    document.getElementById("msgForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const sub = document.getElementById("msgSub").value.trim();
+      const txt = document.getElementById("msgText").value.trim();
+      if (!sub || !txt) return;
+      document.getElementById("msgStatus").textContent =
+        `Message prepared for ${authPass.client_id}: "${sub}"`;
+      e.target.reset();
+    });
+
+    loadUsageJson();
+  </script>
+</body>
+</html>

@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#080d1a" />
+  <title>Zenix AI Dashboard — Sign In & Account</title>
+  <style>
+    :root {
+      --bg: #080d1a;
+      --card: rgba(16, 24, 46, 0.92);
+      --input: #162140;
+      --text: #f1f5ff;
+      --muted: #98a6cc;
+      --accent: #4f7cff;
+      --accent-hover: #648bff;
+      --err-border: rgba(248, 113, 113, 0.65);
+      --err-text: #fecaca;
+      --ok: #86efac;
+      --border: rgba(255, 255, 255, 0.1);
+      --blur: blur(14px);
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      --toast-anim: toastPopIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    body.lite-mode {
+      --card: #111930;
+      --blur: none;
+      --shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+      --toast-anim: none;
+    }
+
+    body.lite-mode .bg-art {
+      display: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      :root {
+        --blur: none;
+        --shadow: none;
+        --toast-anim: none;
+      }
+      * {
+        transition: none !important;
+        animation: none !important;
+      }
+    }
+
+    @keyframes toastPopIn {
+      from {
+        opacity: 0;
+        transform: translateY(-14px) scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes fieldAlertPop {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      min-height: 100dvh;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(14px, 4vw, 32px);
+      line-height: 1.5;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    .bg-art {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.75;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* Top Error Pop-up Box */
+    .error-popup-wrap {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(92vw, 440px);
+      z-index: 60;
+      pointer-events: none;
+    }
+
+    .error-popup-box {
+      pointer-events: auto;
+      background: #221118;
+      border: 1px solid var(--err-border);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: #fecaca;
+      font-size: 13px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      animation: var(--toast-anim);
+    }
+
+    .error-popup-close {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fecaca;
+      border: none;
+      border-radius: 6px;
+      padding: 2px 7px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .login-shell {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 460px;
+      background: var(--card);
+      backdrop-filter: var(--blur);
+      -webkit-backdrop-filter: var(--blur);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: clamp(20px, 5vw, 30px);
+      box-shadow: var(--shadow);
+    }
+
+    .brand-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #a9c0ff;
+      background: rgba(79, 124, 255, 0.14);
+      border: 1px solid rgba(79, 124, 255, 0.3);
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+
+    .mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 4px;
+      margin-bottom: 18px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      border-radius: 9px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    h1 {
+      font-size: clamp(20px, 5vw, 24px);
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .field {
+      margin-bottom: 13px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+
+    .pw-top-instruction {
+      font-size: 12px;
+      color: #cbd5e1;
+      background: rgba(79, 124, 255, 0.08);
+      border: 1px solid rgba(79, 124, 255, 0.22);
+      border-radius: 9px;
+      padding: 8px 10px;
+      margin-bottom: 7px;
+      line-height: 1.45;
+    }
+
+    .input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    input {
+      width: 100%;
+      background: var(--input);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 11px 13px;
+      font-size: 15px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+    }
+
+    input.input-invalid {
+      border-color: #ef4444;
+      box-shadow: 0 2px 0 0 #ef4444;
+    }
+
+    .pw-rules-list {
+      list-style: disc;
+      padding-left: 18px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .field-error-popup {
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 9px;
+      background: rgba(239, 68, 68, 0.14);
+      border-left: 3px solid #ef4444;
+      color: var(--err-text);
+      font-size: 12.5px;
+      animation: fieldAlertPop 0.2s ease-out forwards;
+    }
+
+    .field-error-title {
+      font-weight: 700;
+      color: #fca5a5;
+      margin-bottom: 4px;
+    }
+
+    .field-error-sub {
+      color: #fecaca;
+      margin-bottom: 5px;
+    }
+
+    .field-error-list {
+      list-style: disc;
+      padding-left: 18px;
+      color: #fecaca;
+      line-height: 1.5;
+    }
+
+    .toggle-pw {
+      position: absolute;
+      right: 10px;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 4px 6px;
+    }
+
+    .toggle-pw:hover {
+      color: var(--text);
+    }
+
+    .otp-input {
+      text-align: center;
+      letter-spacing: 0.35em;
+      font-weight: 700;
+      font-size: 18px !important;
+    }
+
+    .otp-notice {
+      background: rgba(79, 124, 255, 0.1);
+      border: 1px solid rgba(79, 124, 255, 0.28);
+      border-radius: 11px;
+      padding: 11px 13px;
+      margin-bottom: 13px;
+      font-size: 12.5px;
+      color: #dbeafe;
+      line-height: 1.5;
+    }
+
+    .mail-preview {
+      background: rgba(79, 124, 255, 0.1);
+      border: 1px solid rgba(79, 124, 255, 0.3);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .mail-preview code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 7px;
+      border-radius: 6px;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .btn {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 11px;
+      padding: 11.5px 15px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      width: 100%;
+      margin-top: 8px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 9.5px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+      color: var(--text);
+    }
+
+    .link-row {
+      margin-top: 10px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .text-link-btn {
+      background: none;
+      border: none;
+      color: #a9c0ff;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .msg-ok {
+      color: var(--ok);
+      font-size: 12.5px;
+      margin-top: 9px;
+      min-height: 17px;
+    }
+
+    .footer-nav {
+      margin-top: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12.5px;
+    }
+
+    .footer-nav a, .footer-nav button {
+      color: #a9c0ff;
+      background: none;
+      border: none;
+      font-size: 12.5px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .footer-nav a:hover, .footer-nav button:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <!-- Top Error Pop-up Box -->
+  <div id="errorPopupWrap" class="error-popup-wrap hidden" role="alert" aria-live="assertive">
+    <div class="error-popup-box" id="errorPopupBox">
+      <span id="errorPopupText"></span>
+      <button type="button" class="error-popup-close" id="closeErrorPopup" aria-label="Close error">✕</button>
+    </div>
+  </div>
+
+  <svg class="bg-art" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <radialGradient id="zg1" cx="20%" cy="20%" r="45%">
+        <stop offset="0%" stop-color="#4f7cff" stop-opacity="0.28" />
+        <stop offset="100%" stop-color="#080d1a" stop-opacity="0" />
+      </radialGradient>
+      <radialGradient id="zg2" cx="85%" cy="80%" r="45%">
+        <stop offset="0%" stop-color="#22c55e" stop-opacity="0.18" />
+        <stop offset="100%" stop-color="#080d1a" stop-opacity="0" />
+      </radialGradient>
+    </defs>
+    <rect width="1200" height="800" fill="url(#zg1)" />
+    <rect width="1200" height="800" fill="url(#zg2)" />
+    <circle cx="960" cy="170" r="140" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1.5" />
+    <circle cx="210" cy="640" r="190" fill="none" stroke="rgba(79,124,255,0.08)" stroke-width="1.5" />
+  </svg>
+
+  <main class="login-shell">
+    <span class="brand-pill">Zenix AI Dashboard</span>
+
+    <div class="mode-tabs" role="tablist">
+      <button type="button" class="tab-btn active" id="tabSignIn">Sign In</button>
+      <button type="button" class="tab-btn" id="tabRegister">Create Account</button>
+    </div>
+
+    <!-- ================= CLIENT DASHBOARD SIGN IN ================= -->
+    <div id="signInSection">
+      <h1 id="signInHeading">Client Dashboard Sign In</h1>
+
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <label for="loginIdentifier">Client ID or Username</label>
+          <input id="loginIdentifier" type="text" placeholder="Client ID or Username" required />
+        </div>
+
+        <div class="field">
+          <label for="loginPassword">Password</label>
+          <div class="input-wrap">
+            <input id="loginPassword" type="password" placeholder="Password" required />
+            <button type="button" class="toggle-pw" id="toggleLoginPw">Show</button>
+          </div>
+          <div class="link-row">
+            <button type="button" class="text-link-btn" id="openResetBtn">Reset Password</button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn" id="continueBtn">Continue</button>
+      </form>
+
+      <!-- OTP Verification Step -->
+      <form id="otpForm" class="hidden" novalidate>
+        <div class="otp-notice" id="otpEmailNotice">
+          OTP code එක ඔබගේ Email එකට යවා ඇත. Email එක පරීක්ෂා කර 6-digit OTP code එක enter කරන්න.
+        </div>
+
+        <div class="field">
+          <label for="otpVerifyInput">Enter Email OTP</label>
+          <input id="otpVerifyInput" type="text" class="otp-input" maxlength="6" inputmode="numeric" placeholder="000000" required />
+        </div>
+
+        <button type="submit" class="btn">Verify & Continue</button>
+        <button type="button" class="btn-secondary" id="resendOtpBtn">Resend Email OTP</button>
+        <button type="button" class="btn-secondary" id="cancelOtpBtn">Back</button>
+      </form>
+
+      <!-- Email Sent Summary + Client ID + Username + Client's Password + Login Button -->
+      <div id="emailSentSection" class="hidden">
+        <div class="msg-ok" id="emailSentHeader">Email sent.</div>
+        <div class="mail-preview" id="emailPreviewBox"></div>
+        <button type="button" class="btn" id="goToSignInBtn">Login</button>
+        <button type="button" class="btn-secondary" id="resetFromMailBtn">Reset Password</button>
+      </div>
+
+      <!-- Reset Password Step -->
+      <form id="resetForm" class="hidden" novalidate>
+        <div class="field">
+          <label for="resetIdInput">Client ID or Username</label>
+          <input id="resetIdInput" type="text" placeholder="Client ID or Username" required />
+        </div>
+        <div class="field">
+          <label for="newPassInput">New Password</label>
+          <div class="pw-top-instruction">
+            Instruction: Password must include 8+ characters, Capital letter (A–Z), Simple letter (a–z), Number (0–9), and Symbol (e.g. @, #, !, $).
+          </div>
+          <input id="newPassInput" type="password" placeholder="New Password" required />
+          <ul class="pw-rules-list">
+            <li>At least 8 characters</li>
+            <li>Capital letter (A–Z)</li>
+            <li>Simple letter (a–z)</li>
+            <li>Number (0–9)</li>
+            <li>Symbol (e.g. @, #, !, $)</li>
+          </ul>
+          <div id="resetPwErrorPop" class="field-error-popup hidden"></div>
+        </div>
+        <button type="submit" class="btn">Save New Password</button>
+        <button type="button" class="btn-secondary" id="backFromResetBtn">Back</button>
+        <div class="msg-ok" id="resetOk"></div>
+      </form>
+    </div>
+
+    <!-- ================= CREATE CLIENT ACCOUNT ================= -->
+    <div id="registerSection" class="hidden">
+      <h1>Create Client Account</h1>
+
+      <form id="registerForm" novalidate>
+        <div class="field">
+          <label for="regStoreInput">Store / Business Name</label>
+          <input id="regStoreInput" type="text" placeholder="Store / Business Name" required />
+        </div>
+
+        <div class="field">
+          <label for="regEmailInput">Email Address</label>
+          <input id="regEmailInput" type="email" placeholder="name@gmail.com" required />
+        </div>
+
+        <div class="field">
+          <label for="regPassInput">Password</label>
+          <div class="pw-top-instruction">
+            Instruction: Password must include 8+ characters, Capital letter (A–Z), Simple letter (a–z), Number (0–9), and Symbol (e.g. @, #, $, %, !, *).
+          </div>
+          <div class="input-wrap">
+            <input id="regPassInput" type="password" placeholder="Create strong password" required />
+            <button type="button" class="toggle-pw" id="toggleRegPw">Show</button>
+          </div>
+          <ul class="pw-rules-list">
+            <li>At least 8 characters</li>
+            <li>Capital letter (A–Z)</li>
+            <li>Simple letter (a–z)</li>
+            <li>Number (0–9)</li>
+            <li>Symbol (e.g. @, #, $, %, !, *)</li>
+          </ul>
+          <div id="regPwErrorPop" class="field-error-popup hidden"></div>
+        </div>
+
+        <div class="field">
+          <label for="regBrInput">Business Registration Number</label>
+          <input id="regBrInput" type="text" placeholder="e.g. BR-12345" required />
+        </div>
+
+        <button type="submit" class="btn">Continue</button>
+      </form>
+    </div>
+
+    <div class="footer-nav">
+      <button type="button" id="homeNavBtn">← Home</button>
+      <span id="homeNavHint" style="color: var(--muted); font-size: 11.5px;">Zenix AI</span>
+    </div>
+  </main>
+
+  <script>
+    const ACCOUNTS_KEY = "zenix_client_records_v5";
+    const SESSION_PASS_KEY = "zenix_auth_pass";
+    const LAST_ID_KEY = "zenix_last_username_hint";
+
+    const OTP_CONFIG = {
+      API_BASE_URL: "http://127.0.0.1:5000"
+    };
+
+    const ALLOWED_BR_PREFIXES = ["BR", "PV", "NR"];
+    const BR_REGEX = new RegExp(`^(${ALLOWED_BR_PREFIXES.join("|")})[-\\s]?\\d{4,10}$`, "i");
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+
+    (function adaptToDevice() {
+      const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      const saveData = Boolean(conn && conn.saveData);
+      const lowCores = typeof navigator.hardwareConcurrency === "number" && navigator.hardwareConcurrency <= 2;
+      const lowMem = typeof navigator.deviceMemory === "number" && navigator.deviceMemory <= 2;
+      const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (saveData || lowCores || lowMem || reduced) {
+        document.body.classList.add("lite-mode");
+      }
+    })();
+
+    let errorHideTimer = null;
+    const errorPopupWrap = document.getElementById("errorPopupWrap");
+    const errorPopupBox = document.getElementById("errorPopupBox");
+    const errorPopupText = document.getElementById("errorPopupText");
+
+    function showErrorPopup(message) {
+      errorPopupText.textContent = message;
+      errorPopupWrap.classList.remove("hidden");
+      errorPopupBox.style.animation = "none";
+      void errorPopupBox.offsetWidth;
+      errorPopupBox.style.animation = "";
+
+      if (errorHideTimer) clearTimeout(errorHideTimer);
+      errorHideTimer = setTimeout(() => {
+        hideErrorPopup();
+      }, 4500);
+    }
+
+    function hideErrorPopup() {
+      errorPopupWrap.classList.add("hidden");
+      errorPopupText.textContent = "";
+    }
+
+    document.getElementById("closeErrorPopup").addEventListener("click", hideErrorPopup);
+
+    function validateStrongPassword(pw) {
+      const val = String(pw || "").trim();
+      const orderedChecks = [
+        { ok: val.length >= 8, label: "At least 8 characters" },
+        { ok: /[A-Z]/.test(val), label: "Capital letter (A–Z)" },
+        { ok: /[a-z]/.test(val), label: "Simple letter (a–z)" },
+        { ok: /[0-9]/.test(val), label: "Number (0–9)" },
+        { ok: /[^A-Za-z0-9]/.test(val), label: "Symbol (e.g. @, #, !, $)" }
+      ];
+      const missing = orderedChecks.filter((c) => !c.ok).map((c) => c.label);
+
+      return {
+        valid: missing.length === 0,
+        formatted: val,
+        missing
+      };
+    }
+
+    function showFieldPasswordError(inputEl, popEl, missingItems) {
+      inputEl.classList.add("input-invalid");
+      const itemsHtml = missingItems.map((item) => `<li>${item}</li>`).join("");
+      popEl.innerHTML = `
+        <div class="field-error-title">Password incorrect.</div>
+        <div class="field-error-sub">Read the instruction above and add these required items in order:</div>
+        <ul class="field-error-list">${itemsHtml}</ul>
+      `;
+      popEl.classList.remove("hidden");
+    }
+
+    function clearFieldPasswordError(inputEl, popEl) {
+      inputEl.classList.remove("input-invalid");
+      popEl.innerHTML = "";
+      popEl.classList.add("hidden");
+    }
+
+    function generateSixDigitOtp() {
+      return String(Math.floor(100000 + Math.random() * 900000));
+    }
+
+    function generateUniformCredentials(records) {
+      const existingNums = Object.values(records).map((r) => {
+        const m = String(r.generated_username || "").match(/^USR-(\d+)$/i);
+        return m ? Number(m[1]) : 100;
+      });
+      const nextNum = Math.max(101, ...existingNums) + 1;
+      return {
+        client_id: `CLT-${nextNum}`,
+        generated_username: `USR-${nextNum}`
+      };
+    }
+
+    function isValidBusinessReg(br) {
+      return BR_REGEX.test(String(br || "").trim());
+    }
+
+    function isValidEmailAddress(email) {
+      return EMAIL_REGEX.test(String(email || "").trim());
+    }
+
+    function getRecords() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || "{}");
+        if (!parsed["CLT-101"]) {
+          parsed["CLT-101"] = {
+            client_id: "CLT-101",
+            store_name: "Demo Store",
+            email: "demo@gmail.com",
+            business_reg_no: "BR-10001",
+            password: "Demo@1234",
+            generated_username: "USR-101",
+            last_login_at: "-"
+          };
+        }
+        return parsed;
+      } catch {
+        return {};
+      }
+    }
+
+    function saveRecords(records) {
+      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(records));
+    }
+
+    const tabSignIn = document.getElementById("tabSignIn");
+    const tabRegister = document.getElementById("tabRegister");
+    const signInSection = document.getElementById("signInSection");
+    const registerSection = document.getElementById("registerSection");
+    const loginForm = document.getElementById("loginForm");
+    const otpForm = document.getElementById("otpForm");
+    const resetForm = document.getElementById("resetForm");
+    const emailSentSection = document.getElementById("emailSentSection");
+    const loginIdentifier = document.getElementById("loginIdentifier");
+    const loginPassword = document.getElementById("loginPassword");
+    const otpVerifyInput = document.getElementById("otpVerifyInput");
+
+    let records = getRecords();
+    let expectedOtp = "";
+    let backendOtpActive = false;
+    let pendingUserKey = "";
+    let pendingFlowType = "login";
+
+    function showOnlySubView(target) {
+      hideErrorPopup();
+      loginForm.classList.add("hidden");
+      otpForm.classList.add("hidden");
+      resetForm.classList.add("hidden");
+      emailSentSection.classList.add("hidden");
+      target.classList.remove("hidden");
+    }
+
+    function resetLoginStateOnEntry(isBackNavigation = false) {
+      sessionStorage.removeItem(SESSION_PASS_KEY);
+      expectedOtp = "";
+      backendOtpActive = false;
+      pendingUserKey = "";
+      pendingFlowType = "login";
+
+      loginPassword.value = "";
+      otpVerifyInput.value = "";
+      hideErrorPopup();
+
+      const savedHint = sessionStorage.getItem(LAST_ID_KEY) || "";
+      if (savedHint) {
+        loginIdentifier.value = savedHint;
+      } else if (!isBackNavigation) {
+        loginIdentifier.value = "";
+      }
+
+      tabSignIn.classList.add("active");
+      tabRegister.classList.remove("active");
+      registerSection.classList.add("hidden");
+      signInSection.classList.remove("hidden");
+      showOnlySubView(loginForm);
+
+      if (isBackNavigation) {
+        showErrorPopup("Session cleared due to back navigation. Sign in again with Password & Email OTP.");
+      }
+    }
+
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted || sessionStorage.getItem(SESSION_PASS_KEY)) {
+        resetLoginStateOnEntry(true);
+      }
+    });
+
+    resetLoginStateOnEntry(false);
+
+    document.getElementById("homeNavBtn").addEventListener("click", async () => {
+      const hint = document.getElementById("homeNavHint");
+      try {
+        const res = await fetch("./index.html", { method: "HEAD" });
+        if (res.ok) {
+          window.location.href = "./index.html";
+          return;
+        }
+      } catch {
+        // Fallback below
+      }
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        hint.textContent = "index.html not found";
+      }
+    });
+
+    tabSignIn.addEventListener("click", () => {
+      tabSignIn.classList.add("active");
+      tabRegister.classList.remove("active");
+      signInSection.classList.remove("hidden");
+      registerSection.classList.add("hidden");
+      showOnlySubView(loginForm);
+    });
+
+    tabRegister.addEventListener("click", () => {
+      tabRegister.classList.add("active");
+      tabSignIn.classList.remove("active");
+      registerSection.classList.remove("hidden");
+      signInSection.classList.add("hidden");
+      hideErrorPopup();
+    });
+
+    document.getElementById("toggleLoginPw").addEventListener("click", (e) => {
+      const hidden = loginPassword.type === "password";
+      loginPassword.type = hidden ? "text" : "password";
+      e.target.textContent = hidden ? "Hide" : "Show";
+    });
+
+    const regPassInput = document.getElementById("regPassInput");
+    const regPwErrorPop = document.getElementById("regPwErrorPop");
+    document.getElementById("toggleRegPw").addEventListener("click", (e) => {
+      const hidden = regPassInput.type === "password";
+      regPassInput.type = hidden ? "text" : "password";
+      e.target.textContent = hidden ? "Hide" : "Show";
+    });
+
+    regPassInput.addEventListener("input", () => {
+      clearFieldPasswordError(regPassInput, regPwErrorPop);
+    });
+
+    const newPassInput = document.getElementById("newPassInput");
+    const resetPwErrorPop = document.getElementById("resetPwErrorPop");
+    newPassInput.addEventListener("input", () => {
+      clearFieldPasswordError(newPassInput, resetPwErrorPop);
+    });
+
+    async function dispatchOtpToEmail(rec) {
+      expectedOtp = generateSixDigitOtp();
+      backendOtpActive = false;
+
+      if (OTP_CONFIG.API_BASE_URL) {
+        try {
+          const res = await fetch(`${OTP_CONFIG.API_BASE_URL}/api/otp/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              client_id: rec.client_id,
+              email: rec.email,
+              otp: expectedOtp
+            })
+          });
+          if (res.ok) {
+            backendOtpActive = true;
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            showErrorPopup(errData.error || "Email OTP යැවීමේදී ගැටලුවක් ඇති විය.");
+          }
+        } catch {
+          console.info("[Zenix AI Local Fallback OTP]:", expectedOtp);
+        }
+      } else {
+        console.info("[Zenix AI Test OTP dispatched to email]:", expectedOtp);
+      }
+
+      const targetMail = rec.email ? ` (${rec.email})` : "";
+      document.getElementById("otpEmailNotice").textContent =
+        `OTP code එක ඔබගේ Email එකට${targetMail} යවා ඇත. Email එක පරීක්ෂා කර 6-digit OTP code එක enter කරන්න.`;
+    }
+
+    async function openOtpStep(userKey, flowType = "login") {
+      pendingUserKey = userKey;
+      pendingFlowType = flowType;
+      otpVerifyInput.value = "";
+      showOnlySubView(otpForm);
+      otpVerifyInput.focus();
+
+      const rec = records[userKey];
+      await dispatchOtpToEmail(rec || { client_id: userKey, email: "" });
+    }
+
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      records = getRecords();
+      const rawId = loginIdentifier.value.trim().toUpperCase();
+      const pwVal = String(loginPassword.value || "").trim();
+
+      if (!rawId || !pwVal) {
+        showErrorPopup("Client ID / Username සහ Password ඇතුළත් කරන්න.");
+        return;
+      }
+
+      const matchedKey = Object.keys(records).find(
+        (k) => k.toUpperCase() === rawId || String(records[k].generated_username || "").toUpperCase() === rawId
+      );
+
+      if (matchedKey) {
+        if (records[matchedKey].password !== pwVal) {
+          showErrorPopup("Password incorrect.");
+          return;
+        }
+        sessionStorage.setItem(LAST_ID_KEY, records[matchedKey].generated_username || matchedKey);
+        await openOtpStep(matchedKey, "login");
+      } else {
+        const creds = generateUniformCredentials(records);
+        const key = creds.client_id;
+        records[key] = {
+          client_id: key,
+          store_name: `${rawId} Store`,
+          email: "",
+          business_reg_no: "",
+          password: pwVal,
+          generated_username: creds.generated_username,
+          last_login_at: "-"
+        };
+        saveRecords(records);
+        sessionStorage.setItem(LAST_ID_KEY, creds.generated_username);
+        await openOtpStep(key, "login");
+      }
+    });
+
+    document.getElementById("resendOtpBtn").addEventListener("click", async () => {
+      if (!pendingUserKey) return;
+      const rec = records[pendingUserKey];
+      await dispatchOtpToEmail(rec || { client_id: pendingUserKey, email: "" });
+      otpVerifyInput.value = "";
+      hideErrorPopup();
+    });
+
+    document.getElementById("cancelOtpBtn").addEventListener("click", () => {
+      expectedOtp = "";
+      backendOtpActive = false;
+      otpVerifyInput.value = "";
+      showOnlySubView(loginForm);
+    });
+
+    function renderEmailSummary(rec) {
+      document.getElementById("emailSentHeader").textContent =
+        `Email sent to ${rec.email || "registered email"}.`;
+      document.getElementById("emailPreviewBox").innerHTML = `
+        <div><strong>Client ID:</strong> <code>${rec.client_id}</code></div>
+        <div><strong>Username:</strong> <code>${rec.generated_username}</code></div>
+        <div><strong>Password:</strong> <code>${rec.password}</code></div>
+      `;
+    }
+
+    otpForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const enteredOtp = otpVerifyInput.value.trim();
+
+      if (!/^\d{6}$/.test(enteredOtp)) {
+        showErrorPopup("OTP rejected: Invalid Email OTP code.");
+        return;
+      }
+
+      records = getRecords();
+      const rec = records[pendingUserKey] || {
+        client_id: pendingUserKey,
+        store_name: `${pendingUserKey} Store`,
+        email: "",
+        business_reg_no: "",
+        password: "",
+        generated_username: "USR-101"
+      };
+
+      if (backendOtpActive && OTP_CONFIG.API_BASE_URL) {
+        try {
+          const verifyRes = await fetch(`${OTP_CONFIG.API_BASE_URL}/api/otp/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              client_id: rec.client_id,
+              email: rec.email,
+              otp: enteredOtp
+            })
+          });
+          if (!verifyRes.ok) {
+            showErrorPopup("OTP rejected: Invalid Email OTP code.");
+            return;
+          }
+        } catch {
+          showErrorPopup("OTP verify කිරීමේදී server සම්බන්ධතාවයේ ගැටලුවක් ඇති විය.");
+          return;
+        }
+      } else if (!expectedOtp || enteredOtp !== expectedOtp) {
+        showErrorPopup("OTP rejected: Invalid Email OTP code.");
+        return;
+      }
+
+      expectedOtp = "";
+      backendOtpActive = false;
+
+      if (!rec.generated_username) {
+        rec.generated_username = generateUniformCredentials(records).generated_username;
+      }
+
+      rec.last_login_at = new Date().toLocaleString();
+      records[pendingUserKey] = rec;
+      saveRecords(records);
+      sessionStorage.setItem(LAST_ID_KEY, rec.generated_username);
+
+      sessionStorage.setItem(
+        SESSION_PASS_KEY,
+        JSON.stringify({
+          client_id: rec.client_id,
+          store_name: rec.store_name,
+          email: rec.email,
+          business_reg_no: rec.business_reg_no,
+          generated_username: rec.generated_username,
+          logged_in_at: rec.last_login_at,
+          expires_at: Date.now() + 60 * 60 * 1000
+        })
+      );
+
+      if (pendingFlowType === "register") {
+        renderEmailSummary(rec);
+        showOnlySubView(emailSentSection);
+      } else {
+        loginPassword.value = "";
+        otpVerifyInput.value = "";
+        window.location.replace("./dashboard.html");
+      }
+    });
+
+    document.getElementById("goToSignInBtn").addEventListener("click", () => {
+      const rec = records[pendingUserKey];
+      sessionStorage.removeItem(SESSION_PASS_KEY);
+      tabSignIn.classList.add("active");
+      tabRegister.classList.remove("active");
+      registerSection.classList.add("hidden");
+      signInSection.classList.remove("hidden");
+      showOnlySubView(loginForm);
+      if (rec?.generated_username) {
+        loginIdentifier.value = rec.generated_username;
+        sessionStorage.setItem(LAST_ID_KEY, rec.generated_username);
+      }
+      loginPassword.value = "";
+      loginPassword.focus();
+    });
+
+    document.getElementById("resetFromMailBtn").addEventListener("click", () => {
+      const rec = records[pendingUserKey];
+      document.getElementById("resetIdInput").value = rec?.generated_username || pendingUserKey;
+      document.getElementById("resetOk").textContent = "";
+      clearFieldPasswordError(newPassInput, resetPwErrorPop);
+      showOnlySubView(resetForm);
+    });
+
+    document.getElementById("openResetBtn").addEventListener("click", () => {
+      document.getElementById("resetOk").textContent = "";
+      clearFieldPasswordError(newPassInput, resetPwErrorPop);
+      showOnlySubView(resetForm);
+    });
+
+    document.getElementById("backFromResetBtn").addEventListener("click", () => {
+      showOnlySubView(loginForm);
+    });
+
+    resetForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      records = getRecords();
+      const targetId = document.getElementById("resetIdInput").value.trim().toUpperCase();
+      const pwCheck = validateStrongPassword(newPassInput.value);
+      const resetOk = document.getElementById("resetOk");
+      resetOk.textContent = "";
+      clearFieldPasswordError(newPassInput, resetPwErrorPop);
+
+      if (!targetId) {
+        showErrorPopup("Client ID / Username ඇතුළත් කරන්න.");
+        return;
+      }
+
+      if (!pwCheck.valid) {
+        showFieldPasswordError(newPassInput, resetPwErrorPop, pwCheck.missing);
+        return;
+      }
+
+      const key = Object.keys(records).find(
+        (k) => k.toUpperCase() === targetId || String(records[k].generated_username || "").toUpperCase() === targetId
+      ) || targetId;
+
+      const existing = records[key] || {
+        client_id: key,
+        store_name: `${key} Store`,
+        email: "",
+        business_reg_no: "",
+        generated_username: generateUniformCredentials(records).generated_username,
+        last_login_at: "-"
+      };
+
+      records[key] = {
+        ...existing,
+        password: pwCheck.formatted
+      };
+      saveRecords(records);
+      resetOk.textContent = `Password updated for ${existing.generated_username || key}. Email sent.`;
+    });
+
+    document.getElementById("registerForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      records = getRecords();
+
+      const storeName = document.getElementById("regStoreInput").value.trim();
+      const email = document.getElementById("regEmailInput").value.trim();
+      const pwCheck = validateStrongPassword(regPassInput.value);
+      const brNo = document.getElementById("regBrInput").value.trim().toUpperCase();
+      clearFieldPasswordError(regPassInput, regPwErrorPop);
+
+      if (!storeName || !email || !regPassInput.value.trim() || !brNo) {
+        showErrorPopup("සියලු fields ඇතුළත් කරන්න.");
+        return;
+      }
+
+      if (!isValidEmailAddress(email)) {
+        showErrorPopup("Invalid email address. '@' සහ valid domain (උදා: @gmail.com) ඇතුළත් කරන්න.");
+        return;
+      }
+
+      if (!isValidBusinessReg(brNo)) {
+        showErrorPopup("Invalid registration number. Please enter your valid registration number (e.g., BR-12345).");
+        return;
+      }
+
+      if (!pwCheck.valid) {
+        showFieldPasswordError(regPassInput, regPwErrorPop, pwCheck.missing);
+        return;
+      }
+
+      const creds = generateUniformCredentials(records);
+      const clientId = creds.client_id;
+
+      records[clientId] = {
+        client_id: clientId,
+        store_name: storeName,
+        email,
+        business_reg_no: brNo,
+        password: pwCheck.formatted,
+        generated_username: creds.generated_username,
+        last_login_at: "-"
+      };
+      saveRecords(records);
+      sessionStorage.setItem(LAST_ID_KEY, creds.generated_username);
+
+      e.target.reset();
+      tabSignIn.classList.add("active");
+      tabRegister.classList.remove("active");
+      registerSection.classList.add("hidden");
+      signInSection.classList.remove("hidden");
+      await openOtpStep(clientId, "register");
+    });
+  </script>
+</body>
+</html>
