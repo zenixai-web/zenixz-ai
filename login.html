@@ -588,9 +588,9 @@
     const SESSION_PASS_KEY = "zenix_auth_pass";
     const LAST_ID_KEY = "zenix_last_username_hint";
 
-   const OTP_CONFIG = {
-  API_BASE_URL: "https://zenixz-ai.onrender.com"
-};
+    const OTP_CONFIG = {
+      API_BASE_URL: "https://zenixz-ai.onrender.com"
+    };
 
     const ALLOWED_BR_PREFIXES = ["BR", "PV", "NR"];
     const BR_REGEX = new RegExp(`^(${ALLOWED_BR_PREFIXES.join("|")})[-\\s]?\\d{4,10}$`, "i");
@@ -684,12 +684,35 @@
       };
     }
 
+    function normalizeEmail(email) {
+      return String(email || "").trim().toLowerCase();
+    }
+
+    function normalizeBr(br) {
+      return String(br || "").trim().toUpperCase().replace(/[\s-]+/g, "");
+    }
+
     function isValidBusinessReg(br) {
       return BR_REGEX.test(String(br || "").trim());
     }
 
     function isValidEmailAddress(email) {
       return EMAIL_REGEX.test(String(email || "").trim());
+    }
+
+    function findDuplicateAccount(records, emailVal, brVal) {
+      const targetEmail = normalizeEmail(emailVal);
+      const targetBr = normalizeBr(brVal);
+
+      for (const rec of Object.values(records)) {
+        if (targetEmail && normalizeEmail(rec.email) === targetEmail) {
+          return "මෙම Email Address එකෙන් දැනටමත් Account එකක් සාදා ඇත. කරුණාකර වෙනත් Email එකක් භාවිතා කරන්න. / An account already exists with this email address. Please use a different email.";
+        }
+        if (targetBr && normalizeBr(rec.business_reg_no) === targetBr) {
+          return "මෙම Business Registration Number එකෙන් දැනටමත් Account එකක් සාදා ඇත. කරුණාකර වෙනත් BR Number එකක් භාවිතා කරන්න. / An account already exists with this Business Registration Number. Please use a different BR number.";
+        }
+      }
+      return "";
     }
 
     function getRecords() {
@@ -723,6 +746,7 @@
     const loginForm = document.getElementById("loginForm");
     const otpForm = document.getElementById("otpForm");
     const resetForm = document.getElementById("resetForm");
+    const registerForm = document.getElementById("registerForm");
     const emailSentSection = document.getElementById("emailSentSection");
     const loginIdentifier = document.getElementById("loginIdentifier");
     const loginPassword = document.getElementById("loginPassword");
@@ -732,7 +756,8 @@
     let expectedOtp = "";
     let backendOtpActive = false;
     let pendingUserKey = "";
-    let pendingFlowType = "login";
+    let pendingFlowType = "login"; // "login" | "register" | "reset"
+    let pendingNewPassword = "";
 
     function showOnlySubView(target) {
       hideErrorPopup();
@@ -749,6 +774,7 @@
       backendOtpActive = false;
       pendingUserKey = "";
       pendingFlowType = "login";
+      pendingNewPassword = "";
 
       loginPassword.value = "";
       otpVerifyInput.value = "";
@@ -842,6 +868,11 @@
       expectedOtp = generateSixDigitOtp();
       backendOtpActive = false;
 
+      if (!rec || !isValidEmailAddress(rec.email)) {
+        showErrorPopup("මෙම Account එකට වලංගු Email Address එකක් ලියාපදිංචි වී නැත.");
+        return false;
+      }
+
       if (OTP_CONFIG.API_BASE_URL) {
         try {
           const res = await fetch(`${OTP_CONFIG.API_BASE_URL}/api/otp/send`, {
@@ -858,28 +889,39 @@
           } else {
             const errData = await res.json().catch(() => ({}));
             showErrorPopup(errData.error || "Email OTP යැවීමේදී ගැටලුවක් ඇති විය.");
+            return false;
           }
         } catch {
-          console.info("[Zenix AI Local Fallback OTP]:", expectedOtp);
+          showErrorPopup("Server සම්බන්ධතාවයේ ගැටලුවක් හේතුවෙන් OTP යැවීමට නොහැකි විය.");
+          return false;
         }
       } else {
         console.info("[Zenix AI Test OTP dispatched to email]:", expectedOtp);
       }
 
-      const targetMail = rec.email ? ` (${rec.email})` : "";
       document.getElementById("otpEmailNotice").textContent =
-        `OTP code එක ඔබගේ Email එකට${targetMail} යවා ඇත. Email එක පරීක්ෂා කර 6-digit OTP code එක enter කරන්න.`;
+        `OTP code එක ඔබගේ Email එකට (${rec.email}) යවා ඇත. Email එක පරීක්ෂා කර 6-digit OTP code එක enter කරන්න.`;
+      return true;
     }
 
-    async function openOtpStep(userKey, flowType = "login") {
+    async function openOtpStep(userKey, flowType = "login", newPassword = "") {
+      const rec = records[userKey];
+      if (!rec || !isValidEmailAddress(rec.email)) {
+        showErrorPopup("මෙම Account එකට වලංගු Email Address එකක් සොයාගත නොහැක.");
+        return;
+      }
+
       pendingUserKey = userKey;
       pendingFlowType = flowType;
+      pendingNewPassword = newPassword;
       otpVerifyInput.value = "";
       showOnlySubView(otpForm);
       otpVerifyInput.focus();
 
-      const rec = records[userKey];
-      await dispatchOtpToEmail(rec || { client_id: userKey, email: "" });
+      const sent = await dispatchOtpToEmail(rec);
+      if (!sent) {
+        showOnlySubView(flowType === "reset" ? resetForm : loginForm);
+      }
     }
 
     loginForm.addEventListener("submit", async (e) => {
@@ -897,44 +939,35 @@
         (k) => k.toUpperCase() === rawId || String(records[k].generated_username || "").toUpperCase() === rawId
       );
 
-      if (matchedKey) {
-        if (records[matchedKey].password !== pwVal) {
-          showErrorPopup("Password incorrect.");
-          return;
-        }
-        sessionStorage.setItem(LAST_ID_KEY, records[matchedKey].generated_username || matchedKey);
-        await openOtpStep(matchedKey, "login");
-      } else {
-        const creds = generateUniformCredentials(records);
-        const key = creds.client_id;
-        records[key] = {
-          client_id: key,
-          store_name: `${rawId} Store`,
-          email: "",
-          business_reg_no: "",
-          password: pwVal,
-          generated_username: creds.generated_username,
-          last_login_at: "-"
-        };
-        saveRecords(records);
-        sessionStorage.setItem(LAST_ID_KEY, creds.generated_username);
-        await openOtpStep(key, "login");
+      if (!matchedKey) {
+        showErrorPopup("Account එකක් හමු නොවීය. කරුණාකර Create Account මඟින් අලුත් Account එකක් සාදන්න.");
+        return;
       }
+
+      if (records[matchedKey].password !== pwVal) {
+        showErrorPopup("Password incorrect.");
+        return;
+      }
+
+      sessionStorage.setItem(LAST_ID_KEY, records[matchedKey].generated_username || matchedKey);
+      await openOtpStep(matchedKey, "login");
     });
 
     document.getElementById("resendOtpBtn").addEventListener("click", async () => {
       if (!pendingUserKey) return;
       const rec = records[pendingUserKey];
-      await dispatchOtpToEmail(rec || { client_id: pendingUserKey, email: "" });
+      await dispatchOtpToEmail(rec);
       otpVerifyInput.value = "";
       hideErrorPopup();
     });
 
     document.getElementById("cancelOtpBtn").addEventListener("click", () => {
+      const prevFlow = pendingFlowType;
       expectedOtp = "";
       backendOtpActive = false;
+      pendingNewPassword = "";
       otpVerifyInput.value = "";
-      showOnlySubView(loginForm);
+      showOnlySubView(prevFlow === "reset" ? resetForm : loginForm);
     });
 
     function renderEmailSummary(rec) {
@@ -957,14 +990,11 @@
       }
 
       records = getRecords();
-      const rec = records[pendingUserKey] || {
-        client_id: pendingUserKey,
-        store_name: `${pendingUserKey} Store`,
-        email: "",
-        business_reg_no: "",
-        password: "",
-        generated_username: "USR-101"
-      };
+      const rec = records[pendingUserKey];
+      if (!rec) {
+        showErrorPopup("Account record එක සොයාගත නොහැක.");
+        return;
+      }
 
       if (backendOtpActive && OTP_CONFIG.API_BASE_URL) {
         try {
@@ -992,9 +1022,24 @@
 
       expectedOtp = "";
       backendOtpActive = false;
+      otpVerifyInput.value = "";
 
-      if (!rec.generated_username) {
-        rec.generated_username = generateUniformCredentials(records).generated_username;
+      if (pendingFlowType === "reset") {
+        rec.password = pendingNewPassword;
+        records[pendingUserKey] = rec;
+        saveRecords(records);
+        pendingNewPassword = "";
+        pendingFlowType = "login";
+        sessionStorage.removeItem(SESSION_PASS_KEY);
+        sessionStorage.setItem(LAST_ID_KEY, rec.generated_username || rec.client_id);
+
+        loginIdentifier.value = rec.generated_username || rec.client_id;
+        loginPassword.value = "";
+        newPassInput.value = "";
+        document.getElementById("resetOk").textContent = "";
+        showOnlySubView(loginForm);
+        showErrorPopup("OTP verified! New password saved. Sign in with your new password.");
+        return;
       }
 
       rec.last_login_at = new Date().toLocaleString();
@@ -1020,7 +1065,6 @@
         showOnlySubView(emailSentSection);
       } else {
         loginPassword.value = "";
-        otpVerifyInput.value = "";
         window.location.replace("./dashboard.html");
       }
     });
@@ -1043,33 +1087,33 @@
 
     document.getElementById("resetFromMailBtn").addEventListener("click", () => {
       const rec = records[pendingUserKey];
-      document.getElementById("resetIdInput").value = rec?.generated_username || pendingUserKey;
+      showOnlySubView(resetForm);
+      document.getElementById("resetIdInput").value = rec?.generated_username || pendingUserKey || "";
       document.getElementById("resetOk").textContent = "";
       clearFieldPasswordError(newPassInput, resetPwErrorPop);
-      showOnlySubView(resetForm);
     });
 
     document.getElementById("openResetBtn").addEventListener("click", () => {
+      showOnlySubView(resetForm);
+      document.getElementById("resetIdInput").value = loginIdentifier.value.trim();
       document.getElementById("resetOk").textContent = "";
       clearFieldPasswordError(newPassInput, resetPwErrorPop);
-      showOnlySubView(resetForm);
     });
 
     document.getElementById("backFromResetBtn").addEventListener("click", () => {
       showOnlySubView(loginForm);
     });
 
-    resetForm.addEventListener("submit", (e) => {
+    resetForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       records = getRecords();
-      const targetId = document.getElementById("resetIdInput").value.trim().toUpperCase();
+      const idVal = document.getElementById("resetIdInput").value.trim().toUpperCase();
       const pwCheck = validateStrongPassword(newPassInput.value);
-      const resetOk = document.getElementById("resetOk");
-      resetOk.textContent = "";
-      clearFieldPasswordError(newPassInput, resetPwErrorPop);
+      const okEl = document.getElementById("resetOk");
+      okEl.textContent = "";
 
-      if (!targetId) {
-        showErrorPopup("Client ID / Username ඇතුළත් කරන්න.");
+      if (!idVal) {
+        showErrorPopup("Client ID or Username ඇතුළත් කරන්න.");
         return;
       }
 
@@ -1078,49 +1122,36 @@
         return;
       }
 
-      const key = Object.keys(records).find(
-        (k) => k.toUpperCase() === targetId || String(records[k].generated_username || "").toUpperCase() === targetId
-      ) || targetId;
+      const matchedKey = Object.keys(records).find(
+        (k) => k.toUpperCase() === idVal || String(records[k].generated_username || "").toUpperCase() === idVal
+      );
 
-      const existing = records[key] || {
-        client_id: key,
-        store_name: `${key} Store`,
-        email: "",
-        business_reg_no: "",
-        generated_username: generateUniformCredentials(records).generated_username,
-        last_login_at: "-"
-      };
+      if (!matchedKey) {
+        showErrorPopup("Account එකක් හමු නොවීය.");
+        return;
+      }
 
-      records[key] = {
-        ...existing,
-        password: pwCheck.formatted
-      };
-      saveRecords(records);
-      resetOk.textContent = `Password updated for ${existing.generated_username || key}. Email sent.`;
+      clearFieldPasswordError(newPassInput, resetPwErrorPop);
+      okEl.textContent = "Sending OTP to registered email...";
+      await openOtpStep(matchedKey, "reset", pwCheck.formatted);
     });
 
-    document.getElementById("registerForm").addEventListener("submit", async (e) => {
+    registerForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       records = getRecords();
 
       const storeName = document.getElementById("regStoreInput").value.trim();
-      const email = document.getElementById("regEmailInput").value.trim();
+      const emailVal = document.getElementById("regEmailInput").value.trim();
       const pwCheck = validateStrongPassword(regPassInput.value);
-      const brNo = document.getElementById("regBrInput").value.trim().toUpperCase();
-      clearFieldPasswordError(regPassInput, regPwErrorPop);
+      const brVal = document.getElementById("regBrInput").value.trim().toUpperCase();
 
-      if (!storeName || !email || !regPassInput.value.trim() || !brNo) {
-        showErrorPopup("සියලු fields ඇතුළත් කරන්න.");
+      if (!storeName || !emailVal || !brVal) {
+        showErrorPopup("Store Name, Email Address, සහ Business Registration Number ඇතුළත් කරන්න.");
         return;
       }
 
-      if (!isValidEmailAddress(email)) {
-        showErrorPopup("Invalid email address. '@' සහ valid domain (උදා: @gmail.com) ඇතුළත් කරන්න.");
-        return;
-      }
-
-      if (!isValidBusinessReg(brNo)) {
-        showErrorPopup("Invalid registration number. Please enter your valid registration number (e.g., BR-12345).");
+      if (!isValidEmailAddress(emailVal)) {
+        showErrorPopup("වලංගු Email Address එකක් ඇතුළත් කරන්න.");
         return;
       }
 
@@ -1129,27 +1160,37 @@
         return;
       }
 
-      const creds = generateUniformCredentials(records);
-      const clientId = creds.client_id;
+      if (!isValidBusinessReg(brVal)) {
+        showErrorPopup("Business Registration Number (BR / PV / NR + 4-10 digits) නිවැරදිව ඇතුළත් කරන්න.");
+        return;
+      }
 
-      records[clientId] = {
-        client_id: clientId,
+      const duplicateMsg = findDuplicateAccount(records, emailVal, brVal);
+      if (duplicateMsg) {
+        showErrorPopup(duplicateMsg);
+        return;
+      }
+
+      const creds = generateUniformCredentials(records);
+      const key = creds.client_id;
+      records[key] = {
+        client_id: key,
         store_name: storeName,
-        email,
-        business_reg_no: brNo,
+        email: emailVal,
+        business_reg_no: brVal,
         password: pwCheck.formatted,
         generated_username: creds.generated_username,
         last_login_at: "-"
       };
       saveRecords(records);
-      sessionStorage.setItem(LAST_ID_KEY, creds.generated_username);
+      clearFieldPasswordError(regPassInput, regPwErrorPop);
 
-      e.target.reset();
       tabSignIn.classList.add("active");
       tabRegister.classList.remove("active");
       registerSection.classList.add("hidden");
       signInSection.classList.remove("hidden");
-      await openOtpStep(clientId, "register");
+
+      await openOtpStep(key, "register");
     });
   </script>
 </body>
