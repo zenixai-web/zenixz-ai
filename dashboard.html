@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="Logo 3.png">
   <title>Zenix AI — Client Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #0b1020;
@@ -20,6 +23,7 @@
       --banner-bg: rgba(245, 158, 11, 0.12);
       --banner-border: rgba(245, 158, 11, 0.32);
       --banner-text: #fde68a;
+      --font-sans: "Google Sans", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     html[data-theme="light"] {
@@ -44,12 +48,13 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      font-family: var(--font-sans);
     }
 
     body {
       background: var(--bg);
       color: var(--text);
+      font-family: var(--font-sans);
       min-height: 100vh;
       transition: background-color 0.2s ease, color 0.2s ease;
     }
@@ -100,10 +105,19 @@
     select,
     input,
     textarea,
-    button {
+    button,
+    a.btn-link {
       border-radius: 9px;
       border: 1px solid var(--border);
       font-size: 14px;
+      font-family: var(--font-sans);
+    }
+
+    a.btn-link {
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
 
     select {
@@ -359,6 +373,65 @@
       color: var(--muted);
       font-weight: 600;
     }
+
+    .order-link-btn {
+      background: rgba(79, 124, 255, 0.14);
+      color: var(--accent);
+      border: 1px solid rgba(79, 124, 255, 0.35);
+      border-radius: 7px;
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .order-link-btn:hover {
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .order-detail-card {
+      margin-top: 16px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: none;
+    }
+
+    .order-detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .order-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .detail-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .detail-box span {
+      display: block;
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .detail-box strong {
+      font-size: 14px;
+      word-break: break-word;
+    }
   </style>
 </head>
 <body>
@@ -373,6 +446,7 @@
       <label for="agentSelect" style="font-size: 13px; color: var(--muted);">Agent:</label>
       <select id="agentSelect"></select>
       <button class="btn-ghost" id="orderTrackingBtn" type="button">Order Tracking</button>
+      <a class="btn-link btn-ghost" id="fullOrderTrackingLink" href="./chatbot/order-tracking.html">Full Tracking Page</a>
       <button class="btn-ghost" id="themeBtn" type="button" title="Toggle Dark / Light Theme">☀️ Light</button>
       <button class="btn-ghost" id="refreshBtn" type="button">↻ Sync Now</button>
       <button class="btn-ghost" id="logoutBtn" type="button">Logout</button>
@@ -437,29 +511,48 @@
     <section class="tracking-panel" id="orderTrackingPanel">
       <div class="tracking-head">
         <div>
-          <h3 style="font-size: 16px;">Order Tracking (Today's Orders)</h3>
+          <h3 style="font-size: 16px;" id="trackingHeading">Order Tracking (Today's Orders — Max 5)</h3>
           <div style="font-size: 12px; color: var(--muted);" id="trackingHint">
-            Plan activate කර නොමැති නම් orders පෙන්වන්නේ නැත (Blank).
+            ඔබගේ Client Account එකට අදාළ Today's Orders (උපරිම 5) පෙන්වයි. Order ID හෝ Phone Number search කළ විට අදාළ Order එක පමණක් පෙන්වයි.
           </div>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <input id="trackOrderIdInput" type="text" placeholder="Order ID (උදා: ORD-A1B2C3)" style="background: var(--panel-2); color: var(--text); padding: 8px 12px; width: 210px;" />
-          <button class="btn" id="trackSearchBtn" type="button">Track</button>
+          <input
+            id="trackOrderIdInput"
+            type="text"
+            placeholder="Order ID හෝ Phone Number (උදා: ORD-101 / 077...)"
+            style="background: var(--panel-2); color: var(--text); padding: 8px 12px; width: 260px;"
+          />
+          <button class="btn" id="trackSearchBtn" type="button">Search</button>
+          <button class="btn-ghost" id="trackResetBtn" type="button">Reset</button>
+          <a class="btn-link btn-ghost" id="panelFullTrackingLink" href="./chatbot/order-tracking.html">Open Full Tracking Page</a>
         </div>
       </div>
+
       <div class="orders-table-wrap">
         <table>
           <thead>
             <tr>
               <th>Order ID</th>
+              <th>Customer Name</th>
+              <th>Phone</th>
               <th>Item</th>
               <th>Qty</th>
-              <th>Customer</th>
+              <th>Payment Method</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody id="trackingOrdersBody"></tbody>
         </table>
+      </div>
+
+      <div class="order-detail-card" id="orderDetailPanel">
+        <div class="order-detail-header">
+          <h4 style="font-size: 15px;" id="detailTitle">Customer & Order Details</h4>
+          <button class="btn-ghost" id="closeDetailBtn" type="button">✕ Close</button>
+        </div>
+        <div class="order-detail-grid" id="orderDetailGrid"></div>
+        <div id="orderProofContainer" style="margin-top: 12px;"></div>
       </div>
     </section>
 
@@ -537,14 +630,24 @@
       window.location.replace("./login.html");
     }
 
-    document.getElementById("metaClientId").textContent = authPass.client_id;
+    const ACTIVE_CLIENT_ID = String(authPass.client_id || "").trim();
+
+    function syncFullTrackingLinks() {
+      const targetUrl = "./chatbot/order-tracking.html?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID);
+      const topLink = document.getElementById("fullOrderTrackingLink");
+      const panelLink = document.getElementById("panelFullTrackingLink");
+      if (topLink) topLink.setAttribute("href", targetUrl);
+      if (panelLink) panelLink.setAttribute("href", targetUrl);
+    }
+    syncFullTrackingLinks();
+
+    document.getElementById("metaClientId").textContent = ACTIVE_CLIENT_ID;
     document.getElementById("metaEmail").textContent =
       authPass.email || authPass.user_email || authPass.client_email || "Verified Session";
     document.getElementById("metaExpiry").textContent = authPass.expires_at
       ? new Date(Number(authPass.expires_at)).toLocaleString()
       : "-";
 
-    // Default: unactivated / no plan until explicitly active in usage.json
     const FALLBACK_DATA = {
       sync_meta: {
         schedule: "Daily before 12:00 AM (+05:30)",
@@ -570,7 +673,8 @@
 
     let currentDataset = FALLBACK_DATA;
     let isPlanActive = false;
-    let clientOrdersToday = [];
+    let clientTodayOrders = [];
+    let clientAllOrders = [];
     let shownExpiryWarningKey = null;
 
     const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
@@ -580,7 +684,12 @@
     const last3DaysBanner = document.getElementById("last3DaysBanner");
     const planStatusBadge = document.getElementById("planStatusBadge");
     const trackingPanel = document.getElementById("orderTrackingPanel");
+    const trackingHeading = document.getElementById("trackingHeading");
     const trackingOrdersBody = document.getElementById("trackingOrdersBody");
+    const trackOrderIdInput = document.getElementById("trackOrderIdInput");
+    const orderDetailPanel = document.getElementById("orderDetailPanel");
+    const orderDetailGrid = document.getElementById("orderDetailGrid");
+    const orderProofContainer = document.getElementById("orderProofContainer");
 
     function getExpiryState(expiresAt) {
       if (!expiresAt) return { expired: false, inLast3Days: false, daysLeft: null };
@@ -603,6 +712,46 @@
       if (clientObj.plan_active === true || clientObj.active === true) return true;
       const status = String(clientObj.subscription_status || clientObj.status || "").toLowerCase();
       return status === "active";
+    }
+
+    function extractScopedClientOrders(clientObj) {
+      if (!clientObj || typeof clientObj !== "object") {
+        return { todayTop5: [], allClientOrders: [] };
+      }
+      const rawToday = Array.isArray(clientObj.orders_today) ? clientObj.orders_today : [];
+      const rawAll = Array.isArray(clientObj.orders)
+        ? clientObj.orders
+        : Array.isArray(clientObj.all_orders)
+        ? clientObj.all_orders
+        : rawToday;
+
+      // Strict isolation: only orders explicitly matching ACTIVE_CLIENT_ID
+      const scopedToday = rawToday.filter((o) => {
+        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim();
+        return explicitCid ? explicitCid === ACTIVE_CLIENT_ID : true;
+      });
+
+      const scopedAll = rawAll.filter((o) => {
+        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim();
+        return explicitCid ? explicitCid === ACTIVE_CLIENT_ID : true;
+      });
+
+      const mergedMap = new Map();
+      scopedToday.forEach((o, idx) => {
+        const key = String((o && o.order_id) || "today_" + idx);
+        mergedMap.set(key, o);
+      });
+      scopedAll.forEach((o, idx) => {
+        const key = String((o && o.order_id) || "all_" + idx);
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, o);
+        }
+      });
+
+      return {
+        todayTop5: scopedToday.slice(0, 5),
+        allClientOrders: Array.from(mergedMap.values())
+      };
     }
 
     function resolveAgentMetrics(clientObj, agentObj) {
@@ -666,21 +815,108 @@
       const rowLimit = Number(m.table_rows_limit || 0);
 
       document.getElementById("scopeLabel").textContent = "View: " + label;
-      document.getElementById("convVal").textContent = `${convUsed} / ${convLimit}`;
-      document.getElementById("convRem").textContent = `Remaining: ${Math.max(0, convLimit - convUsed)}`;
+      document.getElementById("convVal").textContent = convUsed + " / " + convLimit;
+      document.getElementById("convRem").textContent = "Remaining: " + Math.max(0, convLimit - convUsed);
       setBar(document.getElementById("convBar"), convUsed, convLimit);
 
-      document.getElementById("fileVal").textContent = `${fileUsed} / ${fileLimit} MB`;
-      document.getElementById("fileRem").textContent = `Remaining: ${Math.max(0, fileLimit - fileUsed)} MB`;
+      document.getElementById("fileVal").textContent = fileUsed + " / " + fileLimit + " MB";
+      document.getElementById("fileRem").textContent = "Remaining: " + Math.max(0, fileLimit - fileUsed) + " MB";
       setBar(document.getElementById("fileBar"), fileUsed, fileLimit);
 
-      document.getElementById("vecVal").textContent = `${vecUsed} / ${vecLimit} MB`;
-      document.getElementById("vecRem").textContent = `Remaining: ${Math.max(0, vecLimit - vecUsed)} MB`;
+      document.getElementById("vecVal").textContent = vecUsed + " / " + vecLimit + " MB";
+      document.getElementById("vecRem").textContent = "Remaining: " + Math.max(0, vecLimit - vecUsed) + " MB";
       setBar(document.getElementById("vecBar"), vecUsed, vecLimit);
 
-      document.getElementById("rowVal").textContent = `${rowUsed} / ${rowLimit}`;
-      document.getElementById("rowRem").textContent = `Remaining: ${Math.max(0, rowLimit - rowUsed)}`;
+      document.getElementById("rowVal").textContent = rowUsed + " / " + rowLimit;
+      document.getElementById("rowRem").textContent = "Remaining: " + Math.max(0, rowLimit - rowUsed);
       setBar(document.getElementById("rowBar"), rowUsed, rowLimit);
+    }
+
+    function escapeHtml(val) {
+      var amp = String.fromCharCode(38);
+      var lt = String.fromCharCode(60);
+      var gt = String.fromCharCode(62);
+      var dq = String.fromCharCode(34);
+      var out = String(val === undefined || val === null ? "" : val);
+      out = out.split(amp).join(amp + "#38;");
+      out = out.split(lt).join(amp + "#60;");
+      out = out.split(gt).join(amp + "#62;");
+      out = out.split(dq).join(amp + "#34;");
+      return out;
+    }
+
+    function normalizeDigits(val) {
+      return String(val ?? "").replace(/[^0-9]/g, "");
+    }
+
+    function searchClientOrders(rawQuery) {
+      if (!isPlanActive) return [];
+      const q = String(rawQuery || "").trim().toLowerCase();
+      const qDigits = normalizeDigits(rawQuery);
+
+      if (!q) {
+        trackingHeading.textContent = "Order Tracking (Today's Orders — Max 5)";
+        return clientTodayOrders.slice(0, 5);
+      }
+
+      // Search across all orders belonging strictly to ACTIVE_CLIENT_ID (not limited to the 5 today orders)
+      trackingHeading.textContent = "Order Tracking — Search Results (" + ACTIVE_CLIENT_ID + ")";
+      return clientAllOrders.filter((o) => {
+        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim();
+        if (explicitCid && explicitCid !== ACTIVE_CLIENT_ID) return false;
+
+        const oid = String((o && o.order_id) || "").toLowerCase();
+        const phone = String((o && o.phone) || "").toLowerCase();
+        const phoneDigits = normalizeDigits((o && o.phone) || "");
+
+        const idMatch = oid.includes(q);
+        const phoneTextMatch = phone.includes(q);
+        const phoneDigitMatch = qDigits.length >= 3 && phoneDigits.includes(qDigits);
+        return idMatch || phoneTextMatch || phoneDigitMatch;
+      });
+    }
+
+    function showOrderDetail(order) {
+      if (!order || !isPlanActive) return;
+      const explicitCid = String((order.client_id ?? order.clientId) || "").trim();
+      if (explicitCid && explicitCid !== ACTIVE_CLIENT_ID) return;
+
+      document.getElementById("detailTitle").textContent =
+        "Customer & Order Details — " + escapeHtml(order.order_id || "-");
+
+      orderDetailGrid.innerHTML =
+        '<div class="detail-box"><span>Order ID</span><strong>' + escapeHtml(order.order_id || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Customer Name</span><strong>' + escapeHtml(order.customer_name || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Phone Number</span><strong>' + escapeHtml(order.phone || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Item</span><strong>' + escapeHtml(order.item || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Quantity</span><strong>' + escapeHtml(order.quantity ?? 1) + '</strong></div>' +
+        '<div class="detail-box"><span>Payment Method</span><strong>' + escapeHtml(order.payment_method || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Status</span><strong>' + escapeHtml(order.status || "Pending") + '</strong></div>' +
+        '<div class="detail-box"><span>Created At</span><strong>' + escapeHtml(order.created_at || "-") + '</strong></div>';
+
+      const proof = String(order.payment_proof || order.payment_proof_url || order.payment_proof_name || "").trim();
+      if (!proof) {
+        orderProofContainer.innerHTML =
+          '<div class="detail-box"><span>Payment Proof</span><strong>No proof attached</strong></div>';
+      } else if (
+        proof.startsWith("http://") ||
+        proof.startsWith("https://") ||
+        proof.startsWith("/") ||
+        proof.startsWith("data:image/")
+      ) {
+        const safeProof = escapeHtml(proof);
+        orderProofContainer.innerHTML =
+          '<div class="detail-box">' +
+          '<span>Payment Proof</span>' +
+          '<a href="' + safeProof + '" target="_blank" rel="noopener noreferrer" style="font-size:12px;color:var(--accent);display:inline-block;margin-bottom:8px;">Open Full Proof</a><br/>' +
+          '<img src="' + safeProof + '" alt="Payment Proof" style="max-width:280px;max-height:240px;border-radius:8px;border:1px solid var(--border);" />' +
+          '</div>';
+      } else {
+        orderProofContainer.innerHTML =
+          '<div class="detail-box"><span>Payment Proof</span><strong>' + escapeHtml(proof) + '</strong></div>';
+      }
+
+      orderDetailPanel.style.display = "block";
     }
 
     function renderOrdersTable(rows) {
@@ -689,14 +925,27 @@
         return;
       }
       rows.forEach((o) => {
+        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim();
+        if (explicitCid && explicitCid !== ACTIVE_CLIENT_ID) return;
+
         const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${String(o.order_id || "")}</td>
-          <td>${String(o.item || "")}</td>
-          <td>${String(o.quantity || 1)}</td>
-          <td>${String(o.customer_name || "")}</td>
-          <td>${String(o.status || "")}</td>
-        `;
+
+        const tdId = document.createElement("td");
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "order-link-btn";
+        btn.textContent = String(o.order_id || "-");
+        btn.addEventListener("click", () => showOrderDetail(o));
+        tdId.appendChild(btn);
+
+        tr.appendChild(tdId);
+        tr.innerHTML +=
+          "<td>" + escapeHtml(o.customer_name || "-") + "</td>" +
+          "<td>" + escapeHtml(o.phone || "-") + "</td>" +
+          "<td>" + escapeHtml(o.item || "-") + "</td>" +
+          "<td>" + escapeHtml(o.quantity ?? 1) + "</td>" +
+          "<td>" + escapeHtml(o.payment_method || "-") + "</td>" +
+          "<td>" + escapeHtml(o.status || "Pending") + "</td>";
         trackingOrdersBody.appendChild(tr);
       });
     }
@@ -704,26 +953,31 @@
     function renderDashboard() {
       const meta = currentDataset.sync_meta || {};
       document.getElementById("lastSyncedLabel").textContent =
-        `Last Synced: ${meta.last_synced_at || "-"} (${meta.schedule || "Daily before 12:00 AM"})`;
+        "Last Synced: " + (meta.last_synced_at || "-") + " (" + (meta.schedule || "Daily before 12:00 AM") + ")";
 
       const clientData =
-        (currentDataset.clients && currentDataset.clients[authPass.client_id]) || null;
+        (currentDataset.clients && currentDataset.clients[ACTIVE_CLIENT_ID]) || null;
 
       const expState = getExpiryState(clientData && clientData.expires_at);
       isPlanActive = isClientPlanActive(clientData);
-      clientOrdersToday = isPlanActive && Array.isArray(clientData.orders_today)
-        ? clientData.orders_today
-        : [];
+
+      const scoped = isPlanActive
+        ? extractScopedClientOrders(clientData)
+        : { todayTop5: [], allClientOrders: [] };
+
+      clientTodayOrders = scoped.todayTop5;
+      clientAllOrders = scoped.allClientOrders;
 
       document.getElementById("storeTitle").textContent =
-        (clientData && clientData.store_name) || `${authPass.client_id} Store`;
-      document.getElementById("clientBadge").textContent = `ID: ${authPass.client_id}`;
+        (clientData && clientData.store_name) || (ACTIVE_CLIENT_ID + " Store");
+      document.getElementById("clientBadge").textContent = "ID: " + ACTIVE_CLIENT_ID;
 
       if (!isPlanActive) {
         last3DaysBanner.style.display = "none";
+        orderDetailPanel.style.display = "none";
         planStatusBadge.textContent = expState.expired ? "Plan: Expired" : "Plan: Inactive";
         noPlanBox.style.display = "block";
-        agentSelect.innerHTML = `<option value="__none__">No Active Plan</option>`;
+        agentSelect.innerHTML = '<option value="__none__">No Active Plan</option>';
         renderStats(
           {
             conversations_used: 0,
@@ -745,10 +999,10 @@
       noPlanBox.style.display = "none";
 
       if (expState.inLast3Days) {
-        const warnText = `අවසන් දින 3 (Final 3 Days): ඔබගේ Plan එක අවසන් වීමට තව දින ${expState.daysLeft} ක් පමණි. කරුණාකර Plan එක Renew කරගන්න.`;
+        const warnText = "අවසන් දින 3 (Final 3 Days): ඔබගේ Plan එක අවසන් වීමට තව දින " + expState.daysLeft + " ක් පමණි. කරුණාකර Plan එක Renew කරගන්න.";
         last3DaysBanner.textContent = warnText;
         last3DaysBanner.style.display = "block";
-        const warnKey = `${authPass.client_id}:${expState.daysLeft}`;
+        const warnKey = ACTIVE_CLIENT_ID + ":" + expState.daysLeft;
         if (shownExpiryWarningKey !== warnKey) {
           shownExpiryWarningKey = warnKey;
           alert(warnText);
@@ -758,7 +1012,7 @@
       }
 
       const prev = agentSelect.value || "__all__";
-      agentSelect.innerHTML = `<option value="__all__">All Agents (Total)</option>`;
+      agentSelect.innerHTML = '<option value="__all__">All Agents (Total)</option>';
       for (const [key, ag] of Object.entries(clientData.agents || {})) {
         const opt = document.createElement("option");
         opt.value = key;
@@ -785,13 +1039,17 @@
       }
 
       if (trackingPanel.style.display === "block") {
-        renderOrdersTable(clientOrdersToday);
+        const matches = searchClientOrders(trackOrderIdInput.value);
+        renderOrdersTable(matches);
+        if (matches.length === 1 && trackOrderIdInput.value.trim()) {
+          showOrderDetail(matches[0]);
+        }
       }
     }
 
     async function loadUsageJson() {
       try {
-        const res = await fetch(`data/usage.json?t=${Date.now()}`, { cache: "no-store" });
+        const res = await fetch("data/usage.json?t=" + Date.now(), { cache: "no-store" });
         if (res.ok) {
           currentDataset = await res.json();
         }
@@ -804,22 +1062,44 @@
     document.getElementById("orderTrackingBtn").addEventListener("click", () => {
       const nextOpen = trackingPanel.style.display !== "block";
       trackingPanel.style.display = nextOpen ? "block" : "none";
-      renderOrdersTable(nextOpen && isPlanActive ? clientOrdersToday : []);
+      if (!nextOpen) {
+        orderDetailPanel.style.display = "none";
+      }
+      renderOrdersTable(nextOpen && isPlanActive ? searchClientOrders(trackOrderIdInput.value) : []);
     });
 
-    document.getElementById("trackSearchBtn").addEventListener("click", () => {
+    function runOrderSearch() {
       if (!isPlanActive) {
         renderOrdersTable([]);
+        orderDetailPanel.style.display = "none";
         return;
       }
-      const q = (document.getElementById("trackOrderIdInput").value || "").trim().toLowerCase();
-      if (!q) {
-        renderOrdersTable(clientOrdersToday);
-        return;
+      const matches = searchClientOrders(trackOrderIdInput.value);
+      renderOrdersTable(matches);
+      if (matches.length === 1 && trackOrderIdInput.value.trim()) {
+        showOrderDetail(matches[0]);
+      } else if (matches.length === 0) {
+        orderDetailPanel.style.display = "none";
       }
-      renderOrdersTable(
-        clientOrdersToday.filter((o) => String(o.order_id || "").toLowerCase().includes(q))
-      );
+    }
+
+    document.getElementById("trackSearchBtn").addEventListener("click", runOrderSearch);
+    trackOrderIdInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        runOrderSearch();
+      }
+    });
+
+    document.getElementById("trackResetBtn").addEventListener("click", () => {
+      trackOrderIdInput.value = "";
+      orderDetailPanel.style.display = "none";
+      trackingHeading.textContent = "Order Tracking (Today's Orders — Max 5)";
+      renderOrdersTable(isPlanActive ? clientTodayOrders.slice(0, 5) : []);
+    });
+
+    document.getElementById("closeDetailBtn").addEventListener("click", () => {
+      orderDetailPanel.style.display = "none";
     });
 
     agentSelect.addEventListener("change", renderDashboard);
@@ -836,7 +1116,7 @@
       const txt = document.getElementById("msgText").value.trim();
       if (!sub || !txt) return;
       document.getElementById("msgStatus").textContent =
-        `Message prepared for ${authPass.client_id}: "${sub}"`;
+        'Message prepared for ' + ACTIVE_CLIENT_ID + ': "' + sub + '"';
       e.target.reset();
     });
 

@@ -6,6 +6,7 @@ import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
+from datetime import datetime, timezone
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -25,7 +26,10 @@ IP_OTP_HISTORY = defaultdict(list)
 IP_OTP_WINDOW_SECONDS = 600  # 10 minutes
 IP_OTP_MAX_REQUESTS = 5     # Max 5 OTP sends per IP per 10 mins
 
-# Auto-register new clients into data/usage.json (local + GitHub sync)
+# Deduplicate conversation increments per client + bot + session
+SEEN_CONVERSATIONS = set()
+
+# Sync clients, usage & orders into data/usage.json (local + GitHub sync)
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "").strip()
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "").strip()
 GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main").strip()
@@ -191,28 +195,23 @@ def _github_put_file(path: str, doc: dict, sha: str | None, commit_msg: str) -> 
             raise RuntimeError(f"GitHub update failed with HTTP {resp.status}")
 
 
-def register_client_in_usage_json(client_id: str, store_name: str = "", email: str = "") -> dict:
-    cid = str(client_id or "").strip().upper()
-    if not cid:
-        raise ValueError("client_id is required")
-
+def _load_usage_doc() -> tuple[dict, str | None]:
     doc = None
     sha = None
-
     if GITHUB_TOKEN and GITHUB_REPO:
         doc, sha = _github_get_file(USAGE_JSON_PATH)
-
     if doc is None:
         if os.path.exists(LOCAL_USAGE_FILE):
             with open(LOCAL_USAGE_FILE, "r", encoding="utf-8") as f:
                 doc = json.load(f)
         else:
             doc = _default_usage_doc()
-
     doc.setdefault("clients", {})
-    if cid not in doc["clients"]:
-        doc["clients"][cid] = _build_zero_client_entry(cid, store_name=store_name, email=email)
+    doc.setdefault("plans", _default_usage_doc()["plans"])
+    return doc, sha
 
+
+def _save_usage_doc(doc: dict, sha: str | None, commit_msg: str) -> None:
     local_dir = os.path.dirname(LOCAL_USAGE_FILE)
     if local_dir:
         os.makedirs(local_dir, exist_ok=True)
@@ -220,14 +219,91 @@ def register_client_in_usage_json(client_id: str, store_name: str = "", email: s
         json.dump(doc, f, indent=2)
 
     if GITHUB_TOKEN and GITHUB_REPO:
-        _github_put_file(
-            USAGE_JSON_PATH,
-            doc,
-            sha,
-            f"Auto-register client {cid} (plan_active=false, expires_at=null)",
-        )
+        _github_put_file(USAGE_JSON_PATH, doc, sha, commit_msg)
+
+
+def _get_client_conversation_limit(doc: dict, client_entry: dict) -> int:
+    plan_name = client_entry.get("plan")
+    plans = doc.get("plans", {})
+    if plan_name and plan_name in plans:
+        return int(plans[plan_name].get("conversations_limit", 0))
+    return 0
+
+
+def _is_client_active_now(client_entry: dict) -> tuple[bool, str]:
+    if not client_entry.get("plan_active"):
+        return False, "plan_inactive"
+    exp_val = client_entry.get("expires_at")
+    if exp_val:
+        s = str(exp_val).strip()
+        try:
+            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > dt:
+                return False, "plan_expired"
+        except ValueError:
+            pass
+    return True, "active"
+
+
+def register_client_in_usage_json(client_id: str, store_name: str = "", email: str = "") -> dict:
+    cid = str(client_id or "").strip().upper()
+    if not cid:
+        raise ValueError("client_id is required")
+
+    doc, sha = _load_usage_doc()
+    if cid not in doc["clients"]:
+        doc["clients"][cid] = _build_zero_client_entry(cid, store_name=store_name, email=email)
+        _save_usage_doc(doc, sha, f"Auto-register client {cid} (plan_active=false, expires_at=null)")
 
     return doc["clients"][cid]
+
+
+def _increment_usage_in_doc(doc: dict, cid: str, bot_id: str, conv_inc: int = 1, session_id: str = "") -> dict:
+    if session_id:
+        dedup_key = f"{cid}:{bot_id}:{session_id}"
+        if dedup_key in SEEN_CONVERSATIONS:
+            return {"ok": True, "deduplicated": True, "changed": False}
+        SEEN_CONVERSATIONS.add(dedup_key)
+
+    client_entry = doc["clients"].get(cid)
+    if not client_entry:
+        raise ValueError(f"Client {cid} not found")
+
+    active, reason = _is_client_active_now(client_entry)
+    if not active:
+        return {"ok": False, "reason": reason, "changed": False}
+
+    limit = _get_client_conversation_limit(doc, client_entry)
+    agents = client_entry.setdefault("agents", {})
+    bot_entry = agents.setdefault(bot_id, {
+        "label": "Main Order Agent",
+        "conversations_used": 0,
+        "file_storage_mb": 0,
+        "vector_db_mb": 0,
+        "table_rows_used": 0,
+    })
+
+    used = int(bot_entry.get("conversations_used", 0))
+    if limit > 0 and used >= limit:
+        return {
+            "ok": False,
+            "reason": "conversation_limit_reached",
+            "conversations_used": used,
+            "conversations_limit": limit,
+            "changed": False,
+        }
+
+    new_used = min(used + int(conv_inc), limit) if limit > 0 else used + int(conv_inc)
+    bot_entry["conversations_used"] = new_used
+    return {
+        "ok": True,
+        "changed": True,
+        "conversations_used": new_used,
+        "conversations_limit": limit,
+        "limit_reached": bool(limit > 0 and new_used >= limit),
+    }
 
 
 @app.post("/api/clients/register")
@@ -245,6 +321,188 @@ def api_register_client():
         return jsonify({"ok": True, "client_id": client_id, "client": entry}), 201
     except Exception as exc:
         return jsonify({"error": f"Failed to register client in usage.json: {str(exc)}"}), 500
+
+
+@app.get("/api/widget/status")
+def api_widget_status():
+    cid = str(request.args.get("client_id", "")).strip().upper()
+    bot_id = str(request.args.get("bot_id", "bot_1")).strip() or "bot_1"
+    if not cid:
+        return jsonify({"allowed": False, "reason": "missing_client_id"}), 400
+
+    try:
+        doc, _ = _load_usage_doc()
+        client_entry = doc.get("clients", {}).get(cid)
+        if not client_entry:
+            return jsonify({"allowed": False, "reason": "client_not_found"}), 404
+
+        active, reason = _is_client_active_now(client_entry)
+        limit = _get_client_conversation_limit(doc, client_entry)
+        bot_entry = client_entry.get("agents", {}).get(bot_id, {})
+        used = int(bot_entry.get("conversations_used", 0))
+
+        if active and limit > 0 and used >= limit:
+            return jsonify({
+                "allowed": False,
+                "reason": "conversation_limit_reached",
+                "client_id": cid,
+                "store_name": client_entry.get("store_name", cid),
+                "used": used,
+                "limit": limit,
+            }), 200
+
+        return jsonify({
+            "allowed": active,
+            "reason": reason,
+            "client_id": cid,
+            "store_name": client_entry.get("store_name", cid),
+            "used": used,
+            "limit": limit,
+        }), 200
+    except Exception as exc:
+        return jsonify({"allowed": False, "reason": "error", "detail": str(exc)}), 500
+
+
+@app.post("/api/usage/track")
+def api_track_usage():
+    data = request.get_json(silent=True) or {}
+    cid = str(data.get("client_id", "")).strip().upper()
+    bot_id = str(data.get("bot_id", "bot_1")).strip() or "bot_1"
+    session_id = str(data.get("session_id", "")).strip()
+    conv_inc = int(data.get("conversations_inc", 1))
+
+    if not cid:
+        return jsonify({"error": "client_id is required."}), 400
+
+    try:
+        doc, sha = _load_usage_doc()
+        res = _increment_usage_in_doc(doc, cid, bot_id, conv_inc=conv_inc, session_id=session_id)
+        if not res.get("ok"):
+            return jsonify(res), 403
+        if res.get("changed"):
+            _save_usage_doc(doc, sha, f"Track usage for {cid} ({bot_id}): {res.get('conversations_used')}")
+        return jsonify(res), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except Exception as exc:
+        return jsonify({"error": f"Failed to track usage: {str(exc)}"}), 500
+
+
+@app.post("/api/orders/create")
+def api_create_order():
+    data = request.get_json(silent=True) or {}
+    cid = str(data.get("client_id", "")).strip().upper()
+    bot_id = str(data.get("bot_id", "bot_1")).strip() or "bot_1"
+
+    if not cid:
+        return jsonify({"error": "client_id is required."}), 400
+
+    try:
+        doc, sha = _load_usage_doc()
+        client_entry = doc.get("clients", {}).get(cid)
+        if not client_entry:
+            return jsonify({"error": f"Client {cid} not found."}), 404
+
+        active, reason = _is_client_active_now(client_entry)
+        if not active:
+            return jsonify({"ok": False, "blocked": True, "reason": reason}), 403
+
+        order_record = {
+            "order_id": str(data.get("order_id") or f"ORD-{int(time.time())}").strip(),
+            "customer_name": str(data.get("customer_name", "")).strip(),
+            "phone": str(data.get("phone", "")).strip(),
+            "item": str(data.get("item", "")).strip(),
+            "quantity": int(data.get("quantity", 1) or 1),
+            "payment_method": str(data.get("payment_method", "")).strip(),
+            "payment_proof": str(data.get("payment_proof", "")).strip(),
+            "status": str(data.get("status", "Pending")).strip(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        orders = client_entry.setdefault("orders_today", [])
+        orders.insert(0, order_record)
+
+        usage_res = _increment_usage_in_doc(
+            doc, cid, bot_id, conv_inc=1, session_id=str(data.get("session_id", "")).strip()
+        )
+        _save_usage_doc(doc, sha, f"Add order {order_record['order_id']} for {cid}")
+
+        return jsonify({
+            "ok": True,
+            "order": order_record,
+            "usage": usage_res,
+        }), 201
+    except Exception as exc:
+        return jsonify({"error": f"Failed to create order: {str(exc)}"}), 500
+
+
+@app.post("/api/chat")
+def api_chat():
+    data = request.get_json(silent=True) or {}
+    cid = str(data.get("client_id", "DEFAULT")).strip().upper()
+    bot_id = str(data.get("bot_id", "bot_1")).strip() or "bot_1"
+    session_id = str(data.get("session_id", "")).strip()
+    message = str(data.get("message", "")).strip()
+
+    if not message:
+        return jsonify({"error": "Message is required."}), 400
+
+    try:
+        doc, sha = _load_usage_doc()
+        client_entry = doc.get("clients", {}).get(cid)
+        if not client_entry:
+            return jsonify({
+                "blocked": True,
+                "message": f"Client {cid} is not registered or inactive.",
+            }), 403
+
+        active, reason = _is_client_active_now(client_entry)
+        if not active:
+            msg = "Plan expired. Please renew." if reason == "plan_expired" else "Chatbot is currently deactivated."
+            return jsonify({"blocked": True, "reason": reason, "message": msg}), 403
+
+        usage_res = _increment_usage_in_doc(doc, cid, bot_id, conv_inc=1, session_id=session_id)
+        if not usage_res.get("ok"):
+            return jsonify({
+                "blocked": True,
+                "reason": usage_res.get("reason"),
+                "message": "Conversation limit reached for this plan.",
+            }), 403
+
+        # If structured order payload is attached by bot/widget, save it under this client
+        order_payload = data.get("order")
+        saved_order = None
+        if isinstance(order_payload, dict) and (order_payload.get("item") or order_payload.get("customer_name")):
+            saved_order = {
+                "order_id": str(order_payload.get("order_id") or f"ORD-{int(time.time())}").strip(),
+                "customer_name": str(order_payload.get("customer_name", "")).strip(),
+                "phone": str(order_payload.get("phone", "")).strip(),
+                "item": str(order_payload.get("item", "")).strip(),
+                "quantity": int(order_payload.get("quantity", 1) or 1),
+                "payment_method": str(order_payload.get("payment_method", "")).strip(),
+                "payment_proof": str(order_payload.get("payment_proof", "")).strip(),
+                "status": str(order_payload.get("status", "Pending")).strip(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            client_entry.setdefault("orders_today", []).insert(0, saved_order)
+
+        if usage_res.get("changed") or saved_order:
+            _save_usage_doc(doc, sha, f"Chat update for {cid} ({bot_id})")
+
+        reply_text = (
+            f"Order {saved_order['order_id']} recorded for {saved_order['customer_name'] or 'Customer'}."
+            if saved_order
+            else f"Received: \"{message}\" — Assistant is active for {client_entry.get('store_name', cid)}."
+        )
+
+        return jsonify({
+            "ok": True,
+            "reply": reply_text,
+            "order": saved_order,
+            "limit_reached": bool(usage_res.get("limit_reached")),
+        }), 200
+    except Exception as exc:
+        return jsonify({"error": f"Chat processing error: {str(exc)}"}), 500
 
 
 @app.post("/api/otp/send")

@@ -1,7 +1,7 @@
 {
   "sync_meta": {
     "schedule": "Daily before 12:00 AM (+05:30)",
-    "propagation_note": "Server/CDN updates may take 30–60 minutes to reflect.",
+    "propagation_note": "Server/CDN updates may take 30\u201360 minutes to reflect.",
     "last_synced_at": "2026-11-25 11:50 PM (+05:30)"
   },
   "plans": {
@@ -27,7 +27,7 @@
       "agents": {
         "bot_1": {
           "label": "Main Order Agent",
-          "conversations_used": 45,
+          "conversations_used": 46,
           "file_storage_mb": 20,
           "vector_db_mb": 15,
           "table_rows_used": 250
@@ -50,7 +50,7 @@
         }
       },
       "orders_today": []
-          },
+    },
     "CLT-103": {
       "store_name": "Client B Store",
       "plan": "credits_50",

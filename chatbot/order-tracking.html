@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Order Tracking — Zenix AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Google Sans", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0b1120;
+      color: #f8fafc;
+      padding: 24px;
+    }
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+    .top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      color: #f8fafc;
+      font-weight: 700;
+    }
+    .client-pill {
+      background: rgba(59, 130, 246, 0.16);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .actions-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .back-btn {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 8px 13px;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .back-btn:hover {
+      border-color: #60a5fa;
+      color: #93c5fd;
+    }
+    .search-input {
+      background: #111827;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 9px 13px;
+      min-width: 260px;
+      font-size: 13.5px;
+      outline: none;
+    }
+    .search-input:focus {
+      border-color: #3b82f6;
+    }
+    .retention-note {
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      color: #cbd5e1;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 12.5px;
+      margin-bottom: 16px;
+    }
+    .table-card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 14px;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 920px;
+    }
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid #1f2937;
+      font-size: 13.5px;
+      vertical-align: middle;
+    }
+    th {
+      background: #0f172a;
+      color: #93c5fd;
+      font-weight: 600;
+    }
+    tr:hover {
+      background: rgba(59, 130, 246, 0.06);
+    }
+    .empty-row {
+      text-align: center;
+      color: #94a3b8;
+      padding: 24px 14px;
+    }
+    .proof-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .view-proof-btn {
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .view-proof-btn:hover {
+      background: #1d4ed8;
+    }
+    .download-proof-btn {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+    }
+    .download-proof-btn:hover {
+      background: #334155;
+      border-color: #60a5fa;
+      color: #93c5fd;
+    }
+
+    /* Popup Modal */
+    .proof-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.78);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .proof-modal-overlay.open {
+      display: flex;
+    }
+    .proof-modal-box {
+      width: 100%;
+      max-width: 720px;
+      max-height: 88vh;
+      background: #111827;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+    }
+    .proof-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: #0f172a;
+      border-bottom: 1px solid #1f2937;
+      gap: 12px;
+    }
+    .proof-modal-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f1f5f9;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .proof-close-btn {
+      background: #ef4444;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      width: 32px;
+      height: 32px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .proof-close-btn:hover {
+      background: #dc2626;
+    }
+    .proof-modal-body {
+      padding: 16px;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #0b1120;
+      min-height: 260px;
+    }
+    .proof-preview-img {
+      max-width: 100%;
+      max-height: 70vh;
+      border-radius: 10px;
+      object-fit: contain;
+      border: 1px solid #1e293b;
+    }
+    .proof-preview-pdf {
+      width: 100%;
+      height: 70vh;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      background: #ffffff;
+    }
+    .proof-empty {
+      color: #cbd5e1;
+      font-size: 13.5px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top-bar">
+      <div class="title-group">
+        <h1>Orders Tracking</h1>
+        <span class="client-pill" id="activeClientBadge">Client: -</span>
+      </div>
+      <div class="actions-group">
+        <a class="back-btn" href="../dashboard_5.html">← Dashboard</a>
+        <input
+          id="orderSearchInput"
+          class="search-input"
+          type="text"
+          placeholder="Search Order ID or Phone..."
+        />
+      </div>
+    </div>
+
+    <div class="retention-note">
+      <strong>24-Hour Live Record Notice:</strong>
+      මෙහි පෙන්වන්නේ ඔබගේ Client Account එකට අදාළ පසුගිය <strong>පැය 24 (24 Hours)</strong> ඇතුළත ලැබුණු Orders පමණි. පැය 24 ඉක්මවූ orders මෙතැනින් ස්වයංක්‍රීයව ඉවත් වන අතර, සියලුම සම්පූර්ණ වාර්තා Webhook මගින් Google Sheet වෙත යොමු කෙරේ.
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Item</th>
+            <th>Quantity</th>
+            <th>Payment Method</th>
+            <th>Customer Name</th>
+            <th>Address</th>
+            <th>Phone</th>
+            <th>Payment Proof</th>
+          </tr>
+        </thead>
+        <tbody id="ordersTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Popup Screen for PNG / JPG / PDF -->
+  <div id="proofModal" class="proof-modal-overlay" role="dialog" aria-modal="true">
+    <div class="proof-modal-box">
+      <div class="proof-modal-header">
+        <div id="proofModalTitle" class="proof-modal-title">Payment Proof</div>
+        <button id="closeProofModalBtn" class="proof-close-btn" type="button" title="Close">✕</button>
+      </div>
+      <div id="proofModalBody" class="proof-modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+    function resolveActiveClientId() {
+      const urlParams = new URLSearchParams(window.location.search || "");
+      const fromUrl = (urlParams.get("client_id") || "").trim();
+      if (fromUrl) return fromUrl;
+
+      try {
+        const authRaw = sessionStorage.getItem("zenix_auth_pass");
+        if (authRaw) {
+          const parsed = JSON.parse(authRaw);
+          if (parsed && parsed.client_id && Date.now() <= Number(parsed.expires_at || 0)) {
+            return String(parsed.client_id).trim();
+          }
+        }
+      } catch (_) {}
+
+      return "";
+    }
+
+    const ACTIVE_CLIENT_ID = resolveActiveClientId();
+    document.getElementById("activeClientBadge").textContent =
+      ACTIVE_CLIENT_ID ? "Client: " + ACTIVE_CLIENT_ID : "Client: Unauthenticated";
+
+    if (!ACTIVE_CLIENT_ID) {
+      window.location.replace("../login.html");
+    }
+
+    const ordersTableBody = document.getElementById("ordersTableBody");
+    const orderSearchInput = document.getElementById("orderSearchInput");
+    const proofModal = document.getElementById("proofModal");
+    const proofModalTitle = document.getElementById("proofModalTitle");
+    const proofModalBody = document.getElementById("proofModalBody");
+    const closeProofModalBtn = document.getElementById("closeProofModalBtn");
+
+    let activePopupBlobUrl = null;
+
+    function isWithin24Hours(order) {
+      if (!order || typeof order !== "object") return false;
+      const rawTime = order.created_at || order.createdAt || order.timestamp || "";
+      if (!rawTime) return true;
+      const parsedMs = typeof rawTime === "number" ? rawTime : Date.parse(String(rawTime));
+      if (Number.isNaN(parsedMs)) return true;
+      return (Date.now() - parsedMs) <= TWENTY_FOUR_HOURS_MS;
+    }
+
+    function belongsToActiveClient(order) {
+      if (!order || typeof order !== "object" || !ACTIVE_CLIENT_ID) return false;
+      const cid = String(order.client_id ?? order.clientId ?? "").trim();
+      return cid === ACTIVE_CLIENT_ID;
+    }
+
+    function getProofUrl(order) {
+      return (
+        order.payment_proof_data_url ||
+        order.paymentProofDataUrl ||
+        order.payment_proof_url ||
+        order.paymentProofUrl ||
+        order.attachment_url ||
+        order.attachmentUrl ||
+        order.payment_proof ||
+        order.paymentProof ||
+        order.proof_url ||
+        order.proofUrl ||
+        ""
+      );
+    }
+
+    function getProofFileName(order) {
+      return (
+        order.payment_proof_name ||
+        order.paymentProofName ||
+        order.slip_file ||
+        order.slipFile ||
+        ""
+      );
+    }
+
+    function isPdfProof(url, fileName) {
+      const u = String(url || "").toLowerCase();
+      const n = String(fileName || "").toLowerCase();
+      return (
+        u.startsWith("data:application/pdf") ||
+        u.endsWith(".pdf") ||
+        n.endsWith(".pdf")
+      );
+    }
+
+    function getProofExtension(url, fileName) {
+      const u = String(url || "").toLowerCase();
+      const n = String(fileName || "").toLowerCase();
+      if (
+        u.startsWith("data:application/pdf") ||
+        u.endsWith(".pdf") ||
+        n.endsWith(".pdf")
+      ) {
+        return ".pdf";
+      }
+      if (
+        u.startsWith("data:image/jpeg") ||
+        u.startsWith("data:image/jpg") ||
+        u.endsWith(".jpg") ||
+        u.endsWith(".jpeg") ||
+        n.endsWith(".jpg") ||
+        n.endsWith(".jpeg")
+      ) {
+        return ".jpg";
+      }
+      if (
+        u.startsWith("data:image/png") ||
+        u.endsWith(".png") ||
+        n.endsWith(".png")
+      ) {
+        return ".png";
+      }
+      const extMatch =
+        n.match(/\.(pdf|jpg|jpeg|png)$/i) ||
+        u.match(/\.(pdf|jpg|jpeg|png)(?:$|\?)/i);
+      if (extMatch) {
+        return "." + extMatch[1].toLowerCase();
+      }
+      return ".png";
+    }
+
+    function buildOrderIdDownloadName(order, proofUrl, fileName) {
+      const rawId = String(order.order_id || order.orderId || "ORDER").trim();
+      const safeOrderId = rawId.replace(/[^a-zA-Z0-9_-]/g, "_") || "ORDER";
+      const ext = getProofExtension(proofUrl, fileName);
+      return `${safeOrderId}${ext}`;
+    }
+
+    function dataUrlToBlob(dataUrl) {
+      const parts = String(dataUrl || "").split(",");
+      const mimeMatch = parts[0].match(/data:([^;]+);base64/i);
+      const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+      const byteString = atob(parts[1] || "");
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      return new Blob([ab], { type: mimeType });
+    }
+
+    function downloadPaymentProofByOrderId(order) {
+      const proofUrl = getProofUrl(order);
+      const fileName = getProofFileName(order);
+      if (!proofUrl) return;
+
+      const downloadName = buildOrderIdDownloadName(order, proofUrl, fileName);
+
+      if (proofUrl.startsWith("data:")) {
+        try {
+          const blob = dataUrlToBlob(proofUrl);
+          const blobUrl = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = blobUrl;
+          link.download = downloadName;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+          return;
+        } catch (_) {}
+      }
+
+      const link = document.createElement("a");
+      link.href = proofUrl;
+      link.download = downloadName;
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+
+    function createDownloadIconSvg() {
+      const svgNS = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(svgNS, "svg");
+      svg.setAttribute("width", "15");
+      svg.setAttribute("height", "15");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("stroke", "currentColor");
+      svg.setAttribute("stroke-width", "2.2");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
+
+      const path1 = document.createElementNS(svgNS, "path");
+      path1.setAttribute("d", "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4");
+      const polyline = document.createElementNS(svgNS, "polyline");
+      polyline.setAttribute("points", "7 10 12 15 17 10");
+      const line = document.createElementNS(svgNS, "line");
+      line.setAttribute("x1", "12");
+      line.setAttribute("y1", "15");
+      line.setAttribute("x2", "12");
+      line.setAttribute("y2", "3");
+
+      svg.appendChild(path1);
+      svg.appendChild(polyline);
+      svg.appendChild(line);
+      return svg;
+    }
+
+    function openPaymentProofPopup(order) {
+      if (activePopupBlobUrl) {
+        URL.revokeObjectURL(activePopupBlobUrl);
+        activePopupBlobUrl = null;
+      }
+
+      const proofUrl = getProofUrl(order);
+      const fileName = getProofFileName(order);
+      proofModalTitle.textContent = `Payment Proof — ${order.order_id}${fileName ? ` (${fileName})` : ""}`;
+      proofModalBody.innerHTML = "";
+
+      if (!proofUrl) {
+        const p = document.createElement("div");
+        p.className = "proof-empty";
+        p.textContent = fileName
+          ? `File attached: ${fileName} (Preview URL not available)`
+          : "No payment proof attached for this order.";
+        proofModalBody.appendChild(p);
+      } else if (isPdfProof(proofUrl, fileName)) {
+        const iframe = document.createElement("iframe");
+        iframe.className = "proof-preview-pdf";
+        if (proofUrl.startsWith("data:")) {
+          try {
+            const blob = dataUrlToBlob(proofUrl);
+            activePopupBlobUrl = URL.createObjectURL(blob);
+            iframe.src = activePopupBlobUrl;
+          } catch (_) {
+            iframe.src = proofUrl;
+          }
+        } else {
+          iframe.src = proofUrl;
+        }
+        proofModalBody.appendChild(iframe);
+      } else {
+        const img = document.createElement("img");
+        img.className = "proof-preview-img";
+        img.src = proofUrl;
+        img.alt = "Payment Proof";
+        proofModalBody.appendChild(img);
+      }
+
+      proofModal.classList.add("open");
+    }
+
+    function closePaymentProofPopup() {
+      proofModal.classList.remove("open");
+      proofModalBody.innerHTML = "";
+      if (activePopupBlobUrl) {
+        URL.revokeObjectURL(activePopupBlobUrl);
+        activePopupBlobUrl = null;
+      }
+    }
+
+    closeProofModalBtn.addEventListener("click", closePaymentProofPopup);
+    proofModal.addEventListener("click", (e) => {
+      if (e.target === proofModal) closePaymentProofPopup();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && proofModal.classList.contains("open")) {
+        closePaymentProofPopup();
+      }
+    });
+
+    function renderOrdersTable(orders) {
+      ordersTableBody.innerHTML = "";
+      if (!Array.isArray(orders) || orders.length === 0) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 8;
+        td.className = "empty-row";
+        td.textContent = "පසුගිය පැය 24 ඇතුළත මෙම Client Account එකට ලැබුණු Orders නොමැත.";
+        tr.appendChild(td);
+        ordersTableBody.appendChild(tr);
+        return;
+      }
+
+      orders.forEach((order) => {
+        if (!belongsToActiveClient(order) || !isWithin24Hours(order)) return;
+
+        const tr = document.createElement("tr");
+
+        const cells = [
+          order.order_id || "-",
+          order.item || "-",
+          String(order.quantity ?? 1),
+          order.payment_method || "-",
+          order.customer_name || "-",
+          order.address || "-",
+          order.phone || "-"
+        ];
+
+        cells.forEach((val) => {
+          const td = document.createElement("td");
+          td.textContent = val;
+          tr.appendChild(td);
+        });
+
+        const proofTd = document.createElement("td");
+        const proofUrl = getProofUrl(order);
+        const fileName = getProofFileName(order);
+        const methodUpper = String(order.payment_method || "").toUpperCase();
+        const isBankTransfer = methodUpper.includes("BANK") || methodUpper.includes("TRANSFER") || methodUpper.includes("SLIP");
+        const hasProof = Boolean(proofUrl || fileName);
+
+        if (hasProof) {
+          const actionsWrap = document.createElement("div");
+          actionsWrap.className = "proof-actions";
+
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "view-proof-btn";
+          btn.textContent = "View";
+          btn.addEventListener("click", () => openPaymentProofPopup(order));
+          actionsWrap.appendChild(btn);
+
+          if (isBankTransfer && proofUrl) {
+            const dlBtn = document.createElement("button");
+            dlBtn.type = "button";
+            dlBtn.className = "download-proof-btn";
+            dlBtn.title = `Download ${buildOrderIdDownloadName(order, proofUrl, fileName)}`;
+            dlBtn.setAttribute("aria-label", "Download Payment Proof");
+            dlBtn.appendChild(createDownloadIconSvg());
+            dlBtn.addEventListener("click", () => downloadPaymentProofByOrderId(order));
+            actionsWrap.appendChild(dlBtn);
+          }
+
+          proofTd.appendChild(actionsWrap);
+        } else {
+          proofTd.textContent = "-";
+        }
+        tr.appendChild(proofTd);
+
+        ordersTableBody.appendChild(tr);
+      });
+    }
+
+    function collectScoped24hOrders() {
+      const mergedById = new Map();
+
+      function ingestList(arr) {
+        if (!Array.isArray(arr)) return;
+        arr.forEach((ord, idx) => {
+          if (!ord || typeof ord !== "object") return;
+          if (!belongsToActiveClient(ord)) return;
+          if (!isWithin24Hours(ord)) return;
+
+          const key = String(ord.order_id || ord.orderId || `ord_${idx}`).trim();
+          const prev = mergedById.get(key) || {};
+          mergedById.set(key, Object.assign({}, prev, ord));
+        });
+      }
+
+      try {
+        const legacyRaw = localStorage.getItem("store_orders_dashboard");
+        if (legacyRaw) ingestList(JSON.parse(legacyRaw));
+      } catch (_) {}
+
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith("zenix_client_orders_v1_")) {
+            const raw = localStorage.getItem(k);
+            if (raw) ingestList(JSON.parse(raw));
+          }
+        }
+      } catch (_) {}
+
+      return Array.from(mergedById.values()).sort((a, b) => {
+        const ta = Date.parse(a.created_at || a.createdAt || 0) || 0;
+        const tb = Date.parse(b.created_at || b.createdAt || 0) || 0;
+        return tb - ta;
+      });
+    }
+
+    async function fetchServerOrdersForClient() {
+      try {
+        const base = window.location.origin && window.location.origin !== "null"
+          ? window.location.origin
+          : "http://127.0.0.1:8000";
+        const url = `${base.replace(/\/+$/, "")}/api/orders?client_id=${encodeURIComponent(ACTIVE_CLIENT_ID)}&limit=100`;
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const serverOrders = Array.isArray(data && data.orders) ? data.orders : [];
+        if (serverOrders.length > 0) {
+          const current = collectScoped24hOrders();
+          const map = new Map();
+          current.forEach((o, i) => map.set(String(o.order_id || i), o));
+          serverOrders.forEach((o, i) => {
+            if (belongsToActiveClient(o) && isWithin24Hours(o)) {
+              const id = String(o.order_id || `srv_${i}`);
+              map.set(id, Object.assign({}, map.get(id) || {}, o));
+            }
+          });
+          allOrders = Array.from(map.values()).sort((a, b) => {
+            const ta = Date.parse(a.created_at || a.createdAt || 0) || 0;
+            const tb = Date.parse(b.created_at || b.createdAt || 0) || 0;
+            return tb - ta;
+          });
+          applySearchAndRender();
+        }
+      } catch (_) {}
+    }
+
+    let allOrders = collectScoped24hOrders();
+
+    function applySearchAndRender() {
+      const q = orderSearchInput.value.trim().toLowerCase();
+      if (!q) {
+        renderOrdersTable(allOrders);
+        return;
+      }
+      const filtered = allOrders.filter(
+        (o) =>
+          String(o.order_id || "").toLowerCase().includes(q) ||
+          String(o.phone || "").toLowerCase().includes(q)
+      );
+      renderOrdersTable(filtered);
+    }
+
+    function refreshOrdersView() {
+      allOrders = collectScoped24hOrders();
+      applySearchAndRender();
+      fetchServerOrdersForClient();
+    }
+
+    refreshOrdersView();
+
+    orderSearchInput.addEventListener("input", applySearchAndRender);
+
+    window.addEventListener("storage", () => {
+      refreshOrdersView();
+    });
+
+    window.addEventListener("store:order-created", refreshOrdersView);
+    window.addEventListener("zenix:order-created", refreshOrdersView);
+
+    if (typeof BroadcastChannel !== "undefined") {
+      const ch1 = new BroadcastChannel("store_orders_dashboard_channel");
+      ch1.addEventListener("message", (ev) => {
+        if (ev && ev.data && ev.data.type === "ORDER_CREATED") {
+          refreshOrdersView();
+        }
+      });
+
+      const ch2 = new BroadcastChannel(`zenix_orders_channel_${ACTIVE_CLIENT_ID}`);
+      ch2.addEventListener("message", (ev) => {
+        if (ev && ev.data && ev.data.type === "ORDER_CREATED") {
+          refreshOrdersView();
+        }
+      });
+    }
+
+    setInterval(() => {
+      refreshOrdersView();
+    }, 60 * 1000);
+  </script>
+</body>
+</html>

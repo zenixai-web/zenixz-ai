@@ -1,0 +1,11 @@
+order_id,item,quantity,payment_method,customer_name,address,phone,slip_file,status,created_at
+ORD-KW2F10,Watch A,1,BANK_TRANSFER,අජිත්,345/56 ගිරිත පුර හන්දිය,0112856456,a284ej35av1i1.jpeg,PENDING_SLIP_VERIFY,2026-11-23T21:00:08.379Z
+ORD-ZS1ENH,Watch A,1,COD,විකසිත,145 වීරසේන මාවත,0785206595,,CONFIRMED_COD,2026-11-23T21:05:28.421Z
+ORD-5L5G0R,Watch A,2,COD,සැද්වන්දරි,345/5 ගල්ගමුව ගොරකවෙල,0789561252,,CONFIRMED_COD,2026-11-25T04:19:03.970Z
+ORD-7GL105,Watch A,2,BANK_TRANSFER,විකසිත පැතුම්,145 විකසිත මාවත පැතුම් ගංගාව,0761224565,red-dead-redemption-2.png,PENDING_SLIP_VERIFY,2026-11-25T04:28:15.241Z
+ORD-VCGNGY,Watch A,1,BANK_TRANSFER,ග්‍යත්‍රි ෆොන්සේකා,450/5 නොහඩන්න ප්‍රිය සොදුර,011252365,download (1).jfif,PENDING_SLIP_VERIFY,2026-11-25T04:33:23.281Z
+ORD-IPRJDI,Watch A,1,0,0,BANK_TRANSFER,වික්‍රමසිංහ සිංහපුර,348/5 ගල්ගමුව වැල්ලවත්ත,01156458523,download (1).jfif,PENDING_SLIP_VERIFY,2026-11-25T04:41:02.001Z
+ORD-97EWEV,Watch A,1,8500,8500,BANK_TRANSFER,හසිත රාජපක්ශ,112 මහගෙදර ගල්ගමුව,0724568256,download (1).jfif,PENDING_SLIP_VERIFY,2026-11-25T05:09:04.104Z
+ORD-KK2JKE,Watch A,1,BANK_TRANSFER,මිහින් රත්නායක,156/25 සපුමල් මාවත,012456789,Xbox-Logo.wine.png,PENDING_SLIP_VERIFY,2026-11-25T05:24:48.979Z
+ORD-8W5WJA,Watch A,1,BANK_TRANSFER,Akila Danuththara,615 ABC,0112468569,Xbox-Series-X-1TB-All-Digital-Robot-White.webp,PENDING_SLIP_VERIFY,2026-11-25T05:31:09.388Z
+ORD-4NMX2E,Watch A,1,BANK_TRANSFER,වොහස් මානසිහ,515 වත්තල ජාඇල,0764568556,GTA-6-Logo-PNG-from-Grand-Theft-Auto-VI-Transparent.png,PENDING_SLIP_VERIFY,2026-11-25T05:43:53.559Z
