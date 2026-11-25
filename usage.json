@@ -30,7 +30,7 @@
           "conversations_used": 45,
           "file_storage_mb": 20,
           "vector_db_mb": 15,
-          "table_rows_used": 250
+          "table_rows_used": 250000
         }
       },
       "orders_today": []

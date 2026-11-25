@@ -1,0 +1,71 @@
+{
+  "sync_meta": {
+    "schedule": "Daily before 12:00 AM (+05:30)",
+    "propagation_note": "Server/CDN updates may take 30–60 minutes to reflect.",
+    "last_synced_at": "2026-11-25 11:50 PM (+05:30)"
+  },
+  "plans": {
+    "credits_50": {
+      "conversations_limit": 50,
+      "file_storage_limit_mb": 50,
+      "vector_db_limit_mb": 50,
+      "table_rows_limit": 500
+    },
+    "credits_100": {
+      "conversations_limit": 100,
+      "file_storage_limit_mb": 100,
+      "vector_db_limit_mb": 100,
+      "table_rows_limit": 1000
+    }
+  },
+  "clients": {
+    "CLT-106": {
+      "store_name": "Client A Store",
+      "plan": "credits_100",
+      "plan_active": true,
+      "expires_at": "2026-12-25T23:59:59+05:30",
+      "agents": {
+        "bot_1": {
+          "label": "Main Order Agent",
+          "conversations_used": 45,
+          "file_storage_mb": 20,
+          "vector_db_mb": 15,
+          "table_rows_used": 250
+        }
+      },
+      "orders_today": []
+    },
+    "CLT-107": {
+      "store_name": "Client B Store",
+      "plan": "credits_50",
+      "plan_active": true,
+      "expires_at": "2026-12-10T23:59:59+05:30",
+      "agents": {
+        "bot_1": {
+          "label": "Main Order Agent",
+          "conversations_used": 12,
+          "file_storage_mb": 5,
+          "vector_db_mb": 5,
+          "table_rows_used": 40
+        }
+      },
+      "orders_today": []
+          },
+    "CLT-103": {
+      "store_name": "Client B Store",
+      "plan": "credits_50",
+      "plan_active": true,
+      "expires_at": "2026-12-10T23:59:59+05:30",
+      "agents": {
+        "bot_1": {
+          "label": "Main Order Agent",
+          "conversations_used": 12,
+          "file_storage_mb": 5,
+          "vector_db_mb": 5,
+          "table_rows_used": 405
+        }
+      },
+      "orders_today": []
+    }
+  }
+}
