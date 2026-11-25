@@ -22,7 +22,7 @@
     "CLT-106": {
       "store_name": "Client A Store",
       "plan": "credits_100",
-      "plan_active": true,
+      "plan_active": false,
       "expires_at": "2026-12-25T23:59:59+05:30",
       "agents": {
         "bot_1": {
