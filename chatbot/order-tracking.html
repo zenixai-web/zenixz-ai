@@ -686,7 +686,7 @@
       try {
         const base = window.location.origin && window.location.origin !== "null"
           ? window.location.origin
-          : "http://127.0.0.1:8000";
+          : "https://zenixz-ai-1.onrender.com/";
         const url = `${base.replace(/\/+$/, "")}/api/orders?client_id=${encodeURIComponent(ACTIVE_CLIENT_ID)}&limit=100`;
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) return;

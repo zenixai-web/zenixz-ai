@@ -45,7 +45,7 @@
       ? scriptUrl.origin
       : window.location.origin && window.location.origin !== "null"
       ? window.location.origin
-      : "http://127.0.0.1:8000";
+      : "https://zenixz-ai-1.onrender.com/";
 
   const API_BASE =
     (scriptEl && scriptEl.getAttribute("data-api-base")) ||
