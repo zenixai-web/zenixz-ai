@@ -11,26 +11,26 @@
       "vector_db_limit_mb": 50,
       "table_rows_limit": 500
     },
-    "credits_100": {
-      "conversations_limit": 100,
-      "file_storage_limit_mb": 100,
-      "vector_db_limit_mb": 100,
-      "table_rows_limit": 1000
+    "credits_10000": {
+      "conversations_limit": 10000,
+      "file_storage_limit_mb": 10000,
+      "vector_db_limit_mb": 10000,
+      "table_rows_limit": 10000
     }
   },
   "clients": {
     "CLT-106": {
       "store_name": "Client A Store",
-      "plan": "credits_100",
+      "plan": "credits_10000",
       "plan_active": false,
       "expires_at": "2026-12-25T23:59:59+05:30",
       "agents": {
         "bot_1": {
           "label": "Main Order Agent",
-          "conversations_used": 45,
-          "file_storage_mb": 20,
-          "vector_db_mb": 15,
-          "table_rows_used": 250000
+          "conversations_used": 0,
+          "file_storage_mb": 0,
+          "vector_db_mb": 0,
+          "table_rows_used": 0
         }
       },
       "orders_today": []
