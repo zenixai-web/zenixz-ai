@@ -15,6 +15,7 @@
       --accent: #4f7cff;
       --accent-2: #22c55e;
       --warn: #f59e0b;
+      --danger: #ef4444;
       --border: rgba(255, 255, 255, 0.1);
       --banner-bg: rgba(245, 158, 11, 0.12);
       --banner-border: rgba(245, 158, 11, 0.32);
@@ -30,6 +31,7 @@
       --accent: #2563eb;
       --accent-2: #16a34a;
       --warn: #d97706;
+      --danger: #dc2626;
       --border: rgba(15, 23, 42, 0.12);
       --banner-bg: #fffbeb;
       --banner-border: #fcd34d;
@@ -151,6 +153,37 @@
       font-size: 13px;
       line-height: 1.55;
       margin-bottom: 16px;
+    }
+
+    .last3-warning-box {
+      background: rgba(245, 158, 11, 0.16);
+      border: 1px solid rgba(245, 158, 11, 0.5);
+      color: var(--banner-text);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.55;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .no-plan-box {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.38);
+      color: var(--text);
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 18px;
+      display: none;
+      line-height: 1.65;
+    }
+
+    .no-plan-box strong {
+      color: var(--danger);
+      display: block;
+      font-size: 15px;
+      margin-bottom: 6px;
     }
 
     .meta-row {
@@ -285,6 +318,47 @@
       color: var(--muted);
       margin-bottom: 2px;
     }
+
+    .tracking-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      margin-top: 18px;
+      display: none;
+    }
+
+    .tracking-head {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .orders-table-wrap {
+      overflow-x: auto;
+      margin-top: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -292,11 +366,13 @@
     <div class="store-group">
       <span class="store-title" id="storeTitle">Client Dashboard</span>
       <span class="badge" id="clientBadge">ID: -</span>
+      <span class="badge" id="planStatusBadge">Plan: Checking</span>
     </div>
 
     <div class="controls-group">
       <label for="agentSelect" style="font-size: 13px; color: var(--muted);">Agent:</label>
       <select id="agentSelect"></select>
+      <button class="btn-ghost" id="orderTrackingBtn" type="button">Order Tracking</button>
       <button class="btn-ghost" id="themeBtn" type="button" title="Toggle Dark / Light Theme">☀️ Light</button>
       <button class="btn-ghost" id="refreshBtn" type="button">↻ Sync Now</button>
       <button class="btn-ghost" id="logoutBtn" type="button">Logout</button>
@@ -307,6 +383,14 @@
     <div class="sync-banner" id="syncBanner">
       <strong>Update Schedule & Server Delay Notice:</strong>
       Usage data is updated daily before <strong>12:00 AM</strong>. After publishing changes, server/CDN propagation may take approximately <strong>30–60 minutes</strong> to appear.
+    </div>
+
+    <div class="last3-warning-box" id="last3DaysBanner"></div>
+
+    <div class="no-plan-box" id="noPlanBox">
+      <strong>Plan / Service Not Active</strong>
+      ඔබ තවම කිසිදු Plan එකක් මිලදී ගෙන හෝ Activate කරගෙන නොමැති බැවින් කිසිදු සේවාවක් (Usage / Orders / Tracking) ක්‍රියාත්මක නොවේ.
+      Plan එකක් ලබා ගැනීමට කරුණාකර සම්බන්ධ වන්න: <strong>+94 70 000 0000</strong>
     </div>
 
     <div class="session-strip" id="sessionStrip">
@@ -320,7 +404,7 @@
       <span id="lastSyncedLabel">Last Synced: -</span>
     </div>
 
-    <section class="grid-4">
+    <section class="grid-4" id="metricsGrid">
       <div class="card">
         <div class="card-label">Conversations / Customers</div>
         <div class="card-value" id="convVal">0 / 0</div>
@@ -350,7 +434,36 @@
       </div>
     </section>
 
-    <section class="grid-2">
+    <section class="tracking-panel" id="orderTrackingPanel">
+      <div class="tracking-head">
+        <div>
+          <h3 style="font-size: 16px;">Order Tracking (Today's Orders)</h3>
+          <div style="font-size: 12px; color: var(--muted);" id="trackingHint">
+            Plan activate කර නොමැති නම් orders පෙන්වන්නේ නැත (Blank).
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <input id="trackOrderIdInput" type="text" placeholder="Order ID (උදා: ORD-A1B2C3)" style="background: var(--panel-2); color: var(--text); padding: 8px 12px; width: 210px;" />
+          <button class="btn" id="trackSearchBtn" type="button">Track</button>
+        </div>
+      </div>
+      <div class="orders-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Customer</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="trackingOrdersBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="grid-2" style="margin-top: 18px;">
       <div class="card">
         <h3 style="margin-bottom: 12px; font-size: 16px;">Personal Message to Support</h3>
         <form id="msgForm">
@@ -375,7 +488,7 @@
         </div>
         <div class="contact-item">
           <span>Phone / WhatsApp</span>
-          +94 XX XXX XXXX
+          +94 70 000 0000
         </div>
         <div class="contact-item">
           <span>Email</span>
@@ -390,7 +503,6 @@
   </main>
 
   <script>
-    // Theme initialization (Dark / Light)
     const THEME_KEY = "zenix_dashboard_theme";
     const themeBtn = document.getElementById("themeBtn");
 
@@ -407,7 +519,6 @@
       applyTheme(current === "dark" ? "light" : "dark");
     });
 
-    // 1. Security Guard: Verified pass නැතිව dashboard open කරන්න බැහැ
     const authPassRaw = sessionStorage.getItem("zenix_auth_pass");
     if (!authPassRaw) {
       window.location.replace("./login.html");
@@ -426,7 +537,6 @@
       window.location.replace("./login.html");
     }
 
-    // Login pass details display
     document.getElementById("metaClientId").textContent = authPass.client_id;
     document.getElementById("metaEmail").textContent =
       authPass.email || authPass.user_email || authPass.client_email || "Verified Session";
@@ -434,34 +544,82 @@
       ? new Date(Number(authPass.expires_at)).toLocaleString()
       : "-";
 
+    // Default: unactivated / no plan until explicitly active in usage.json
     const FALLBACK_DATA = {
       sync_meta: {
         schedule: "Daily before 12:00 AM (+05:30)",
         propagation_note: "Server/CDN updates may take 30–60 minutes to reflect.",
         last_synced_at: "Before 12:00 AM Daily Sync"
       },
-      clients: {
-        [authPass.client_id]: {
-          store_name: `${authPass.client_id} Store`,
-          agents: {
-            bot_1: {
-              label: "Main Order Agent",
-              conversations_used: 45,
-              conversations_limit: 100,
-              file_storage_mb: 20,
-              file_storage_limit_mb: 100,
-              vector_db_mb: 15,
-              vector_db_limit_mb: 100,
-              table_rows_used: 250,
-              table_rows_limit: 1000
-            }
-          }
+      plans: {
+        credits_50: {
+          conversations_limit: 50,
+          file_storage_limit_mb: 50,
+          vector_db_limit_mb: 50,
+          table_rows_limit: 500
+        },
+        credits_100: {
+          conversations_limit: 100,
+          file_storage_limit_mb: 100,
+          vector_db_limit_mb: 100,
+          table_rows_limit: 1000
         }
-      }
+      },
+      clients: {}
     };
 
     let currentDataset = FALLBACK_DATA;
+    let isPlanActive = false;
+    let clientOrdersToday = [];
+    let shownExpiryWarningKey = null;
+
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
     const agentSelect = document.getElementById("agentSelect");
+    const noPlanBox = document.getElementById("noPlanBox");
+    const last3DaysBanner = document.getElementById("last3DaysBanner");
+    const planStatusBadge = document.getElementById("planStatusBadge");
+    const trackingPanel = document.getElementById("orderTrackingPanel");
+    const trackingOrdersBody = document.getElementById("trackingOrdersBody");
+
+    function getExpiryState(expiresAt) {
+      if (!expiresAt) return { expired: false, inLast3Days: false, daysLeft: null };
+      const targetMs = Date.parse(expiresAt);
+      if (Number.isNaN(targetMs)) return { expired: false, inLast3Days: false, daysLeft: null };
+      const diffMs = targetMs - Date.now();
+      if (diffMs <= 0) {
+        return { expired: true, inLast3Days: false, daysLeft: 0 };
+      }
+      if (diffMs <= THREE_DAYS_MS) {
+        const daysLeft = Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+        return { expired: false, inLast3Days: true, daysLeft };
+      }
+      return { expired: false, inLast3Days: false, daysLeft: null };
+    }
+
+    function isClientPlanActive(clientObj) {
+      if (!clientObj || typeof clientObj !== "object") return false;
+      if (getExpiryState(clientObj.expires_at).expired) return false;
+      if (clientObj.plan_active === true || clientObj.active === true) return true;
+      const status = String(clientObj.subscription_status || clientObj.status || "").toLowerCase();
+      return status === "active";
+    }
+
+    function resolveAgentMetrics(clientObj, agentObj) {
+      const plansMap = (currentDataset && currentDataset.plans) || {};
+      const planPreset = (clientObj && clientObj.plan && plansMap[clientObj.plan]) || {};
+
+      return {
+        conversations_used: Number(agentObj.conversations_used || 0),
+        conversations_limit: Number(agentObj.conversations_limit ?? planPreset.conversations_limit ?? 0),
+        file_storage_mb: Number(agentObj.file_storage_mb || 0),
+        file_storage_limit_mb: Number(agentObj.file_storage_limit_mb ?? planPreset.file_storage_limit_mb ?? 0),
+        vector_db_mb: Number(agentObj.vector_db_mb || 0),
+        vector_db_limit_mb: Number(agentObj.vector_db_limit_mb ?? planPreset.vector_db_limit_mb ?? 0),
+        table_rows_used: Number(agentObj.table_rows_used || 0),
+        table_rows_limit: Number(agentObj.table_rows_limit ?? planPreset.table_rows_limit ?? 0)
+      };
+    }
 
     function setBar(el, used, limit) {
       const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
@@ -469,17 +627,19 @@
       el.classList.toggle("warn", pct >= 80);
     }
 
-    function sumAgents(agents) {
-      return Object.values(agents || {}).reduce(
-        (acc, a) => {
-          acc.conversations_used += Number(a.conversations_used || 0);
-          acc.conversations_limit += Number(a.conversations_limit || 0);
-          acc.file_storage_mb += Number(a.file_storage_mb || 0);
-          acc.file_storage_limit_mb += Number(a.file_storage_limit_mb || 0);
-          acc.vector_db_mb += Number(a.vector_db_mb || 0);
-          acc.vector_db_limit_mb += Number(a.vector_db_limit_mb || 0);
-          acc.table_rows_used += Number(a.table_rows_used || 0);
-          acc.table_rows_limit += Number(a.table_rows_limit || 0);
+    function sumAgents(clientObj) {
+      const agents = (clientObj && clientObj.agents) || {};
+      return Object.values(agents).reduce(
+        (acc, rawAg) => {
+          const a = resolveAgentMetrics(clientObj, rawAg);
+          acc.conversations_used += a.conversations_used;
+          acc.conversations_limit += a.conversations_limit;
+          acc.file_storage_mb += a.file_storage_mb;
+          acc.file_storage_limit_mb += a.file_storage_limit_mb;
+          acc.vector_db_mb += a.vector_db_mb;
+          acc.vector_db_limit_mb += a.vector_db_limit_mb;
+          acc.table_rows_used += a.table_rows_used;
+          acc.table_rows_limit += a.table_rows_limit;
           return acc;
         },
         {
@@ -523,18 +683,79 @@
       setBar(document.getElementById("rowBar"), rowUsed, rowLimit);
     }
 
+    function renderOrdersTable(rows) {
+      trackingOrdersBody.innerHTML = "";
+      if (!isPlanActive || !Array.isArray(rows) || rows.length === 0) {
+        return;
+      }
+      rows.forEach((o) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${String(o.order_id || "")}</td>
+          <td>${String(o.item || "")}</td>
+          <td>${String(o.quantity || 1)}</td>
+          <td>${String(o.customer_name || "")}</td>
+          <td>${String(o.status || "")}</td>
+        `;
+        trackingOrdersBody.appendChild(tr);
+      });
+    }
+
     function renderDashboard() {
       const meta = currentDataset.sync_meta || {};
       document.getElementById("lastSyncedLabel").textContent =
         `Last Synced: ${meta.last_synced_at || "-"} (${meta.schedule || "Daily before 12:00 AM"})`;
 
       const clientData =
-        (currentDataset.clients && currentDataset.clients[authPass.client_id]) ||
-        Object.values(currentDataset.clients || {})[0] ||
-        { store_name: authPass.client_id, agents: {} };
+        (currentDataset.clients && currentDataset.clients[authPass.client_id]) || null;
 
-      document.getElementById("storeTitle").textContent = clientData.store_name || authPass.client_id;
+      const expState = getExpiryState(clientData && clientData.expires_at);
+      isPlanActive = isClientPlanActive(clientData);
+      clientOrdersToday = isPlanActive && Array.isArray(clientData.orders_today)
+        ? clientData.orders_today
+        : [];
+
+      document.getElementById("storeTitle").textContent =
+        (clientData && clientData.store_name) || `${authPass.client_id} Store`;
       document.getElementById("clientBadge").textContent = `ID: ${authPass.client_id}`;
+
+      if (!isPlanActive) {
+        last3DaysBanner.style.display = "none";
+        planStatusBadge.textContent = expState.expired ? "Plan: Expired" : "Plan: Inactive";
+        noPlanBox.style.display = "block";
+        agentSelect.innerHTML = `<option value="__none__">No Active Plan</option>`;
+        renderStats(
+          {
+            conversations_used: 0,
+            conversations_limit: 0,
+            file_storage_mb: 0,
+            file_storage_limit_mb: 0,
+            vector_db_mb: 0,
+            vector_db_limit_mb: 0,
+            table_rows_used: 0,
+            table_rows_limit: 0
+          },
+          "No Active Plan"
+        );
+        renderOrdersTable([]);
+        return;
+      }
+
+      planStatusBadge.textContent = "Plan: Active";
+      noPlanBox.style.display = "none";
+
+      if (expState.inLast3Days) {
+        const warnText = `අවසන් දින 3 (Final 3 Days): ඔබගේ Plan එක අවසන් වීමට තව දින ${expState.daysLeft} ක් පමණි. කරුණාකර Plan එක Renew කරගන්න.`;
+        last3DaysBanner.textContent = warnText;
+        last3DaysBanner.style.display = "block";
+        const warnKey = `${authPass.client_id}:${expState.daysLeft}`;
+        if (shownExpiryWarningKey !== warnKey) {
+          shownExpiryWarningKey = warnKey;
+          alert(warnText);
+        }
+      } else {
+        last3DaysBanner.style.display = "none";
+      }
 
       const prev = agentSelect.value || "__all__";
       agentSelect.innerHTML = `<option value="__all__">All Agents (Total)</option>`;
@@ -550,14 +771,21 @@
       }
 
       if (agentSelect.value === "__all__") {
-        renderStats(sumAgents(clientData.agents), "All Agents (Total)");
+        renderStats(sumAgents(clientData), "All Agents (Total)");
       } else {
-        const selected = clientData.agents[agentSelect.value];
-        if (selected) {
-          renderStats(selected, selected.label || agentSelect.value);
+        const selectedRaw = clientData.agents && clientData.agents[agentSelect.value];
+        if (selectedRaw) {
+          renderStats(
+            resolveAgentMetrics(clientData, selectedRaw),
+            selectedRaw.label || agentSelect.value
+          );
         } else {
-          renderStats(sumAgents(clientData.agents), "All Agents (Total)");
+          renderStats(sumAgents(clientData), "All Agents (Total)");
         }
+      }
+
+      if (trackingPanel.style.display === "block") {
+        renderOrdersTable(clientOrdersToday);
       }
     }
 
@@ -568,10 +796,31 @@
           currentDataset = await res.json();
         }
       } catch {
-        // Fallback data will be used when offline or under file://
+        // Fallback blank/inactive data when offline or missing
       }
       renderDashboard();
     }
+
+    document.getElementById("orderTrackingBtn").addEventListener("click", () => {
+      const nextOpen = trackingPanel.style.display !== "block";
+      trackingPanel.style.display = nextOpen ? "block" : "none";
+      renderOrdersTable(nextOpen && isPlanActive ? clientOrdersToday : []);
+    });
+
+    document.getElementById("trackSearchBtn").addEventListener("click", () => {
+      if (!isPlanActive) {
+        renderOrdersTable([]);
+        return;
+      }
+      const q = (document.getElementById("trackOrderIdInput").value || "").trim().toLowerCase();
+      if (!q) {
+        renderOrdersTable(clientOrdersToday);
+        return;
+      }
+      renderOrdersTable(
+        clientOrdersToday.filter((o) => String(o.order_id || "").toLowerCase().includes(q))
+      );
+    });
 
     agentSelect.addEventListener("change", renderDashboard);
     document.getElementById("refreshBtn").addEventListener("click", loadUsageJson);
