@@ -1,14 +1,20 @@
 import base64
+import hashlib
+import hmac
 import json
 import os
 import random
+import secrets
 import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -17,6 +23,7 @@ BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "").strip()
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "support@zenixai.online").strip()
 SENDER_NAME = os.environ.get("SENDER_NAME", "Zenix AI").strip()
 ALLOW_DEV_CONSOLE_OTP = os.environ.get("ALLOW_DEV_CONSOLE_OTP", "0").strip() == "1"
+SESSION_TOKEN_SECRET = os.environ.get("SESSION_TOKEN_SECRET", "zenix-session-secret-change-me").strip()
 
 OTP_STORE = {}
 OTP_TTL_SECONDS = 300  # 5 minutes
@@ -35,6 +42,86 @@ GITHUB_REPO = os.environ.get("GITHUB_REPO", "").strip()
 GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main").strip()
 USAGE_JSON_PATH = os.environ.get("USAGE_JSON_PATH", "data/usage.json").strip()
 LOCAL_USAGE_FILE = os.environ.get("LOCAL_USAGE_FILE", "data/usage.json").strip()
+
+
+def _init_firestore():
+    if firebase_admin._apps:
+        return firestore.client()
+
+    raw_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
+    key_path = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH", "").strip()
+
+    if raw_json:
+        cred_dict = json.loads(raw_json)
+        cred = credentials.Certificate(cred_dict)
+    elif key_path and os.path.exists(key_path):
+        cred = credentials.Certificate(key_path)
+    else:
+        cred = credentials.ApplicationDefault()
+
+    firebase_admin.initialize_app(cred)
+    return firestore.client()
+
+
+def _get_db():
+    try:
+        return _init_firestore()
+    except Exception:
+        return None
+
+
+def _issue_client_token(client_id: str, email: str) -> str:
+    exp_ts = int(time.time()) + 86400 * 7  # 7 days
+    payload_obj = {
+        "client_id": client_id.upper(),
+        "email": (email or "").strip().lower(),
+        "exp": exp_ts,
+    }
+    payload_b64 = base64.urlsafe_b64encode(
+        json.dumps(payload_obj, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii")
+    sig = hmac.new(
+        SESSION_TOKEN_SECRET.encode("utf-8"),
+        payload_b64.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{payload_b64}.{sig}"
+
+
+def _verify_client_token(token: str) -> dict | None:
+    if not token or "." not in token:
+        return None
+    payload_b64, sig = token.split(".", 1)
+    expected_sig = hmac.new(
+        SESSION_TOKEN_SECRET.encode("utf-8"),
+        payload_b64.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(sig, expected_sig):
+        return None
+    try:
+        padded = payload_b64 + "=" * (-len(payload_b64) % 4)
+        data = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8"))
+        if int(data.get("exp", 0)) < int(time.time()):
+            return None
+        if not data.get("client_id"):
+            return None
+        return data
+    except Exception:
+        return None
+
+
+def _get_authenticated_client_id() -> str | None:
+    auth_header = (request.headers.get("Authorization") or "").strip()
+    token = ""
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header[7:].strip()
+    if not token:
+        token = (request.headers.get("X-Client-Token") or "").strip()
+    verified = _verify_client_token(token)
+    if verified:
+        return str(verified.get("client_id") or "").strip().upper()
+    return None
 
 
 def get_client_ip() -> str:
@@ -247,16 +334,122 @@ def _is_client_active_now(client_entry: dict) -> tuple[bool, str]:
     return True, "active"
 
 
+# --- Firebase Firestore Helpers (New Addition) ---
+
+
+def _fs_find_email_owner(db, email_lower: str) -> str | None:
+    if not db or not email_lower:
+        return None
+    docs = db.collection("clients").where("email", "==", email_lower).limit(1).stream()
+    for d in docs:
+        return str(d.id).upper()
+    return None
+
+
+def _fs_get_client(db, cid: str) -> dict | None:
+    if not db or not cid:
+        return None
+    snap = db.collection("clients").document(cid.upper()).get()
+    if snap.exists:
+        data = snap.to_dict() or {}
+        data["client_id"] = cid.upper()
+        return data
+    return None
+
+
+def _fs_sync_client(cid: str, client_entry: dict) -> None:
+    db = _get_db()
+    if not db or not cid:
+        return
+    clean_cid = cid.upper()
+    doc_payload = {
+        "client_id": clean_cid,
+        "store_name": client_entry.get("store_name") or f"{clean_cid} Store",
+        "email": (client_entry.get("email") or "").strip().lower(),
+        "plan": client_entry.get("plan"),
+        "plan_active": bool(client_entry.get("plan_active", False)),
+        "expires_at": client_entry.get("expires_at"),
+        "agents": client_entry.get("agents") or {},
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    db.collection("clients").document(clean_cid).set(doc_payload, merge=True)
+
+
+def _fs_save_order(cid: str, order_record: dict) -> None:
+    db = _get_db()
+    if not db or not cid:
+        return
+    clean_cid = cid.upper()
+    oid = str(order_record.get("order_id") or "").strip()
+    if not oid:
+        return
+    payload = dict(order_record)
+    payload["client_id"] = clean_cid
+    payload.setdefault("tracking_events", [
+        {
+            "stage": "Order Placed",
+            "status": payload.get("status", "Pending"),
+            "timestamp": payload.get("created_at") or datetime.now(timezone.utc).isoformat(),
+        }
+    ])
+    db.collection("orders").document(oid).set(payload, merge=True)
+
+
+def _fs_save_otp(store_key: str, email_lower: str, cid: str, otp_code: str, expires_at: float) -> None:
+    db = _get_db()
+    if not db:
+        return
+    db.collection("otp_codes").document(store_key).set({
+        "client_id": cid.upper(),
+        "email": email_lower,
+        "otp": otp_code,
+        "expires_at": expires_at,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+def _fs_get_and_consume_otp(store_key: str, entered_otp: str, consume: bool = True) -> dict | None:
+    db = _get_db()
+    if not db:
+        return None
+    doc_ref = db.collection("otp_codes").document(store_key)
+    snap = doc_ref.get()
+    if not snap.exists:
+        return None
+    rec = snap.to_dict() or {}
+    if time.time() > float(rec.get("expires_at", 0)):
+        doc_ref.delete()
+        return None
+    if str(rec.get("otp", "")).strip() != str(entered_otp or "").strip():
+        return None
+    if consume:
+        doc_ref.delete()
+    return rec
+
+
 def register_client_in_usage_json(client_id: str, store_name: str = "", email: str = "") -> dict:
     cid = str(client_id or "").strip().upper()
     if not cid:
         raise ValueError("client_id is required")
 
+    email_clean = str(email or "").strip().lower()
+    db = _get_db()
+    if db and email_clean:
+        existing_owner = _fs_find_email_owner(db, email_clean)
+        if existing_owner and existing_owner != cid:
+            raise ValueError("මෙම Email එකෙන් දැනටමත් Account එකක් සාදා ඇත. වෙනත් Email එකක් භාවිතා කරන්න.")
+
     doc, sha = _load_usage_doc()
     if cid not in doc["clients"]:
-        doc["clients"][cid] = _build_zero_client_entry(cid, store_name=store_name, email=email)
+        doc["clients"][cid] = _build_zero_client_entry(cid, store_name=store_name, email=email_clean)
         _save_usage_doc(doc, sha, f"Auto-register client {cid} (plan_active=false, expires_at=null)")
+    else:
+        if store_name:
+            doc["clients"][cid]["store_name"] = store_name
+        if email_clean and not doc["clients"][cid].get("email"):
+            doc["clients"][cid]["email"] = email_clean
 
+    _fs_sync_client(cid, doc["clients"][cid])
     return doc["clients"][cid]
 
 
@@ -297,6 +490,7 @@ def _increment_usage_in_doc(doc: dict, cid: str, bot_id: str, conv_inc: int = 1,
 
     new_used = min(used + int(conv_inc), limit) if limit > 0 else used + int(conv_inc)
     bot_entry["conversations_used"] = new_used
+    _fs_sync_client(cid, client_entry)
     return {
         "ok": True,
         "changed": True,
@@ -319,6 +513,10 @@ def api_register_client():
     try:
         entry = register_client_in_usage_json(client_id, store_name=store_name, email=email)
         return jsonify({"ok": True, "client_id": client_id, "client": entry}), 201
+    except ValueError as exc:
+        msg = str(exc)
+        status_code = 409 if "Email" in msg else 400
+        return jsonify({"error": msg, "code": "EMAIL_ALREADY_EXISTS" if status_code == 409 else "INVALID_INPUT"}), status_code
     except Exception as exc:
         return jsonify({"error": f"Failed to register client in usage.json: {str(exc)}"}), 500
 
@@ -407,16 +605,27 @@ def api_create_order():
         if not active:
             return jsonify({"ok": False, "blocked": True, "reason": reason}), 403
 
+        now_iso = datetime.now(timezone.utc).isoformat()
         order_record = {
             "order_id": str(data.get("order_id") or f"ORD-{int(time.time())}").strip(),
+            "client_id": cid,
+            "bot_id": bot_id,
             "customer_name": str(data.get("customer_name", "")).strip(),
             "phone": str(data.get("phone", "")).strip(),
+            "address": str(data.get("address", "")).strip(),
             "item": str(data.get("item", "")).strip(),
             "quantity": int(data.get("quantity", 1) or 1),
             "payment_method": str(data.get("payment_method", "")).strip(),
             "payment_proof": str(data.get("payment_proof", "")).strip(),
             "status": str(data.get("status", "Pending")).strip(),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_iso,
+            "tracking_events": [
+                {
+                    "stage": "Order Placed",
+                    "status": str(data.get("status", "Pending")).strip(),
+                    "timestamp": now_iso,
+                }
+            ],
         }
 
         orders = client_entry.setdefault("orders_today", [])
@@ -426,6 +635,7 @@ def api_create_order():
             doc, cid, bot_id, conv_inc=1, session_id=str(data.get("session_id", "")).strip()
         )
         _save_usage_doc(doc, sha, f"Add order {order_record['order_id']} for {cid}")
+        _fs_save_order(cid, order_record)
 
         return jsonify({
             "ok": True,
@@ -469,22 +679,33 @@ def api_chat():
                 "message": "Conversation limit reached for this plan.",
             }), 403
 
-        # If structured order payload is attached by bot/widget, save it under this client
         order_payload = data.get("order")
         saved_order = None
         if isinstance(order_payload, dict) and (order_payload.get("item") or order_payload.get("customer_name")):
+            now_iso = datetime.now(timezone.utc).isoformat()
             saved_order = {
                 "order_id": str(order_payload.get("order_id") or f"ORD-{int(time.time())}").strip(),
+                "client_id": cid,
+                "bot_id": bot_id,
                 "customer_name": str(order_payload.get("customer_name", "")).strip(),
                 "phone": str(order_payload.get("phone", "")).strip(),
+                "address": str(order_payload.get("address", "")).strip(),
                 "item": str(order_payload.get("item", "")).strip(),
                 "quantity": int(order_payload.get("quantity", 1) or 1),
                 "payment_method": str(order_payload.get("payment_method", "")).strip(),
                 "payment_proof": str(order_payload.get("payment_proof", "")).strip(),
                 "status": str(order_payload.get("status", "Pending")).strip(),
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": now_iso,
+                "tracking_events": [
+                    {
+                        "stage": "Order Placed",
+                        "status": str(order_payload.get("status", "Pending")).strip(),
+                        "timestamp": now_iso,
+                    }
+                ],
             }
             client_entry.setdefault("orders_today", []).insert(0, saved_order)
+            _fs_save_order(cid, saved_order)
 
         if usage_res.get("changed") or saved_order:
             _save_usage_doc(doc, sha, f"Chat update for {cid} ({bot_id})")
@@ -517,17 +738,32 @@ def api_send_otp():
 
     data = request.get_json(silent=True) or {}
     to_email = str(data.get("email", "")).strip()
+    to_email_lower = to_email.lower()
     client_id = str(data.get("client_id", "CLIENT")).strip().upper()
+    is_new_account = bool(data.get("is_new_account", False))
 
     if "@" not in to_email or "." not in to_email.split("@")[-1]:
         return jsonify({"error": "Valid email address is required."}), 400
 
+    db = _get_db()
+    if db and is_new_account:
+        existing_owner = _fs_find_email_owner(db, to_email_lower)
+        if existing_owner:
+            return jsonify({
+                "error": "මෙම Email එකෙන් දැනටමත් Account එකක් සාදා ඇත. වෙනත් Email එකක් භාවිතා කරන්න.",
+                "code": "EMAIL_ALREADY_EXISTS",
+            }), 409
+
     otp_code = f"{random.randint(100000, 999999)}"
-    store_key = f"{client_id}:{to_email.lower()}"
+    expires_at = time.time() + OTP_TTL_SECONDS
+    store_key = f"{client_id}:{to_email_lower}"
     OTP_STORE[store_key] = {
         "otp": otp_code,
-        "expires_at": time.time() + OTP_TTL_SECONDS,
+        "email": to_email_lower,
+        "client_id": client_id,
+        "expires_at": expires_at,
     }
+    _fs_save_otp(store_key, to_email_lower, client_id, otp_code, expires_at)
 
     try:
         send_otp_via_brevo_https(to_email, otp_code, client_id)
@@ -545,19 +781,160 @@ def api_verify_otp():
     to_email = str(data.get("email", "")).strip().lower()
     client_id = str(data.get("client_id", "CLIENT")).strip().upper()
     entered_otp = str(data.get("otp", "")).strip()
+    store_name = str(data.get("store_name", "")).strip()
+    is_new_account = bool(data.get("is_new_account", False))
 
     store_key = f"{client_id}:{to_email}"
     record = OTP_STORE.get(store_key)
+    valid_from_mem = bool(record and time.time() <= record["expires_at"] and entered_otp == record["otp"])
 
-    if not record or time.time() > record["expires_at"]:
-        OTP_STORE.pop(store_key, None)
-        return jsonify({"error": "OTP expired or not found."}), 400
-
-    if entered_otp != record["otp"]:
-        return jsonify({"error": "Invalid OTP code."}), 401
+    if not valid_from_mem:
+        fs_rec = _fs_get_and_consume_otp(store_key, entered_otp, consume=True)
+        if not fs_rec:
+            OTP_STORE.pop(store_key, None)
+            return jsonify({"error": "OTP expired or invalid."}), 401
+        record = fs_rec
 
     OTP_STORE.pop(store_key, None)
-    return jsonify({"ok": True, "verified": True}), 200
+
+    db = _get_db()
+    if db:
+        existing_owner = _fs_find_email_owner(db, to_email)
+        if is_new_account and existing_owner:
+            return jsonify({
+                "error": "මෙම Email එකෙන් දැනටමත් Account එකක් සාදා ඇත. වෙනත් Email එකක් භාවිතා කරන්න.",
+                "code": "EMAIL_ALREADY_EXISTS",
+            }), 409
+        if existing_owner and existing_owner != client_id:
+            return jsonify({
+                "error": "මෙම Email එක වෙනත් Client ID එකකට සම්බන්ධ කර ඇත.",
+                "code": "EMAIL_MISMATCH_CLIENT",
+            }), 403
+
+        existing_client = _fs_get_client(db, client_id)
+        if not existing_client:
+            default_entry = _build_zero_client_entry(client_id, store_name=store_name, email=to_email)
+            _fs_sync_client(client_id, default_entry)
+        elif to_email and existing_client.get("email") and existing_client.get("email") != to_email:
+            return jsonify({"error": "Email does not match this Client ID."}), 403
+
+    token = _issue_client_token(client_id, to_email)
+    return jsonify({
+        "ok": True,
+        "verified": True,
+        "client_id": client_id,
+        "email": to_email,
+        "token": token,
+    }), 200
+
+
+# --- Client-Isolated Dashboard & Order Tracking Endpoints (Firebase Firestore) ---
+
+
+@app.get("/api/my/dashboard")
+def api_my_dashboard():
+    authed_cid = _get_authenticated_client_id()
+    requested_cid = str(request.args.get("client_id", "")).strip().upper()
+    if not authed_cid:
+        return jsonify({"error": "Authentication required."}), 401
+    if requested_cid and requested_cid != authed_cid:
+        return jsonify({"error": "Access denied: you can only view your own dashboard."}), 403
+
+    db = _get_db()
+    if not db:
+        return jsonify({"error": "Firebase Firestore is not configured."}), 500
+
+    client_doc = _fs_get_client(db, authed_cid)
+    if not client_doc:
+        return jsonify({"error": "Client account not found."}), 404
+
+    usage_doc, _ = _load_usage_doc()
+    plans = usage_doc.get("plans") or _default_usage_doc()["plans"]
+    plan_name = client_doc.get("plan")
+    conv_limit = int((plans.get(plan_name) or {}).get("conversations_limit", 0)) if plan_name else 0
+
+    agents = client_doc.get("agents") or {}
+    total_conversations_used = sum(
+        int((bot_data or {}).get("conversations_used", 0))
+        for bot_data in agents.values()
+        if isinstance(bot_data, dict)
+    )
+
+    return jsonify({
+        "ok": True,
+        "client_id": authed_cid,
+        "store_name": client_doc.get("store_name") or authed_cid,
+        "plan": plan_name or "No Active Plan",
+        "plan_active": bool(client_doc.get("plan_active", False)),
+        "expires_at": client_doc.get("expires_at"),
+        "conversations_used": total_conversations_used,
+        "conversations_limit": conv_limit,
+    }), 200
+
+
+@app.get("/api/my/orders")
+def api_my_orders():
+    authed_cid = _get_authenticated_client_id()
+    requested_cid = str(request.args.get("client_id", "")).strip().upper()
+    if not authed_cid:
+        return jsonify({"error": "Authentication required."}), 401
+    if requested_cid and requested_cid != authed_cid:
+        return jsonify({"error": "Access denied: you can only view your own orders."}), 403
+
+    db = _get_db()
+    if not db:
+        return jsonify({"error": "Firebase Firestore is not configured."}), 500
+
+    docs = db.collection("orders").where("client_id", "==", authed_cid).stream()
+    my_orders = []
+    for d in docs:
+        item = d.to_dict() or {}
+        item.setdefault("order_id", d.id)
+        my_orders.append(item)
+
+    my_orders.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
+    return jsonify({
+        "ok": True,
+        "client_id": authed_cid,
+        "orders": my_orders,
+        "count": len(my_orders),
+    }), 200
+
+
+@app.get("/api/my/tracking/<order_id>")
+def api_my_order_tracking(order_id: str):
+    authed_cid = _get_authenticated_client_id()
+    if not authed_cid:
+        return jsonify({"error": "Authentication required."}), 401
+
+    db = _get_db()
+    if not db:
+        return jsonify({"error": "Firebase Firestore is not configured."}), 500
+
+    clean_oid = str(order_id or "").strip()
+    snap = db.collection("orders").document(clean_oid).get()
+    if not snap.exists:
+        return jsonify({"error": "Order not found."}), 404
+
+    order_data = snap.to_dict() or {}
+    owner_cid = str(order_data.get("client_id") or "").strip().upper()
+    if owner_cid != authed_cid:
+        return jsonify({"error": "Access denied: this order belongs to another client."}), 403
+
+    order_data.setdefault("order_id", clean_oid)
+    order_data.setdefault("tracking_events", [
+        {
+            "stage": "Order Placed",
+            "status": order_data.get("status", "Pending"),
+            "timestamp": order_data.get("created_at") or datetime.now(timezone.utc).isoformat(),
+        }
+    ])
+
+    return jsonify({
+        "ok": True,
+        "client_id": authed_cid,
+        "tracking": order_data,
+    }), 200
 
 
 if __name__ == "__main__":
