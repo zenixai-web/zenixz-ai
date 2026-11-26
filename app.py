@@ -1,4 +1,5 @@
 import base64
+from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import json
@@ -9,7 +10,6 @@ import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
-from datetime import datetime, timezone
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -295,7 +295,7 @@ def _build_zero_client_entry(
     last_ip: str = "",
 ) -> dict:
     clean_cid = str(client_id or "").strip().upper()
-    num_part = clean_cid.replace("CLT-", "").strip() or "101"
+    num_part = clean_cid.replace("CLT-", "").strip() or "1000"
     clean_user = (username or f"USR-{num_part}").strip()
     return {
         "client_id": clean_cid,
@@ -403,6 +403,7 @@ def _load_usage_doc() -> tuple[dict, str | None]:
 
 
 def _save_usage_doc(doc: dict, sha: str | None, commit_msg: str, sync_github: bool = True) -> None:
+    doc.setdefault("sync_meta", {})["last_synced_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     local_dir = os.path.dirname(LOCAL_USAGE_FILE)
     if local_dir:
         os.makedirs(local_dir, exist_ok=True)
@@ -424,12 +425,14 @@ def _get_client_conversation_limit(doc: dict, client_entry: dict) -> int:
     return 0
 
 
-def _is_client_active_now(client_entry: dict) -> tuple[bool, str]:
+def _check_and_enforce_plan_state(client_entry: dict) -> tuple[bool, str, bool]:
+    """
+    Returns (is_active_now, reason, changed_due_to_expiry).
+    Enforces 30-day plan expiry: once expires_at passes, plan_active becomes False.
+    """
     if not client_entry:
-        return False, "plan_inactive"
-    # Strictly respect plan_active flag (False means False)
-    if client_entry.get("plan_active") is not True:
-        return False, "plan_inactive"
+        return False, "plan_inactive", False
+
     exp_val = client_entry.get("expires_at")
     if exp_val:
         s = str(exp_val).strip()
@@ -438,10 +441,21 @@ def _is_client_active_now(client_entry: dict) -> tuple[bool, str]:
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             if datetime.now(timezone.utc) > dt:
-                return False, "plan_expired"
+                was_active = client_entry.get("plan_active") is True
+                client_entry["plan_active"] = False
+                return False, "plan_expired", was_active
         except ValueError:
             pass
-    return True, "active"
+
+    if client_entry.get("plan_active") is not True:
+        return False, "plan_inactive", False
+
+    return True, "active", False
+
+
+def _is_client_active_now(client_entry: dict) -> tuple[bool, str]:
+    active, reason, _ = _check_and_enforce_plan_state(client_entry)
+    return active, reason
 
 
 # --- Firebase Firestore Helpers ---
@@ -714,8 +728,10 @@ def register_client_in_usage_json(
             doc["clients"][cid]["last_login_ip"] = last_ip
             doc["clients"][cid]["last_login_at"] = datetime.now(timezone.utc).isoformat()
 
-    # Preserve existing plan_active from Firestore if present
-    if db and not is_new_account:
+    # New accounts always start with plan_active = False; existing accounts keep Firestore value
+    if is_new_account:
+        doc["clients"][cid]["plan_active"] = False
+    elif db:
         fs_existing = _fs_get_client(db, cid)
         if fs_existing and "plan_active" in fs_existing:
             doc["clients"][cid]["plan_active"] = bool(fs_existing.get("plan_active", False))
@@ -724,8 +740,15 @@ def register_client_in_usage_json(
             if fs_existing.get("expires_at") is not None:
                 doc["clients"][cid]["expires_at"] = fs_existing.get("expires_at")
 
-    if created_new:
-        _save_usage_doc(doc, sha, f"Auto-register client {cid} (plan_active=false, expires_at=null)", sync_github=False)
+    _, _, expired_changed = _check_and_enforce_plan_state(doc["clients"][cid])
+
+    if created_new or is_new_account or expired_changed:
+        _save_usage_doc(
+            doc,
+            sha,
+            f"Sync client {cid} (plan_active={doc['clients'][cid].get('plan_active')})",
+            sync_github=True,
+        )
 
     pw_hash = _hash_password(password) if password else None
     try:
@@ -746,9 +769,14 @@ def _increment_usage_in_doc(doc: dict, cid: str, bot_id: str, conv_inc: int = 1,
     if not client_entry:
         raise ValueError(f"Client {cid} not found")
 
-    active, reason = _is_client_active_now(client_entry)
+    active, reason, expired_changed = _check_and_enforce_plan_state(client_entry)
     if not active:
-        return {"ok": False, "reason": reason, "changed": False}
+        if expired_changed:
+            try:
+                _fs_sync_client(cid, client_entry)
+            except Exception:
+                pass
+        return {"ok": False, "reason": reason, "changed": expired_changed}
 
     limit = _get_client_conversation_limit(doc, client_entry)
     agents = client_entry.setdefault("agents", {})
@@ -803,11 +831,21 @@ def api_lookup_client():
     username = str(data.get("username", "")).strip()
 
     db = _get_db()
-    doc, _ = _load_usage_doc()
+    doc, sha = _load_usage_doc()
     resolved_cid, rec = _resolve_account_record(db, doc, client_id=cid, email=email, username=username)
 
     if not resolved_cid or not rec:
         return jsonify({"ok": False, "error": "Account not found."}), 404
+
+    active, _, expired_changed = _check_and_enforce_plan_state(rec)
+    if expired_changed:
+        if resolved_cid in doc.get("clients", {}):
+            doc["clients"][resolved_cid]["plan_active"] = False
+            _save_usage_doc(doc, sha, f"Auto-expire 30-day plan for {resolved_cid}", sync_github=True)
+        try:
+            _fs_sync_client(resolved_cid, rec)
+        except Exception:
+            pass
 
     return jsonify({
         "ok": True,
@@ -818,7 +856,7 @@ def api_lookup_client():
         "email": rec.get("email") or rec.get("owner_email") or "",
         "owner_email": rec.get("owner_email") or rec.get("email") or "",
         "plan": rec.get("plan"),
-        "plan_active": bool(rec.get("plan_active", False)),
+        "plan_active": bool(active),
         "expires_at": rec.get("expires_at"),
     }), 200
 
@@ -850,6 +888,46 @@ def api_register_client():
         return jsonify({"error": msg, "code": "EMAIL_ALREADY_EXISTS" if status_code == 409 else "INVALID_INPUT"}), status_code
     except Exception as exc:
         return jsonify({"error": f"Failed to register client in usage.json: {str(exc)}"}), 500
+
+
+@app.post("/api/client/activate-30d")
+def api_activate_30d_plan():
+    """Optional helper endpoint to activate a 30-day plan on a client (sets plan_active=True and expires_at=+30d)."""
+    data = request.get_json(silent=True) or {}
+    cid = str(data.get("client_id", "")).strip().upper()
+    plan_name = str(data.get("plan", "credits_50")).strip() or "credits_50"
+    if not cid:
+        return jsonify({"error": "client_id is required."}), 400
+
+    doc, sha = _load_usage_doc()
+    db = _get_db()
+    resolved_cid, rec = _resolve_account_record(db, doc, client_id=cid)
+    if not resolved_cid or not rec:
+        return jsonify({"error": "Client not found."}), 404
+
+    now_dt = datetime.now(timezone.utc)
+    exp_iso = (now_dt + timedelta(days=30)).isoformat()
+    entry = dict(rec)
+    entry["plan"] = plan_name
+    entry["plan_active"] = True
+    entry["expires_at"] = exp_iso
+    entry.setdefault("agents", {
+        "bot_1": {
+            "label": "Main Order Agent",
+            "conversations_used": 0,
+            "file_storage_mb": 0,
+            "vector_db_mb": 0,
+            "table_rows_used": 0,
+        }
+    })
+    doc.setdefault("clients", {})[resolved_cid] = entry
+    _save_usage_doc(doc, sha, f"Activate 30-day plan ({plan_name}) for {resolved_cid}", sync_github=True)
+    try:
+        _fs_sync_client(resolved_cid, entry)
+    except Exception:
+        pass
+
+    return jsonify({"ok": True, "client_id": resolved_cid, "plan": plan_name, "plan_active": True, "expires_at": exp_iso}), 200
 
 
 @app.post("/api/client/forgot-id")
@@ -906,13 +984,22 @@ def api_widget_status():
         return jsonify({"allowed": False, "reason": "missing_client_id"}), 400
 
     try:
-        doc, _ = _load_usage_doc()
+        doc, sha = _load_usage_doc()
         db = _get_db()
         _, client_entry = _resolve_account_record(db, doc, client_id=cid)
         if not client_entry:
             return jsonify({"allowed": False, "reason": "client_not_found"}), 404
 
-        active, reason = _is_client_active_now(client_entry)
+        active, reason, expired_changed = _check_and_enforce_plan_state(client_entry)
+        if expired_changed:
+            if cid in doc.get("clients", {}):
+                doc["clients"][cid]["plan_active"] = False
+                _save_usage_doc(doc, sha, f"Auto-expire 30-day plan for {cid}", sync_github=True)
+            try:
+                _fs_sync_client(cid, client_entry)
+            except Exception:
+                pass
+
         limit = _get_client_conversation_limit(doc, client_entry)
         bot_entry = client_entry.get("agents", {}).get(bot_id, {})
         used = int(bot_entry.get("conversations_used", 0))
@@ -933,7 +1020,7 @@ def api_widget_status():
             "reason": reason,
             "client_id": cid,
             "store_name": client_entry.get("store_name", cid),
-            "plan_active": bool(client_entry.get("plan_active", False)),
+            "plan_active": bool(active),
             "used": used,
             "limit": limit,
         }), 200
@@ -956,9 +1043,11 @@ def api_track_usage():
         doc, sha = _load_usage_doc()
         res = _increment_usage_in_doc(doc, cid, bot_id, conv_inc=conv_inc, session_id=session_id)
         if not res.get("ok"):
+            if res.get("changed"):
+                _save_usage_doc(doc, sha, f"Auto-expire plan for {cid}", sync_github=True)
             return jsonify(res), 403
         if res.get("changed"):
-            _save_usage_doc(doc, sha, f"Track usage for {cid} ({bot_id}): {res.get('conversations_used')}", sync_github=False)
+            _save_usage_doc(doc, sha, f"Track usage for {cid} ({bot_id}): {res.get('conversations_used')}", sync_github=True)
         return jsonify(res), 200
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404
@@ -981,8 +1070,14 @@ def api_create_order():
         if not client_entry:
             return jsonify({"error": f"Client {cid} not found."}), 404
 
-        active, reason = _is_client_active_now(client_entry)
+        active, reason, expired_changed = _check_and_enforce_plan_state(client_entry)
         if not active:
+            if expired_changed:
+                _save_usage_doc(doc, sha, f"Auto-expire plan for {cid}", sync_github=True)
+                try:
+                    _fs_sync_client(cid, client_entry)
+                except Exception:
+                    pass
             return jsonify({"ok": False, "blocked": True, "reason": reason}), 403
 
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -1014,7 +1109,7 @@ def api_create_order():
         usage_res = _increment_usage_in_doc(
             doc, cid, bot_id, conv_inc=1, session_id=str(data.get("session_id", "")).strip()
         )
-        _save_usage_doc(doc, sha, f"Add order {order_record['order_id']} for {cid}", sync_github=False)
+        _save_usage_doc(doc, sha, f"Add order {order_record['order_id']} for {cid}", sync_github=True)
         try:
             _fs_save_order(cid, order_record)
         except Exception:
@@ -1049,8 +1144,14 @@ def api_chat():
                 "message": f"Client {cid} is not registered or inactive.",
             }), 403
 
-        active, reason = _is_client_active_now(client_entry)
+        active, reason, expired_changed = _check_and_enforce_plan_state(client_entry)
         if not active:
+            if expired_changed:
+                _save_usage_doc(doc, sha, f"Auto-expire plan for {cid}", sync_github=True)
+                try:
+                    _fs_sync_client(cid, client_entry)
+                except Exception:
+                    pass
             msg = "Plan expired. Please renew." if reason == "plan_expired" else "Chatbot is currently deactivated."
             return jsonify({"blocked": True, "reason": reason, "message": msg}), 403
 
@@ -1094,7 +1195,7 @@ def api_chat():
                 pass
 
         if usage_res.get("changed") or saved_order:
-            _save_usage_doc(doc, sha, f"Chat update for {cid} ({bot_id})", sync_github=False)
+            _save_usage_doc(doc, sha, f"Chat update for {cid} ({bot_id})", sync_github=True)
 
         reply_text = (
             f"Order {saved_order['order_id']} recorded for {saved_order['customer_name'] or 'Customer'}."
@@ -1133,7 +1234,6 @@ def api_send_otp():
     db = _get_db()
     doc, _ = _load_usage_doc()
 
-    # Resolve account by username/client_id/email if email wasn't explicitly typed
     resolved_cid, existing_client = _resolve_account_record(
         db, doc, client_id=client_id, email=to_email_lower, username=username
     )
@@ -1149,14 +1249,12 @@ def api_send_otp():
     if not client_id:
         client_id = "NEW-CLIENT"
 
-    if is_new_account:
-        if resolved_cid and existing_client:
-            return jsonify({
-                "error": "මෙම Email එකෙන් දැනටමත් Account එකක් සාදා ඇත. වෙනත් Email එකක් භාවිතා කරන්න.",
-                "code": "EMAIL_ALREADY_EXISTS",
-            }), 409
+    if is_new_account and resolved_cid and existing_client:
+        return jsonify({
+            "error": "මෙම Email එකෙන් දැනටමත් Account එකක් සාදා ඇත. වෙනත් Email එකක් භාවිතා කරන්න.",
+            "code": "EMAIL_ALREADY_EXISTS",
+        }), 409
 
-    # Existing account login validation across any device/IP
     if not is_new_account and existing_client:
         stored_email = str(existing_client.get("email") or existing_client.get("owner_email") or "").strip().lower()
         if stored_email and to_email_lower and stored_email != to_email_lower:
@@ -1303,6 +1401,7 @@ def api_verify_otp():
         "email": to_email,
         "store_name": client_entry.get("store_name", f"{resolved_cid} Store"),
         "plan_active": plan_active_val,
+        "expires_at": client_entry.get("expires_at"),
         "last_login_ip": client_ip,
         "token": token,
     }), 200
@@ -1441,7 +1540,7 @@ def api_my_dashboard():
         return jsonify({"error": "Access denied: you can only view your own dashboard."}), 403
 
     client_ip = get_client_ip()
-    usage_doc, _ = _load_usage_doc()
+    usage_doc, sha = _load_usage_doc()
     plans = usage_doc.get("plans") or _default_usage_doc()["plans"]
     usage_client = (usage_doc.get("clients") or {}).get(authed_cid)
 
@@ -1457,11 +1556,14 @@ def api_my_dashboard():
             if v is not None and k != "password_hash":
                 merged[k] = v
 
-    # Strictly preserve plan_active == True only when explicitly True
-    strict_plan_active = bool(merged.get("plan_active") is True)
-    merged["plan_active"] = strict_plan_active
+    active, _, expired_changed = _check_and_enforce_plan_state(merged)
+    merged["plan_active"] = bool(active)
 
-    # Update last login IP in Firestore
+    if expired_changed:
+        if authed_cid in usage_doc.get("clients", {}):
+            usage_doc["clients"][authed_cid]["plan_active"] = False
+            _save_usage_doc(usage_doc, sha, f"Auto-expire 30-day plan for {authed_cid}", sync_github=True)
+
     try:
         _fs_sync_client(authed_cid, merged, last_login_ip=client_ip)
     except Exception:
@@ -1484,7 +1586,7 @@ def api_my_dashboard():
         "store_name": merged.get("store_name") or f"{authed_cid} Store",
         "email": merged.get("email") or "",
         "plan": plan_name or "No Active Plan",
-        "plan_active": strict_plan_active,
+        "plan_active": bool(active),
         "expires_at": merged.get("expires_at"),
         "last_login_ip": client_ip,
         "conversations_used": total_conversations_used,

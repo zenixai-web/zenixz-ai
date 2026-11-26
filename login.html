@@ -381,8 +381,13 @@
       cursor: pointer;
     }
 
-    .btn-secondary:hover {
+    .btn-secondary:hover:not(:disabled) {
       color: var(--text);
+    }
+
+    .btn-secondary:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
     }
 
     .link-row {
@@ -474,7 +479,7 @@
       <form id="loginForm" novalidate>
         <div class="field">
           <label for="loginEmailOrUser">Username, Client ID or Email</label>
-          <input id="loginEmailOrUser" type="text" placeholder="Username (e.g. USR-106), Client ID or Email" required />
+          <input id="loginEmailOrUser" type="text" placeholder="Username (e.g. USR-7385), Client ID or Email" required />
         </div>
 
         <div class="field">
@@ -661,6 +666,27 @@
 
     document.getElementById("closeErrorPopup").addEventListener("click", hideErrorPopup);
 
+    // Cooldown helper so accidental rapid taps don't spam OTPs
+    function startCooldown(btnEl, seconds = 15, defaultLabel = "") {
+      if (!btnEl) return;
+      const origText = defaultLabel || btnEl.dataset.origLabel || btnEl.textContent;
+      btnEl.dataset.origLabel = origText;
+      let left = seconds;
+      btnEl.disabled = true;
+      btnEl.textContent = `${origText} (${left}s)`;
+
+      const iv = setInterval(() => {
+        left -= 1;
+        if (left <= 0) {
+          clearInterval(iv);
+          btnEl.disabled = false;
+          btnEl.textContent = origText;
+        } else {
+          btnEl.textContent = `${origText} (${left}s)`;
+        }
+      }, 1000);
+    }
+
     function validateStrongPassword(pw) {
       const val = String(pw || "").trim();
       const orderedChecks = [
@@ -700,15 +726,27 @@
       return String(Math.floor(100000 + Math.random() * 900000));
     }
 
-    function generateUniformCredentials(records) {
-      const existingNums = Object.values(records).map((r) => {
-        const m = String(r.generated_username || "").match(/^USR-(\d+)$/i);
-        return m ? Number(m[1]) : 100;
-      });
-      const nextNum = Math.max(101, ...existingNums) + 1;
+    // Generates matching numeric code for CLT-XXXX and USR-XXXX (e.g. CLT-7385 & USR-7385)
+    function generateMatchingCredentials(records) {
+      const existingNums = new Set(
+        Object.values(records).map((r) => {
+          const m = String(r.client_id || r.generated_username || "").match(/(\d+)/);
+          return m ? Number(m[1]) : 0;
+        })
+      );
+      for (let i = 0; i < 40; i++) {
+        const codeNum = Math.floor(1000 + Math.random() * 9000);
+        if (!existingNums.has(codeNum)) {
+          return {
+            client_id: `CLT-${codeNum}`,
+            generated_username: `USR-${codeNum}`
+          };
+        }
+      }
+      const fallbackNum = 1000 + (Date.now() % 9000);
       return {
-        client_id: `CLT-${nextNum}`,
-        generated_username: `USR-${nextNum}`
+        client_id: `CLT-${fallbackNum}`,
+        generated_username: `USR-${fallbackNum}`
       };
     }
 
@@ -1091,6 +1129,9 @@
         return;
       }
 
+      const continueBtn = document.getElementById("continueBtn");
+      startCooldown(continueBtn, 12, "Continue");
+
       let matchedKey = Object.keys(records).find((k) => {
         const rec = records[k];
         const recCid = String(rec.client_id || k).toUpperCase();
@@ -1155,9 +1196,10 @@
       showErrorPopup("Account එකක් හමු නොවීය. කරුණාකර Username / Client ID / Email පරීක්ෂා කරන්න හෝ Create Account කරන්න.");
     });
 
-    document.getElementById("resendOtpBtn").addEventListener("click", async () => {
+    document.getElementById("resendOtpBtn").addEventListener("click", async (e) => {
       const rec = pendingDraftRecord || (pendingUserKey ? records[pendingUserKey] : null);
       if (!rec) return;
+      startCooldown(e.currentTarget, 20, "Resend Email OTP");
       await dispatchOtpToEmail(rec, pendingFlowType === "register");
       otpVerifyInput.value = "";
       hideErrorPopup();
@@ -1183,6 +1225,7 @@
         <div><strong>Username:</strong> <code>${userDisp}</code></div>
         <div><strong>Owner Email:</strong> <code>${boundEmail}</code></div>
         <div><strong>Password:</strong> <code>${rec.password}</code></div>
+        <div><strong>Plan Status:</strong> <code>Inactive (false)</code></div>
       `;
     }
 
@@ -1195,6 +1238,9 @@
         return;
       }
 
+      const verifyBtn = document.getElementById("verifyOtpBtn");
+      startCooldown(verifyBtn, 5, "Verify & Continue");
+
       records = getRecords();
       let rec = pendingDraftRecord || records[pendingUserKey];
       if (!rec) {
@@ -1205,7 +1251,7 @@
       const boundEmail = normalizeEmail(rec.owner_email || rec.email);
       let backendToken = "";
       let resolvedCid = rec.client_id;
-      let resolvedPlanActive = Boolean(rec.plan_active === true);
+      let resolvedPlanActive = pendingFlowType === "register" ? false : Boolean(rec.plan_active === true);
       let resolvedUsername = rec.username || rec.generated_username || rec.client_id;
 
       if (backendOtpActive && OTP_CONFIG.API_BASE_URL) {
@@ -1237,7 +1283,7 @@
             resolvedCid = lastBackendClientId;
           }
           if (typeof verifyData.plan_active === "boolean") {
-            resolvedPlanActive = verifyData.plan_active === true;
+            resolvedPlanActive = pendingFlowType === "register" ? false : (verifyData.plan_active === true);
           }
           if (verifyData.username || verifyData.generated_username) {
             resolvedUsername = String(verifyData.username || verifyData.generated_username).trim();
@@ -1254,6 +1300,16 @@
       expectedOtp = "";
       backendOtpActive = false;
       otpVerifyInput.value = "";
+
+      if (pendingFlowType === "register") {
+        // Keep matching numeric suffix across Client ID & Username
+        const numMatch = String(resolvedCid || rec.client_id || "").match(/(\d+)/);
+        if (numMatch) {
+          resolvedCid = `CLT-${numMatch[1]}`;
+          resolvedUsername = `USR-${numMatch[1]}`;
+        }
+        resolvedPlanActive = false;
+      }
 
       rec = {
         ...rec,
@@ -1387,6 +1443,9 @@
         return;
       }
 
+      const saveBtn = document.getElementById("saveNewPassBtn");
+      startCooldown(saveBtn, 12, "Save New Password");
+
       let matchedKey = Object.keys(records).find((k) => {
         const rec = records[k];
         const recCid = String(rec.client_id || k).toUpperCase();
@@ -1467,13 +1526,16 @@
         return;
       }
 
+      const regBtn = document.getElementById("registerContinueBtn");
+      startCooldown(regBtn, 12, "Continue");
+
       const existingRemote = await lookupBackendAccount(emailVal);
       if (existingRemote && existingRemote.client_id) {
         showErrorPopup("මෙම Email Address එකෙන් දැනටමත් Account එකක් සාදා ඇත.");
         return;
       }
 
-      const creds = generateUniformCredentials(records);
+      const creds = generateMatchingCredentials(records);
       const key = creds.client_id;
       const newRec = {
         client_id: key,
