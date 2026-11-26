@@ -51,5 +51,22 @@
       },
       "orders_today": []
     }
+        },
+    "CLT-104": {
+      "store_name": "Client B Store",
+      "plan": "credits_10000",
+      "plan_active": true,
+      "expires_at": "2026-12-10T23:59:59+05:30",
+      "agents": {
+        "bot_1": {
+          "label": "Main Order Agent",
+          "conversations_used": 12,
+          "file_storage_mb": 5,
+          "vector_db_mb": 5,
+          "table_rows_used": 40
+        }
+      },
+      "orders_today": []
+    }
   }
 }
