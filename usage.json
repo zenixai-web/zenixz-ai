@@ -27,10 +27,10 @@
       "agents": {
         "bot_1": {
           "label": "Main Order Agent",
-          "conversations_used": 0,
-          "file_storage_mb": 0,
-          "vector_db_mb": 0,
-          "table_rows_used": 0
+          "conversations_used": 50,
+          "file_storage_mb": 150,
+          "vector_db_mb": 100,
+          "table_rows_used": 250
         }
       },
       "orders_today": []
