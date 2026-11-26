@@ -630,7 +630,7 @@
       window.location.replace("./login.html");
     }
 
-    const ACTIVE_CLIENT_ID = String(authPass.client_id || "").trim();
+    const ACTIVE_CLIENT_ID = String(authPass.client_id || "").trim().toUpperCase();
 
     function syncFullTrackingLinks() {
       const targetUrl = "./chatbot/order-tracking.html?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID);
@@ -706,12 +706,11 @@
       return { expired: false, inLast3Days: false, daysLeft: null };
     }
 
+    // Strictly true only when plan_active is explicitly boolean true and not expired
     function isClientPlanActive(clientObj) {
       if (!clientObj || typeof clientObj !== "object") return false;
       if (getExpiryState(clientObj.expires_at).expired) return false;
-      if (clientObj.plan_active === true || clientObj.active === true) return true;
-      const status = String(clientObj.subscription_status || clientObj.status || "").toLowerCase();
-      return status === "active";
+      return clientObj.plan_active === true;
     }
 
     function extractScopedClientOrders(clientObj) {
@@ -725,14 +724,13 @@
         ? clientObj.all_orders
         : rawToday;
 
-      // Strict isolation: only orders explicitly matching ACTIVE_CLIENT_ID
       const scopedToday = rawToday.filter((o) => {
-        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim();
+        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
         return explicitCid ? explicitCid === ACTIVE_CLIENT_ID : true;
       });
 
       const scopedAll = rawAll.filter((o) => {
-        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim();
+        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
         return explicitCid ? explicitCid === ACTIVE_CLIENT_ID : true;
       });
 
@@ -859,10 +857,9 @@
         return clientTodayOrders.slice(0, 5);
       }
 
-      // Search across all orders belonging strictly to ACTIVE_CLIENT_ID (not limited to the 5 today orders)
       trackingHeading.textContent = "Order Tracking — Search Results (" + ACTIVE_CLIENT_ID + ")";
       return clientAllOrders.filter((o) => {
-        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim();
+        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
         if (explicitCid && explicitCid !== ACTIVE_CLIENT_ID) return false;
 
         const oid = String((o && o.order_id) || "").toLowerCase();
@@ -878,7 +875,7 @@
 
     function showOrderDetail(order) {
       if (!order || !isPlanActive) return;
-      const explicitCid = String((order.client_id ?? order.clientId) || "").trim();
+      const explicitCid = String((order.client_id ?? order.clientId) || "").trim().toUpperCase();
       if (explicitCid && explicitCid !== ACTIVE_CLIENT_ID) return;
 
       document.getElementById("detailTitle").textContent =
@@ -925,7 +922,7 @@
         return;
       }
       rows.forEach((o) => {
-        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim();
+        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
         if (explicitCid && explicitCid !== ACTIVE_CLIENT_ID) return;
 
         const tr = document.createElement("tr");
@@ -955,8 +952,11 @@
       document.getElementById("lastSyncedLabel").textContent =
         "Last Synced: " + (meta.last_synced_at || "-") + " (" + (meta.schedule || "Daily before 12:00 AM") + ")";
 
+      const clientsMap = currentDataset.clients || {};
       const clientData =
-        (currentDataset.clients && currentDataset.clients[ACTIVE_CLIENT_ID]) || null;
+        clientsMap[ACTIVE_CLIENT_ID] ||
+        Object.entries(clientsMap).find(([k]) => String(k).toUpperCase() === ACTIVE_CLIENT_ID)?.[1] ||
+        null;
 
       const expState = getExpiryState(clientData && clientData.expires_at);
       isPlanActive = isClientPlanActive(clientData);
@@ -1090,10 +1090,15 @@
               orders_today: []
             };
 
+            const strictPlanActive =
+              typeof dashJson.plan_active === "boolean"
+                ? dashJson.plan_active === true
+                : existingClient.plan_active === true;
+
             const mergedClient = Object.assign({}, existingClient, dashJson.client || {}, {
               store_name: dashJson.store_name || existingClient.store_name,
               plan: dashJson.plan === "No Active Plan" ? null : (dashJson.plan ?? existingClient.plan),
-              plan_active: Boolean(dashJson.plan_active),
+              plan_active: strictPlanActive,
               expires_at: dashJson.expires_at ?? existingClient.expires_at,
               agents: dashJson.agents || existingClient.agents
             });
@@ -1106,7 +1111,7 @@
               const ordersJson = await ordersRes.json();
               const scopedOrders = Array.isArray(ordersJson.orders)
                 ? ordersJson.orders.filter(
-                    (o) => String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase() === ACTIVE_CLIENT_ID.toUpperCase()
+                    (o) => String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase() === ACTIVE_CLIENT_ID
                   )
                 : [];
               mergedClient.orders = scopedOrders;

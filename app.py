@@ -215,24 +215,22 @@ def send_otp_via_brevo_https(to_email: str, otp_code: str, client_id: str, purpo
         raise RuntimeError(f"Brevo API error {exc.code}: {body}") from exc
 
 
-def send_client_id_email_via_brevo(to_email: str, client_id: str, store_name: str) -> None:
+def send_client_id_email_via_brevo(to_email: str, client_id: str, username: str, store_name: str) -> None:
     if not BREVO_API_KEY:
         raise RuntimeError("Missing BREVO_API_KEY.")
 
     payload = {
         "sender": {"name": SENDER_NAME, "email": SENDER_EMAIL},
         "to": [{"email": to_email}],
-        "subject": "Zenix AI Dashboard — Your Forgotten Client ID",
+        "subject": "Zenix AI Dashboard — Your Client ID & Username",
         "htmlContent": f"""
             <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-              <h2 style="margin-bottom: 8px;">Zenix AI Dashboard — Client ID Recovery</h2>
+              <h2 style="margin-bottom: 8px;">Zenix AI Dashboard — Account Details</h2>
               <p><strong>Store:</strong> {store_name}</p>
-              <p>Your registered Client ID is:</p>
-              <div style="font-size: 22px; font-weight: bold; letter-spacing: 2px; padding: 10px 16px; background: #f3f4f6; display: inline-block; border-radius: 8px;">
-                {client_id}
-              </div>
+              <p><strong>Client ID:</strong> <code>{client_id}</code></p>
+              <p><strong>Username:</strong> <code>{username}</code></p>
               <p style="margin-top: 12px; font-size: 13px; color: #4b5563;">
-                Use this Client ID with your email and password to log in.
+                Use your Username or Client ID with your email and password to log in from any device.
               </p>
             </div>
         """,
@@ -289,11 +287,23 @@ def _default_usage_doc() -> dict:
     }
 
 
-def _build_zero_client_entry(client_id: str, store_name: str = "", email: str = "", last_ip: str = "") -> dict:
+def _build_zero_client_entry(
+    client_id: str,
+    store_name: str = "",
+    email: str = "",
+    username: str = "",
+    last_ip: str = "",
+) -> dict:
     clean_cid = str(client_id or "").strip().upper()
+    num_part = clean_cid.replace("CLT-", "").strip() or "101"
+    clean_user = (username or f"USR-{num_part}").strip()
     return {
+        "client_id": clean_cid,
+        "username": clean_user,
+        "generated_username": clean_user,
         "store_name": store_name or f"{clean_cid} Store",
         "email": (email or "").strip().lower(),
+        "owner_email": (email or "").strip().lower(),
         "plan": None,
         "plan_active": False,
         "expires_at": None,
@@ -415,7 +425,10 @@ def _get_client_conversation_limit(doc: dict, client_entry: dict) -> int:
 
 
 def _is_client_active_now(client_entry: dict) -> tuple[bool, str]:
-    if not client_entry.get("plan_active"):
+    if not client_entry:
+        return False, "plan_inactive"
+    # Strictly respect plan_active flag (False means False)
+    if client_entry.get("plan_active") is not True:
         return False, "plan_inactive"
     exp_val = client_entry.get("expires_at")
     if exp_val:
@@ -446,6 +459,22 @@ def _fs_find_email_owner(db, email_lower: str) -> str | None:
     return None
 
 
+def _fs_find_by_username(db, username_val: str) -> dict | None:
+    if not db or not username_val:
+        return None
+    u_clean = username_val.strip()
+    try:
+        for field_name in ("username", "generated_username"):
+            docs = db.collection("clients").where(field_name, "==", u_clean).limit(1).stream()
+            for d in docs:
+                data = d.to_dict() or {}
+                data["client_id"] = str(d.id).upper()
+                return data
+    except Exception:
+        return None
+    return None
+
+
 def _fs_get_client(db, cid: str) -> dict | None:
     if not db or not cid:
         return None
@@ -471,10 +500,19 @@ def _fs_sync_client(
         return
     clean_cid = cid.upper()
     now_iso = datetime.now(timezone.utc).isoformat()
+    user_val = (
+        client_entry.get("username")
+        or client_entry.get("generated_username")
+        or f"USR-{clean_cid.replace('CLT-', '')}"
+    )
+    email_val = (client_entry.get("email") or client_entry.get("owner_email") or "").strip().lower()
     doc_payload = {
         "client_id": clean_cid,
+        "username": user_val,
+        "generated_username": user_val,
         "store_name": client_entry.get("store_name") or f"{clean_cid} Store",
-        "email": (client_entry.get("email") or "").strip().lower(),
+        "email": email_val,
+        "owner_email": email_val,
         "plan": client_entry.get("plan"),
         "plan_active": bool(client_entry.get("plan_active", False)),
         "expires_at": client_entry.get("expires_at"),
@@ -560,15 +598,82 @@ def _generate_unique_client_id(doc: dict, db) -> str:
     return f"CLT-{int(time.time()) % 100000}"
 
 
+def _resolve_account_record(db, doc: dict, client_id: str = "", email: str = "", username: str = "") -> tuple[str | None, dict | None]:
+    cid_clean = str(client_id or "").strip().upper()
+    email_clean = str(email or "").strip().lower()
+    user_clean = str(username or "").strip()
+    user_upper = user_clean.upper()
+
+    clients_map = doc.get("clients") or {}
+
+    if cid_clean:
+        if cid_clean in clients_map:
+            entry = dict(clients_map[cid_clean])
+            entry["client_id"] = cid_clean
+            if db:
+                fs_rec = _fs_get_client(db, cid_clean)
+                if fs_rec:
+                    for k, v in fs_rec.items():
+                        if v is not None:
+                            entry[k] = v
+            return cid_clean, entry
+        if db:
+            fs_rec = _fs_get_client(db, cid_clean)
+            if fs_rec:
+                return cid_clean, fs_rec
+
+    if email_clean:
+        for k, v in clients_map.items():
+            if str((v or {}).get("email") or "").strip().lower() == email_clean:
+                cid_found = str(k).strip().upper()
+                entry = dict(v)
+                entry["client_id"] = cid_found
+                if db:
+                    fs_rec = _fs_get_client(db, cid_found)
+                    if fs_rec:
+                        for fk, fv in fs_rec.items():
+                            if fv is not None:
+                                entry[fk] = fv
+                return cid_found, entry
+        if db:
+            owner_cid = _fs_find_email_owner(db, email_clean)
+            if owner_cid:
+                return owner_cid, _fs_get_client(db, owner_cid)
+
+    if user_clean:
+        for k, v in clients_map.items():
+            u_entry = str((v or {}).get("username") or (v or {}).get("generated_username") or "").strip()
+            if u_entry.upper() == user_upper or str(k).strip().upper() == user_upper:
+                cid_found = str(k).strip().upper()
+                entry = dict(v)
+                entry["client_id"] = cid_found
+                if db:
+                    fs_rec = _fs_get_client(db, cid_found)
+                    if fs_rec:
+                        for fk, fv in fs_rec.items():
+                            if fv is not None:
+                                entry[fk] = fv
+                return cid_found, entry
+        if db:
+            fs_by_user = _fs_find_by_username(db, user_clean)
+            if fs_by_user:
+                return str(fs_by_user["client_id"]).upper(), fs_by_user
+
+    return None, None
+
+
 def register_client_in_usage_json(
     client_id: str,
     store_name: str = "",
     email: str = "",
+    username: str = "",
     password: str = "",
     last_ip: str = "",
+    is_new_account: bool = False,
 ) -> tuple[str, dict]:
     cid = str(client_id or "").strip().upper()
     email_clean = str(email or "").strip().lower()
+    user_clean = str(username or "").strip()
     db = _get_db()
 
     if not cid and db and email_clean:
@@ -593,16 +698,31 @@ def register_client_in_usage_json(
 
     created_new = False
     if cid not in doc["clients"]:
-        doc["clients"][cid] = _build_zero_client_entry(cid, store_name=store_name, email=email_clean, last_ip=last_ip)
+        doc["clients"][cid] = _build_zero_client_entry(
+            cid, store_name=store_name, email=email_clean, username=user_clean, last_ip=last_ip
+        )
         created_new = True
     else:
         if store_name:
             doc["clients"][cid]["store_name"] = store_name
         if email_clean and not doc["clients"][cid].get("email"):
             doc["clients"][cid]["email"] = email_clean
+        if user_clean:
+            doc["clients"][cid]["username"] = user_clean
+            doc["clients"][cid]["generated_username"] = user_clean
         if last_ip:
             doc["clients"][cid]["last_login_ip"] = last_ip
             doc["clients"][cid]["last_login_at"] = datetime.now(timezone.utc).isoformat()
+
+    # Preserve existing plan_active from Firestore if present
+    if db and not is_new_account:
+        fs_existing = _fs_get_client(db, cid)
+        if fs_existing and "plan_active" in fs_existing:
+            doc["clients"][cid]["plan_active"] = bool(fs_existing.get("plan_active", False))
+            if fs_existing.get("plan") is not None:
+                doc["clients"][cid]["plan"] = fs_existing.get("plan")
+            if fs_existing.get("expires_at") is not None:
+                doc["clients"][cid]["expires_at"] = fs_existing.get("expires_at")
 
     if created_new:
         _save_usage_doc(doc, sha, f"Auto-register client {cid} (plan_active=false, expires_at=null)", sync_github=False)
@@ -675,18 +795,53 @@ def api_health_firestore():
     }), (200 if db else 500)
 
 
+@app.post("/api/clients/lookup")
+def api_lookup_client():
+    data = request.get_json(silent=True) or {}
+    cid = str(data.get("client_id", "")).strip().upper()
+    email = str(data.get("email", "")).strip().lower()
+    username = str(data.get("username", "")).strip()
+
+    db = _get_db()
+    doc, _ = _load_usage_doc()
+    resolved_cid, rec = _resolve_account_record(db, doc, client_id=cid, email=email, username=username)
+
+    if not resolved_cid or not rec:
+        return jsonify({"ok": False, "error": "Account not found."}), 404
+
+    return jsonify({
+        "ok": True,
+        "client_id": resolved_cid,
+        "username": rec.get("username") or rec.get("generated_username") or resolved_cid,
+        "generated_username": rec.get("generated_username") or rec.get("username") or resolved_cid,
+        "store_name": rec.get("store_name") or f"{resolved_cid} Store",
+        "email": rec.get("email") or rec.get("owner_email") or "",
+        "owner_email": rec.get("owner_email") or rec.get("email") or "",
+        "plan": rec.get("plan"),
+        "plan_active": bool(rec.get("plan_active", False)),
+        "expires_at": rec.get("expires_at"),
+    }), 200
+
+
 @app.post("/api/clients/register")
 def api_register_client():
     data = request.get_json(silent=True) or {}
     client_id = str(data.get("client_id", "")).strip().upper()
     store_name = str(data.get("store_name", "")).strip()
     email = str(data.get("email", "")).strip().lower()
+    username = str(data.get("username", "")).strip()
     password = str(data.get("password", "")).strip()
     client_ip = get_client_ip()
 
     try:
         resolved_cid, entry = register_client_in_usage_json(
-            client_id, store_name=store_name, email=email, password=password, last_ip=client_ip
+            client_id,
+            store_name=store_name,
+            email=email,
+            username=username,
+            password=password,
+            last_ip=client_ip,
+            is_new_account=True,
         )
         return jsonify({"ok": True, "client_id": resolved_cid, "client": entry, "ip": client_ip}), 201
     except ValueError as exc:
@@ -705,30 +860,31 @@ def api_forgot_client_id():
 
     if "@" not in email_lower or "." not in email_lower.split("@")[-1]:
         return jsonify({"error": "Valid email address is required."}), 400
-    if not password:
-        return jsonify({"error": "Password is required to verify account."}), 400
 
     db = _get_db()
-    if not db:
-        return jsonify({"error": "Firebase Firestore is not configured."}), 500
+    doc, _ = _load_usage_doc()
+    owner_cid, client_doc = _resolve_account_record(db, doc, email=email_lower)
 
-    owner_cid = _fs_find_email_owner(db, email_lower)
-    if not owner_cid:
+    if not owner_cid or not client_doc:
         return jsonify({"error": "මෙම Email එකට අදාළ Account එකක් හමු නොවීය."}), 404
 
-    client_doc = _fs_get_client(db, owner_cid) or {}
-    stored_hash = str(client_doc.get("password_hash") or "").strip()
-
-    if not stored_hash or not _verify_password(password, stored_hash):
+    stored_hash = str((client_doc or {}).get("password_hash") or "").strip()
+    if stored_hash and password and not _verify_password(password, stored_hash):
         return jsonify({"error": "Email එක හෝ Password එක නොගැළපේ."}), 401
 
-    store_name = client_doc.get("store_name") or f"{owner_cid} Store"
+    store_name = (client_doc or {}).get("store_name") or f"{owner_cid} Store"
+    username_val = (client_doc or {}).get("username") or (client_doc or {}).get("generated_username") or owner_cid
+
     try:
-        send_client_id_email_via_brevo(email_lower, owner_cid, store_name)
+        if BREVO_API_KEY:
+            send_client_id_email_via_brevo(email_lower, owner_cid, username_val, store_name)
+        elif ALLOW_DEV_CONSOLE_OTP:
+            print(f"[DEV FORGOT CLIENT ID] Email: {email_lower} | Client ID: {owner_cid} | User: {username_val}", flush=True)
         return jsonify({
             "ok": True,
             "message": f"Client ID ({owner_cid}) ඔබගේ Email එකට යවන ලදී.",
             "client_id": owner_cid,
+            "username": username_val,
         }), 200
     except Exception as exc:
         if ALLOW_DEV_CONSOLE_OTP:
@@ -737,6 +893,7 @@ def api_forgot_client_id():
                 "ok": True,
                 "message": f"Client ID ({owner_cid}) sent (dev mode).",
                 "client_id": owner_cid,
+                "username": username_val,
             }), 200
         return jsonify({"error": f"Failed to send Client ID: {str(exc)}"}), 500
 
@@ -750,7 +907,8 @@ def api_widget_status():
 
     try:
         doc, _ = _load_usage_doc()
-        client_entry = doc.get("clients", {}).get(cid)
+        db = _get_db()
+        _, client_entry = _resolve_account_record(db, doc, client_id=cid)
         if not client_entry:
             return jsonify({"allowed": False, "reason": "client_not_found"}), 404
 
@@ -765,6 +923,7 @@ def api_widget_status():
                 "reason": "conversation_limit_reached",
                 "client_id": cid,
                 "store_name": client_entry.get("store_name", cid),
+                "plan_active": False,
                 "used": used,
                 "limit": limit,
             }), 200
@@ -774,6 +933,7 @@ def api_widget_status():
             "reason": reason,
             "client_id": cid,
             "store_name": client_entry.get("store_name", cid),
+            "plan_active": bool(client_entry.get("plan_active", False)),
             "used": used,
             "limit": limit,
         }), 200
@@ -966,38 +1126,47 @@ def api_send_otp():
     to_email = str(data.get("email", "")).strip()
     to_email_lower = to_email.lower()
     client_id = str(data.get("client_id", "")).strip().upper()
+    username = str(data.get("username", "")).strip()
     password = str(data.get("password", "")).strip()
     is_new_account = bool(data.get("is_new_account", False))
 
-    if "@" not in to_email or "." not in to_email.split("@")[-1]:
+    db = _get_db()
+    doc, _ = _load_usage_doc()
+
+    # Resolve account by username/client_id/email if email wasn't explicitly typed
+    resolved_cid, existing_client = _resolve_account_record(
+        db, doc, client_id=client_id, email=to_email_lower, username=username
+    )
+    if resolved_cid and not client_id:
+        client_id = resolved_cid
+    if not to_email_lower and existing_client:
+        to_email_lower = str(existing_client.get("email") or existing_client.get("owner_email") or "").strip().lower()
+        to_email = to_email_lower
+
+    if not to_email or "@" not in to_email or "." not in to_email.split("@")[-1]:
         return jsonify({"error": "Valid email address is required."}), 400
 
-    db = _get_db()
-    if not client_id and db and to_email_lower:
-        owner_cid = _fs_find_email_owner(db, to_email_lower)
-        if owner_cid:
-            client_id = owner_cid
     if not client_id:
         client_id = "NEW-CLIENT"
 
-    if db and is_new_account:
-        existing_owner = _fs_find_email_owner(db, to_email_lower)
-        if existing_owner:
+    if is_new_account:
+        if resolved_cid and existing_client:
             return jsonify({
                 "error": "මෙම Email එකෙන් දැනටමත් Account එකක් සාදා ඇත. වෙනත් Email එකක් භාවිතා කරන්න.",
                 "code": "EMAIL_ALREADY_EXISTS",
             }), 409
 
-    # Existing account login validation: check Client ID + Email + Password if set
-    if db and not is_new_account and client_id and client_id != "NEW-CLIENT":
-        existing_client = _fs_get_client(db, client_id)
-        if existing_client:
-            stored_email = str(existing_client.get("email") or "").strip().lower()
-            if stored_email and stored_email != to_email_lower:
-                return jsonify({"error": "Client ID සහ Email එක නොගැළපේ."}), 403
-            stored_hash = str(existing_client.get("password_hash") or "").strip()
-            if stored_hash and password and not _verify_password(password, stored_hash):
-                return jsonify({"error": "Password එක වැරදියි."}), 401
+    # Existing account login validation across any device/IP
+    if not is_new_account and existing_client:
+        stored_email = str(existing_client.get("email") or existing_client.get("owner_email") or "").strip().lower()
+        if stored_email and to_email_lower and stored_email != to_email_lower:
+            return jsonify({"error": "Account එකට අදාළ Email එක මෙය නොවේ."}), 403
+        stored_user = str(existing_client.get("username") or existing_client.get("generated_username") or "").strip()
+        if username and stored_user and stored_user.upper() != username.upper() and resolved_cid != username.upper():
+            return jsonify({"error": "Username එක නොගැළපේ."}), 403
+        stored_hash = str(existing_client.get("password_hash") or "").strip()
+        if stored_hash and password and not _verify_password(password, stored_hash):
+            return jsonify({"error": "Password එක වැරදියි."}), 401
 
     otp_code = f"{random.randint(100000, 999999)}"
     expires_at = time.time() + OTP_TTL_SECONDS
@@ -1005,6 +1174,7 @@ def api_send_otp():
         "otp": otp_code,
         "email": to_email_lower,
         "client_id": client_id,
+        "username": username,
         "password": password,
         "expires_at": expires_at,
     }
@@ -1016,11 +1186,21 @@ def api_send_otp():
 
     try:
         send_otp_via_brevo_https(to_email, otp_code, client_id, purpose="Login")
-        return jsonify({"ok": True, "message": "OTP sent to email.", "client_id": client_id}), 200
+        return jsonify({
+            "ok": True,
+            "message": "OTP sent to email.",
+            "client_id": client_id,
+            "email": to_email_lower,
+        }), 200
     except Exception as exc:
         if ALLOW_DEV_CONSOLE_OTP:
             print(f"[DEV OTP FALLBACK] To: {to_email} | Client: {client_id} | OTP: {otp_code}", flush=True)
-            return jsonify({"ok": True, "message": "Fallback OTP printed in terminal.", "client_id": client_id}), 200
+            return jsonify({
+                "ok": True,
+                "message": "Fallback OTP printed in terminal.",
+                "client_id": client_id,
+                "email": to_email_lower,
+            }), 200
         return jsonify({"error": f"Failed to send email OTP: {str(exc)}"}), 500
 
 
@@ -1029,6 +1209,7 @@ def api_verify_otp():
     data = request.get_json(silent=True) or {}
     to_email = str(data.get("email", "")).strip().lower()
     requested_cid = str(data.get("client_id", "")).strip().upper()
+    username = str(data.get("username", "")).strip()
     entered_otp = str(data.get("otp", "")).strip()
     store_name = str(data.get("store_name", "")).strip()
     password = str(data.get("password", "")).strip()
@@ -1046,11 +1227,13 @@ def api_verify_otp():
 
     matched = False
     stored_pw_from_otp = ""
+    stored_user_from_otp = ""
     for k in candidate_keys:
         rec = OTP_STORE.get(k)
         if rec and time.time() <= float(rec.get("expires_at", 0)) and str(rec.get("otp", "")).strip() == entered_otp:
             matched = True
             stored_pw_from_otp = str(rec.get("password") or "").strip()
+            stored_user_from_otp = str(rec.get("username") or "").strip()
             break
         fs_rec = _fs_get_and_consume_otp(k, entered_otp, consume=True)
         if fs_rec:
@@ -1066,53 +1249,60 @@ def api_verify_otp():
         OTP_STORE.pop(k, None)
 
     final_password = password or stored_pw_from_otp
+    final_username = username or stored_user_from_otp
 
     db = _get_db()
-    final_cid = requested_cid if (requested_cid and requested_cid != "NEW-CLIENT") else ""
-    if not final_cid and db and to_email:
-        final_cid = _fs_find_email_owner(db, to_email) or ""
+    usage_doc, _ = _load_usage_doc()
+    resolved_existing_cid, existing_client = _resolve_account_record(
+        db,
+        usage_doc,
+        client_id="" if requested_cid == "NEW-CLIENT" else requested_cid,
+        email=to_email,
+        username=final_username,
+    )
 
-    if db and to_email:
-        existing_owner = _fs_find_email_owner(db, to_email)
-        if is_new_account and existing_owner:
-            return jsonify({
-                "error": "මෙම Email එකෙන් දැනටමත් Account එකක් සාදා ඇත. වෙනත් Email එකක් භාවිතා කරන්න.",
-                "code": "EMAIL_ALREADY_EXISTS",
-            }), 409
-        if existing_owner and final_cid and existing_owner != final_cid:
-            return jsonify({
-                "error": "මෙම Email එක වෙනත් Client ID එකකට සම්බන්ධ කර ඇත.",
-                "code": "EMAIL_MISMATCH_CLIENT",
-            }), 403
+    final_cid = resolved_existing_cid or (requested_cid if requested_cid and requested_cid != "NEW-CLIENT" else "")
 
-        if final_cid:
-            existing_client = _fs_get_client(db, final_cid)
-            if existing_client:
-                if existing_client.get("email") and existing_client.get("email") != to_email:
-                    return jsonify({"error": "Email does not match this Client ID."}), 403
-                stored_hash = str(existing_client.get("password_hash") or "").strip()
-                if stored_hash and final_password and not _verify_password(final_password, stored_hash):
-                    return jsonify({"error": "Password එක වැරදියි."}), 401
+    if is_new_account and existing_client:
+        return jsonify({
+            "error": "මෙම Email එකෙන් දැනටමත් Account එකක් සාදා ඇත. වෙනත් Email එකක් භාවිතා කරන්න.",
+            "code": "EMAIL_ALREADY_EXISTS",
+        }), 409
+
+    if existing_client:
+        stored_email = str(existing_client.get("email") or existing_client.get("owner_email") or "").strip().lower()
+        if stored_email and to_email and stored_email != to_email:
+            return jsonify({"error": "Email does not match this account."}), 403
+        stored_hash = str(existing_client.get("password_hash") or "").strip()
+        if stored_hash and final_password and not _verify_password(final_password, stored_hash):
+            return jsonify({"error": "Password එක වැරදියි."}), 401
 
     try:
         resolved_cid, client_entry = register_client_in_usage_json(
             final_cid,
-            store_name=store_name,
+            store_name=store_name or (existing_client or {}).get("store_name", ""),
             email=to_email,
-            password=final_password if is_new_account else "",
+            username=final_username or (existing_client or {}).get("username", ""),
+            password=final_password if (is_new_account or not (existing_client or {}).get("password_hash")) else "",
             last_ip=client_ip,
+            is_new_account=is_new_account,
         )
     except ValueError as exc:
         return jsonify({"error": str(exc), "code": "EMAIL_ALREADY_EXISTS"}), 409
 
     token = _issue_client_token(resolved_cid, to_email)
+    plan_active_val = bool(client_entry.get("plan_active", False))
+    user_out = client_entry.get("username") or client_entry.get("generated_username") or resolved_cid
+
     return jsonify({
         "ok": True,
         "verified": True,
         "client_id": resolved_cid,
+        "username": user_out,
+        "generated_username": user_out,
         "email": to_email,
         "store_name": client_entry.get("store_name", f"{resolved_cid} Store"),
-        "plan_active": bool(client_entry.get("plan_active", False)),
+        "plan_active": plan_active_val,
         "last_login_ip": client_ip,
         "token": token,
     }), 200
@@ -1133,44 +1323,59 @@ def api_password_reset_send_otp():
 
     data = request.get_json(silent=True) or {}
     client_id = str(data.get("client_id", "")).strip().upper()
+    username = str(data.get("username", "")).strip()
     to_email = str(data.get("email", "")).strip().lower()
     new_password = str(data.get("new_password", "")).strip()
 
-    if not client_id:
-        return jsonify({"error": "Client ID is required."}), 400
-    if "@" not in to_email or "." not in to_email.split("@")[-1]:
-        return jsonify({"error": "Valid email address is required."}), 400
     if len(new_password) < 4:
         return jsonify({"error": "New password අවම වශයෙන් අක්ෂර 4ක් වත් විය යුතුය."}), 400
 
     db = _get_db()
-    if db:
-        client_doc = _fs_get_client(db, client_id)
-        if not client_doc:
-            return jsonify({"error": "මෙම Client ID එක database එකේ හමු නොවීය."}), 404
-        stored_email = str(client_doc.get("email") or "").strip().lower()
-        if stored_email and stored_email != to_email:
-            return jsonify({"error": "Client ID සහ Email එක නොගැළපේ."}), 403
+    usage_doc, _ = _load_usage_doc()
+    resolved_cid, client_doc = _resolve_account_record(
+        db, usage_doc, client_id=client_id, email=to_email, username=username
+    )
+
+    if not resolved_cid or not client_doc:
+        return jsonify({"error": "Account එක database එකේ හමු නොවීය."}), 404
+
+    stored_email = str(client_doc.get("email") or client_doc.get("owner_email") or "").strip().lower()
+    if not to_email:
+        to_email = stored_email
+    if stored_email and to_email and stored_email != to_email:
+        return jsonify({"error": "Account එකට අදාළ Email එක නොගැළපේ."}), 403
+    if not to_email or "@" not in to_email:
+        return jsonify({"error": "Valid email address is required."}), 400
 
     otp_code = f"{random.randint(100000, 999999)}"
     expires_at = time.time() + OTP_TTL_SECONDS
-    reset_key = f"reset:{client_id}:{to_email}"
+    reset_key = f"reset:{resolved_cid}:{to_email}"
     RESET_OTP_STORE[reset_key] = {
         "otp": otp_code,
-        "client_id": client_id,
+        "client_id": resolved_cid,
         "email": to_email,
         "new_password": new_password,
         "expires_at": expires_at,
     }
-    _fs_save_otp(reset_key, to_email, client_id, otp_code, expires_at)
+    _fs_save_otp(reset_key, to_email, resolved_cid, otp_code, expires_at)
 
     try:
-        send_otp_via_brevo_https(to_email, otp_code, client_id, purpose="Password Reset")
-        return jsonify({"ok": True, "message": "Password reset OTP code sent to email.", "client_id": client_id}), 200
+        send_otp_via_brevo_https(to_email, otp_code, resolved_cid, purpose="Password Reset")
+        return jsonify({
+            "ok": True,
+            "message": "Password reset OTP code sent to email.",
+            "client_id": resolved_cid,
+            "email": to_email,
+        }), 200
     except Exception as exc:
         if ALLOW_DEV_CONSOLE_OTP:
-            print(f"[DEV RESET OTP] To: {to_email} | Client: {client_id} | OTP: {otp_code}", flush=True)
-            return jsonify({"ok": True, "message": "Fallback OTP printed in terminal.", "client_id": client_id}), 200
+            print(f"[DEV RESET OTP] To: {to_email} | Client: {resolved_cid} | OTP: {otp_code}", flush=True)
+            return jsonify({
+                "ok": True,
+                "message": "Fallback OTP printed in terminal.",
+                "client_id": resolved_cid,
+                "email": to_email,
+            }), 200
         return jsonify({"error": f"Failed to send reset OTP: {str(exc)}"}), 500
 
 
@@ -1183,10 +1388,15 @@ def api_password_reset_confirm():
     new_password = str(data.get("new_password", "")).strip()
     client_ip = get_client_ip()
 
-    if not client_id or not to_email or not entered_otp:
-        return jsonify({"error": "Client ID, Email සහ OTP අවශ්‍ය වේ."}), 400
+    if not entered_otp:
+        return jsonify({"error": "OTP අවශ්‍ය වේ."}), 400
 
-    reset_key = f"reset:{client_id}:{to_email}"
+    db = _get_db()
+    usage_doc, _ = _load_usage_doc()
+    resolved_cid, _ = _resolve_account_record(db, usage_doc, client_id=client_id, email=to_email)
+    cid_lookup = resolved_cid or client_id
+
+    reset_key = f"reset:{cid_lookup}:{to_email}"
     rec = RESET_OTP_STORE.get(reset_key)
     valid = bool(rec and time.time() <= float(rec.get("expires_at", 0)) and str(rec.get("otp", "")).strip() == entered_otp)
     if not valid:
@@ -1200,18 +1410,18 @@ def api_password_reset_confirm():
 
     RESET_OTP_STORE.pop(reset_key, None)
 
-    resolved_cid, client_entry = register_client_in_usage_json(client_id, email=to_email, last_ip=client_ip)
+    final_cid, client_entry = register_client_in_usage_json(cid_lookup, email=to_email, last_ip=client_ip)
     pw_hash = _hash_password(final_pw)
     try:
-        _fs_sync_client(resolved_cid, client_entry, password_hash=pw_hash, last_login_ip=client_ip)
+        _fs_sync_client(final_cid, client_entry, password_hash=pw_hash, last_login_ip=client_ip)
     except Exception:
         pass
 
-    token = _issue_client_token(resolved_cid, to_email)
+    token = _issue_client_token(final_cid, to_email)
     return jsonify({
         "ok": True,
         "message": "Password reset successful.",
-        "client_id": resolved_cid,
+        "client_id": final_cid,
         "email": to_email,
         "last_login_ip": client_ip,
         "token": token,
@@ -1247,6 +1457,10 @@ def api_my_dashboard():
             if v is not None and k != "password_hash":
                 merged[k] = v
 
+    # Strictly preserve plan_active == True only when explicitly True
+    strict_plan_active = bool(merged.get("plan_active") is True)
+    merged["plan_active"] = strict_plan_active
+
     # Update last login IP in Firestore
     try:
         _fs_sync_client(authed_cid, merged, last_login_ip=client_ip)
@@ -1266,10 +1480,11 @@ def api_my_dashboard():
     return jsonify({
         "ok": True,
         "client_id": authed_cid,
+        "username": merged.get("username") or merged.get("generated_username") or authed_cid,
         "store_name": merged.get("store_name") or f"{authed_cid} Store",
         "email": merged.get("email") or "",
         "plan": plan_name or "No Active Plan",
-        "plan_active": bool(merged.get("plan_active", False)),
+        "plan_active": strict_plan_active,
         "expires_at": merged.get("expires_at"),
         "last_login_ip": client_ip,
         "conversations_used": total_conversations_used,

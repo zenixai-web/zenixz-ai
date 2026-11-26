@@ -112,7 +112,7 @@
       top: 16px;
       left: 50%;
       transform: translateX(-50%);
-      width: min(92vw, 440px);
+      width: min(92vw, 460px);
       z-index: 60;
       pointer-events: none;
     }
@@ -473,8 +473,8 @@
 
       <form id="loginForm" novalidate>
         <div class="field">
-          <label for="loginIdentifier">Client ID or Email</label>
-          <input id="loginIdentifier" type="text" placeholder="Client ID (e.g. CLT-106) or Email" required />
+          <label for="loginEmailOrUser">Username, Client ID or Email</label>
+          <input id="loginEmailOrUser" type="text" placeholder="Username (e.g. USR-106), Client ID or Email" required />
         </div>
 
         <div class="field">
@@ -533,8 +533,12 @@
       <!-- Reset Password Step -->
       <form id="resetForm" class="hidden" novalidate>
         <div class="field">
-          <label for="resetIdInput">Client ID or Email</label>
-          <input id="resetIdInput" type="text" placeholder="Client ID (e.g. CLT-106) or Email" required />
+          <label for="resetIdInput">Username, Client ID or Email</label>
+          <input id="resetIdInput" type="text" placeholder="Username, Client ID or Email" required />
+        </div>
+        <div class="field">
+          <label for="resetEmailInput">Registered Email</label>
+          <input id="resetEmailInput" type="email" placeholder="name@gmail.com" required />
         </div>
         <div class="field">
           <label for="newPassInput">New Password</label>
@@ -610,6 +614,7 @@
     const ACCOUNTS_KEY = "zenix_client_records_v5";
     const SESSION_PASS_KEY = "zenix_auth_pass";
     const LAST_ID_KEY = "zenix_last_username_hint";
+    const LAST_EMAIL_KEY = "zenix_last_email_hint";
 
     const OTP_CONFIG = {
       API_BASE_URL: "https://zenixz-ai.onrender.com"
@@ -646,7 +651,7 @@
       if (errorHideTimer) clearTimeout(errorHideTimer);
       errorHideTimer = setTimeout(() => {
         hideErrorPopup();
-      }, 4500);
+      }, 5000);
     }
 
     function hideErrorPopup() {
@@ -728,11 +733,12 @@
       const targetBr = normalizeBr(brVal);
 
       for (const rec of Object.values(records)) {
-        if (targetEmail && normalizeEmail(rec.email) === targetEmail) {
-          return "මෙම Email Address එකෙන් දැනටමත් Account එකක් සාදා ඇත. කරුණාකර වෙනත් Email එකක් භාවිතා කරන්න. / An account already exists with this email address. Please use a different email.";
+        const ownerEmail = normalizeEmail(rec.owner_email || rec.email);
+        if (targetEmail && ownerEmail === targetEmail) {
+          return "මෙම Email Address එකෙන් දැනටමත් Account එකක් සාදා ඇත.";
         }
         if (targetBr && normalizeBr(rec.business_reg_no) === targetBr) {
-          return "මෙම Business Registration Number එකෙන් දැනටමත් Account එකක් සාදා ඇත. කරුණාකර වෙනත් BR Number එකක් භාවිතා කරන්න. / An account already exists with this Business Registration Number. Please use a different BR number.";
+          return "මෙම Business Registration Number එකෙන් දැනටමත් Account එකක් සාදා ඇත.";
         }
       }
       return "";
@@ -746,9 +752,12 @@
             client_id: "CLT-101",
             store_name: "Demo Store",
             email: "demo@gmail.com",
+            owner_email: "demo@gmail.com",
             business_reg_no: "BR-10001",
             password: "Demo@1234",
+            username: "USR-101",
             generated_username: "USR-101",
+            plan_active: false,
             last_login_at: "-"
           };
         }
@@ -772,7 +781,7 @@
     const resetForm = document.getElementById("resetForm");
     const registerForm = document.getElementById("registerForm");
     const emailSentSection = document.getElementById("emailSentSection");
-    const loginIdentifier = document.getElementById("loginIdentifier");
+    const loginEmailOrUser = document.getElementById("loginEmailOrUser");
     const loginPassword = document.getElementById("loginPassword");
     const otpVerifyInput = document.getElementById("otpVerifyInput");
 
@@ -809,11 +818,10 @@
       otpVerifyInput.value = "";
       hideErrorPopup();
 
-      const savedHint = sessionStorage.getItem(LAST_ID_KEY) || "";
-      if (savedHint) {
-        loginIdentifier.value = savedHint;
-      } else if (!isBackNavigation) {
-        loginIdentifier.value = "";
+      const savedId = sessionStorage.getItem(LAST_ID_KEY) || "";
+      const savedEmail = sessionStorage.getItem(LAST_EMAIL_KEY) || "";
+      if (!loginEmailOrUser.value) {
+        loginEmailOrUser.value = savedId || savedEmail || "";
       }
 
       tabSignIn.classList.add("active");
@@ -823,7 +831,7 @@
       showOnlySubView(loginForm);
 
       if (isBackNavigation) {
-        showErrorPopup("Session cleared due to back navigation. Sign in again with Password & Email OTP.");
+        showErrorPopup("Session cleared due to back navigation. Sign in again with Username / Client ID / Email, Password & Email OTP.");
       }
     }
 
@@ -896,9 +904,9 @@
     // --- Send Client ID to Email ---
     document.getElementById("openSendIdBtn").addEventListener("click", () => {
       document.getElementById("sendIdOk").textContent = "";
-      const idVal = loginIdentifier.value.trim();
-      if (isValidEmailAddress(idVal)) {
-        document.getElementById("sendIdEmailInput").value = normalizeEmail(idVal);
+      const idOrEmail = loginEmailOrUser.value.trim();
+      if (isValidEmailAddress(idOrEmail)) {
+        document.getElementById("sendIdEmailInput").value = normalizeEmail(idOrEmail);
       }
       showOnlySubView(sendIdForm);
     });
@@ -945,22 +953,25 @@
                 return;
               }
             } catch {
-              // Try next or fallback
+              // Fallback below
             }
           }
         }
 
         if (!sentViaBackend) {
           records = getRecords();
-          const localMatch = Object.values(records).find((r) => normalizeEmail(r.email) === emailVal);
+          const localMatch = Object.values(records).find(
+            (r) => normalizeEmail(r.owner_email || r.email) === emailVal
+          );
           if (localMatch && localMatch.client_id) {
             resolvedCid = String(localMatch.client_id).toUpperCase();
           }
         }
 
         if (resolvedCid) {
-          loginIdentifier.value = resolvedCid;
+          loginEmailOrUser.value = resolvedCid;
           sessionStorage.setItem(LAST_ID_KEY, resolvedCid);
+          sessionStorage.setItem(LAST_EMAIL_KEY, emailVal);
           okEl.textContent = `Client ID (${resolvedCid}) ඔබගේ Email එකට (${emailVal}) යවන ලදී.`;
         } else if (sentViaBackend) {
           okEl.textContent = `ඔබගේ Client ID විස්තරය ${emailVal} වෙත යවන ලදී.`;
@@ -973,15 +984,22 @@
       }
     });
 
-    async function lookupBackendAccount(identifier, emailVal = "") {
+    async function lookupBackendAccount(identifierVal) {
       if (!OTP_CONFIG.API_BASE_URL) return null;
+      const cleanVal = String(identifierVal || "").trim();
+      if (!cleanVal) return null;
+
+      const isEmail = isValidEmailAddress(cleanVal);
+      const isCid = /^CLT-/i.test(cleanVal);
+
       try {
         const res = await fetch(`${OTP_CONFIG.API_BASE_URL}/api/clients/lookup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            client_id: isValidEmailAddress(identifier) ? "" : String(identifier || "").trim().toUpperCase(),
-            email: normalizeEmail(emailVal || (isValidEmailAddress(identifier) ? identifier : ""))
+            client_id: isCid ? cleanVal.toUpperCase() : "",
+            email: isEmail ? normalizeEmail(cleanVal) : "",
+            username: (!isEmail && !isCid) ? cleanVal : ""
           })
         });
         if (!res.ok) return null;
@@ -995,7 +1013,8 @@
       expectedOtp = generateSixDigitOtp();
       backendOtpActive = false;
 
-      if (!rec || !isValidEmailAddress(rec.email)) {
+      const targetEmail = normalizeEmail(rec?.owner_email || rec?.email);
+      if (!rec || !isValidEmailAddress(targetEmail)) {
         showErrorPopup("මෙම Account එකට වලංගු Email Address එකක් ලියාපදිංචි වී නැත.");
         return false;
       }
@@ -1007,7 +1026,8 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               client_id: rec.client_id,
-              email: normalizeEmail(rec.email),
+              email: targetEmail,
+              username: rec.username || rec.generated_username || "",
               store_name: rec.store_name || "",
               password: rec.password || "",
               is_new_account: isNewAccount
@@ -1032,13 +1052,14 @@
       }
 
       document.getElementById("otpEmailNotice").textContent =
-        `OTP code එක ඔබගේ Email එකට (${rec.email}) යවා ඇත. Email එක පරීක්ෂා කර 6-digit OTP code එක enter කරන්න.`;
+        `OTP code එක ඔබගේ Email එකට (${targetEmail}) යවා ඇත. Email එක පරීක්ෂා කර 6-digit OTP code එක enter කරන්න.`;
       return true;
     }
 
     async function openOtpStep(userKey, flowType = "login", newPassword = "", draftRecord = null) {
       const rec = draftRecord || records[userKey];
-      if (!rec || !isValidEmailAddress(rec.email)) {
+      const targetEmail = normalizeEmail(rec?.owner_email || rec?.email);
+      if (!rec || !isValidEmailAddress(targetEmail)) {
         showErrorPopup("මෙම Account එකට වලංගු Email Address එකක් සොයාගත නොහැක.");
         return;
       }
@@ -1061,52 +1082,77 @@
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       records = getRecords();
-      const rawId = loginIdentifier.value.trim();
-      const upperId = rawId.toUpperCase();
+      const idVal = loginEmailOrUser.value.trim();
+      const upperId = idVal.toUpperCase();
       const pwVal = String(loginPassword.value || "").trim();
 
-      if (!rawId || !pwVal) {
-        showErrorPopup("Client ID / Email සහ Password ඇතුළත් කරන්න.");
+      if (!idVal || !pwVal) {
+        showErrorPopup("Username / Client ID / Email සහ Password ඇතුළත් කරන්න.");
         return;
       }
 
-      let matchedKey = Object.keys(records).find(
-        (k) =>
-          k.toUpperCase() === upperId ||
-          String(records[k].generated_username || "").toUpperCase() === upperId ||
-          normalizeEmail(records[k].email) === normalizeEmail(rawId)
-      );
+      let matchedKey = Object.keys(records).find((k) => {
+        const rec = records[k];
+        const recCid = String(rec.client_id || k).toUpperCase();
+        const recEmail = normalizeEmail(rec.owner_email || rec.email);
+        const recUser = String(rec.username || rec.generated_username || "").toUpperCase();
+        return recCid === upperId || recUser === upperId || recEmail === normalizeEmail(idVal);
+      });
 
       if (matchedKey) {
-        if (records[matchedKey].password !== pwVal) {
+        const rec = records[matchedKey];
+        if (rec.password && rec.password !== pwVal) {
           showErrorPopup("Password incorrect.");
           return;
         }
-        sessionStorage.setItem(LAST_ID_KEY, records[matchedKey].client_id || matchedKey);
-        await openOtpStep(matchedKey, "login");
+        const boundEmail = normalizeEmail(rec.owner_email || rec.email);
+        const boundUser = rec.username || rec.generated_username || rec.client_id || matchedKey;
+        sessionStorage.setItem(LAST_ID_KEY, boundUser);
+        if (boundEmail) sessionStorage.setItem(LAST_EMAIL_KEY, boundEmail);
+        await openOtpStep(matchedKey, "login", "", {
+          ...rec,
+          email: boundEmail,
+          owner_email: boundEmail,
+          username: boundUser,
+          generated_username: boundUser,
+          plan_active: Boolean(rec.plan_active === true),
+          password: pwVal
+        });
         return;
       }
 
-      // Cross-device login: fetch account from backend/Firestore if not stored locally on this device
-      const remoteAccount = await lookupBackendAccount(rawId, isValidEmailAddress(rawId) ? rawId : "");
+      // Cross-device / Cross-IP login via backend + Firebase
+      const remoteAccount = await lookupBackendAccount(idVal);
       if (remoteAccount && remoteAccount.client_id) {
-        const cid = String(remoteAccount.client_id).trim().toUpperCase();
-        const emailAddr = normalizeEmail(remoteAccount.email || (isValidEmailAddress(rawId) ? rawId : ""));
+        const resolvedCid = String(remoteAccount.client_id).trim().toUpperCase();
+        const remoteOwnerEmail = normalizeEmail(remoteAccount.owner_email || remoteAccount.email || "");
+        const remoteUser = String(remoteAccount.username || remoteAccount.generated_username || resolvedCid).trim();
+
+        if (!isValidEmailAddress(remoteOwnerEmail)) {
+          showErrorPopup("මෙම Account එකට සම්බන්ධ Email Address එක හමු නොවීය.");
+          return;
+        }
+
         const crossDeviceRec = {
-          client_id: cid,
-          store_name: remoteAccount.store_name || `${cid} Store`,
-          email: emailAddr,
+          client_id: resolvedCid,
+          store_name: remoteAccount.store_name || `${resolvedCid} Store`,
+          email: remoteOwnerEmail,
+          owner_email: remoteOwnerEmail,
           business_reg_no: remoteAccount.business_reg_no || "",
           password: pwVal,
-          generated_username: cid,
+          username: remoteUser,
+          generated_username: remoteUser,
+          plan_active: Boolean(remoteAccount.plan_active === true),
           last_login_at: "-"
         };
-        sessionStorage.setItem(LAST_ID_KEY, cid);
-        await openOtpStep(cid, "login", "", crossDeviceRec);
+
+        sessionStorage.setItem(LAST_ID_KEY, remoteUser);
+        sessionStorage.setItem(LAST_EMAIL_KEY, remoteOwnerEmail);
+        await openOtpStep(resolvedCid, "login", "", crossDeviceRec);
         return;
       }
 
-      showErrorPopup("Account එකක් හමු නොවීය. කරුණාකර Create Account මඟින් අලුත් Account එකක් සාදන්න.");
+      showErrorPopup("Account එකක් හමු නොවීය. කරුණාකර Username / Client ID / Email පරීක්ෂා කරන්න හෝ Create Account කරන්න.");
     });
 
     document.getElementById("resendOtpBtn").addEventListener("click", async () => {
@@ -1128,11 +1174,14 @@
     });
 
     function renderEmailSummary(rec) {
+      const boundEmail = rec.owner_email || rec.email || "registered email";
+      const userDisp = rec.username || rec.generated_username || rec.client_id;
       document.getElementById("emailSentHeader").textContent =
-        `Email sent to ${rec.email || "registered email"}.`;
+        `Email sent to ${boundEmail}.`;
       document.getElementById("emailPreviewBox").innerHTML = `
         <div><strong>Client ID:</strong> <code>${rec.client_id}</code></div>
-        <div><strong>Username:</strong> <code>${rec.generated_username}</code></div>
+        <div><strong>Username:</strong> <code>${userDisp}</code></div>
+        <div><strong>Owner Email:</strong> <code>${boundEmail}</code></div>
         <div><strong>Password:</strong> <code>${rec.password}</code></div>
       `;
     }
@@ -1153,8 +1202,11 @@
         return;
       }
 
+      const boundEmail = normalizeEmail(rec.owner_email || rec.email);
       let backendToken = "";
       let resolvedCid = rec.client_id;
+      let resolvedPlanActive = Boolean(rec.plan_active === true);
+      let resolvedUsername = rec.username || rec.generated_username || rec.client_id;
 
       if (backendOtpActive && OTP_CONFIG.API_BASE_URL) {
         try {
@@ -1163,8 +1215,11 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               client_id: pendingFlowType === "register" ? "" : rec.client_id,
-              email: normalizeEmail(rec.email),
+              email: boundEmail,
+              owner_email: boundEmail,
+              username: resolvedUsername,
               store_name: rec.store_name || "",
+              business_reg_no: rec.business_reg_no || "",
               password: pendingFlowType === "reset" ? pendingNewPassword : (rec.password || ""),
               otp: enteredOtp,
               is_new_account: pendingFlowType === "register"
@@ -1180,6 +1235,12 @@
             resolvedCid = String(verifyData.client_id).trim().toUpperCase();
           } else if (lastBackendClientId) {
             resolvedCid = lastBackendClientId;
+          }
+          if (typeof verifyData.plan_active === "boolean") {
+            resolvedPlanActive = verifyData.plan_active === true;
+          }
+          if (verifyData.username || verifyData.generated_username) {
+            resolvedUsername = String(verifyData.username || verifyData.generated_username).trim();
           }
         } catch {
           showErrorPopup("OTP verify කිරීමේදී server සම්බන්ධතාවයේ ගැටලුවක් ඇති විය.");
@@ -1197,7 +1258,11 @@
       rec = {
         ...rec,
         client_id: resolvedCid,
-        generated_username: rec.generated_username || resolvedCid
+        email: boundEmail,
+        owner_email: boundEmail,
+        username: resolvedUsername,
+        generated_username: resolvedUsername,
+        plan_active: resolvedPlanActive
       };
 
       if (pendingFlowType === "reset") {
@@ -1208,9 +1273,10 @@
         pendingDraftRecord = null;
         pendingFlowType = "login";
         sessionStorage.removeItem(SESSION_PASS_KEY);
-        sessionStorage.setItem(LAST_ID_KEY, resolvedCid);
+        sessionStorage.setItem(LAST_ID_KEY, resolvedUsername);
+        sessionStorage.setItem(LAST_EMAIL_KEY, boundEmail);
 
-        loginIdentifier.value = resolvedCid;
+        loginEmailOrUser.value = resolvedUsername;
         loginPassword.value = "";
         newPassInput.value = "";
         document.getElementById("resetOk").textContent = "";
@@ -1224,16 +1290,21 @@
       saveRecords(records);
       pendingUserKey = resolvedCid;
       pendingDraftRecord = null;
-      sessionStorage.setItem(LAST_ID_KEY, resolvedCid);
+      sessionStorage.setItem(LAST_ID_KEY, resolvedUsername);
+      sessionStorage.setItem(LAST_EMAIL_KEY, boundEmail);
 
       sessionStorage.setItem(
         SESSION_PASS_KEY,
         JSON.stringify({
           client_id: resolvedCid,
           store_name: rec.store_name,
-          email: rec.email,
+          email: boundEmail,
+          owner_email: boundEmail,
           business_reg_no: rec.business_reg_no,
-          generated_username: rec.generated_username || resolvedCid,
+          username: resolvedUsername,
+          generated_username: resolvedUsername,
+          plan_active: resolvedPlanActive,
+          api_base: OTP_CONFIG.API_BASE_URL,
           token: backendToken,
           logged_in_at: rec.last_login_at,
           expires_at: Date.now() + 60 * 60 * 1000
@@ -1257,10 +1328,10 @@
       registerSection.classList.add("hidden");
       signInSection.classList.remove("hidden");
       showOnlySubView(loginForm);
-      if (rec?.client_id || rec?.generated_username) {
-        const cid = rec.client_id || rec.generated_username;
-        loginIdentifier.value = cid;
-        sessionStorage.setItem(LAST_ID_KEY, cid);
+      if (rec?.username || rec?.generated_username || rec?.client_id) {
+        const u = rec.username || rec.generated_username || rec.client_id;
+        loginEmailOrUser.value = u;
+        sessionStorage.setItem(LAST_ID_KEY, u);
       }
       loginPassword.value = "";
       loginPassword.focus();
@@ -1269,14 +1340,20 @@
     document.getElementById("resetFromMailBtn").addEventListener("click", () => {
       const rec = records[pendingUserKey];
       showOnlySubView(resetForm);
-      document.getElementById("resetIdInput").value = rec?.client_id || pendingUserKey || "";
+      document.getElementById("resetIdInput").value = rec?.username || rec?.client_id || pendingUserKey || "";
+      document.getElementById("resetEmailInput").value = normalizeEmail(rec?.owner_email || rec?.email || "");
       document.getElementById("resetOk").textContent = "";
       clearFieldPasswordError(newPassInput, resetPwErrorPop);
     });
 
     document.getElementById("openResetBtn").addEventListener("click", () => {
       showOnlySubView(resetForm);
-      document.getElementById("resetIdInput").value = loginIdentifier.value.trim();
+      const val = loginEmailOrUser.value.trim();
+      if (isValidEmailAddress(val)) {
+        document.getElementById("resetEmailInput").value = normalizeEmail(val);
+      } else {
+        document.getElementById("resetIdInput").value = val;
+      }
       document.getElementById("resetOk").textContent = "";
       clearFieldPasswordError(newPassInput, resetPwErrorPop);
     });
@@ -1290,12 +1367,18 @@
       records = getRecords();
       const idVal = document.getElementById("resetIdInput").value.trim();
       const upperId = idVal.toUpperCase();
+      const emailVal = normalizeEmail(document.getElementById("resetEmailInput").value);
       const pwCheck = validateStrongPassword(newPassInput.value);
       const okEl = document.getElementById("resetOk");
       okEl.textContent = "";
 
-      if (!idVal) {
-        showErrorPopup("Client ID or Email ඇතුළත් කරන්න.");
+      if (!emailVal) {
+        showErrorPopup("Registered Email Address ඇතුළත් කරන්න.");
+        return;
+      }
+
+      if (!isValidEmailAddress(emailVal)) {
+        showErrorPopup("වලංගු Email Address එකක් ඇතුළත් කරන්න.");
         return;
       }
 
@@ -1304,33 +1387,43 @@
         return;
       }
 
-      let matchedKey = Object.keys(records).find(
-        (k) =>
-          k.toUpperCase() === upperId ||
-          String(records[k].generated_username || "").toUpperCase() === upperId ||
-          normalizeEmail(records[k].email) === normalizeEmail(idVal)
-      );
+      let matchedKey = Object.keys(records).find((k) => {
+        const rec = records[k];
+        const recCid = String(rec.client_id || k).toUpperCase();
+        const recUser = String(rec.username || rec.generated_username || "").toUpperCase();
+        const recEmail = normalizeEmail(rec.owner_email || rec.email);
+        const idOk = !idVal || recCid === upperId || recUser === upperId;
+        return idOk && recEmail === emailVal;
+      });
 
       let targetRec = matchedKey ? records[matchedKey] : null;
       if (!targetRec) {
-        const remoteAcc = await lookupBackendAccount(idVal, isValidEmailAddress(idVal) ? idVal : "");
+        const remoteAcc = await lookupBackendAccount(idVal || emailVal);
         if (remoteAcc && remoteAcc.client_id) {
-          const cid = String(remoteAcc.client_id).trim().toUpperCase();
-          matchedKey = cid;
+          const resolvedCid = String(remoteAcc.client_id).trim().toUpperCase();
+          const remoteOwnerEmail = normalizeEmail(remoteAcc.owner_email || remoteAcc.email || "");
+          if (remoteOwnerEmail && remoteOwnerEmail !== emailVal) {
+            showErrorPopup("මෙම Account එකට ලියාපදිංචි වී ඇති Email එක මෙය නොවේ.");
+            return;
+          }
+          matchedKey = resolvedCid;
           targetRec = {
-            client_id: cid,
-            store_name: remoteAcc.store_name || `${cid} Store`,
-            email: normalizeEmail(remoteAcc.email || (isValidEmailAddress(idVal) ? idVal : "")),
+            client_id: resolvedCid,
+            store_name: remoteAcc.store_name || `${resolvedCid} Store`,
+            email: emailVal,
+            owner_email: emailVal,
             business_reg_no: remoteAcc.business_reg_no || "",
             password: pwCheck.formatted,
-            generated_username: cid,
+            username: remoteAcc.username || remoteAcc.generated_username || resolvedCid,
+            generated_username: remoteAcc.generated_username || remoteAcc.username || resolvedCid,
+            plan_active: Boolean(remoteAcc.plan_active === true),
             last_login_at: "-"
           };
         }
       }
 
       if (!targetRec) {
-        showErrorPopup("Account එකක් හමු නොවීය.");
+        showErrorPopup("ගැළපෙන Account එකක් හමු නොවීය.");
         return;
       }
 
@@ -1374,10 +1467,9 @@
         return;
       }
 
-      // Check backend/Firestore as well so already registered accounts on other devices cannot be duplicated
-      const existingRemote = await lookupBackendAccount("", emailVal);
+      const existingRemote = await lookupBackendAccount(emailVal);
       if (existingRemote && existingRemote.client_id) {
-        showErrorPopup("මෙම Email Address එකෙන් දැනටමත් Account එකක් සාදා ඇත. කරුණාකර වෙනත් Email එකක් භාවිතා කරන්න.");
+        showErrorPopup("මෙම Email Address එකෙන් දැනටමත් Account එකක් සාදා ඇත.");
         return;
       }
 
@@ -1387,9 +1479,12 @@
         client_id: key,
         store_name: storeName,
         email: emailVal,
+        owner_email: emailVal,
         business_reg_no: brVal,
         password: pwCheck.formatted,
+        username: creds.generated_username,
         generated_username: creds.generated_username,
+        plan_active: false,
         last_login_at: "-"
       };
       records[key] = newRec;
