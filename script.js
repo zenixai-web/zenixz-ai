@@ -17,19 +17,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
 });
 
-// --- Developer Tools & Source Code Inspection Block ---
+// --- Block Right-Click & Inspect / Developer Tools ---
+document.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+});
+
 document.addEventListener('keydown', function(e) {
-    // F12 කී එක බ්ලොක් කිරීමට
-    if (e.key === 'F12') {
+    // F12
+    if (e.key === 'F12' || e.keyCode === 123) {
         e.preventDefault();
+        return false;
     }
-    // Ctrl+Shift+I හෝ Ctrl+Shift+J හෝ Ctrl+Shift+C බ්ලොක් කිරීමට
-    if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
+    // Ctrl+Shift+I / J / C / K
+    if (e.ctrlKey && e.shiftKey && ['I', 'J', 'C', 'K', 'i', 'j', 'c', 'k'].includes(e.key)) {
         e.preventDefault();
+        return false;
     }
-    // Ctrl+U (View Source) බ්ලොක් කිරීමට
-    if (e.ctrlKey && e.key === 'u') {
+    // Cmd+Option+I / J / C (Mac)
+    if (e.metaKey && e.altKey && ['I', 'J', 'C', 'i', 'j', 'c'].includes(e.key)) {
         e.preventDefault();
+        return false;
+    }
+    // Ctrl+U / Cmd+U (View Source)
+    if ((e.ctrlKey || e.metaKey) && ['U', 'u', 'S', 's'].includes(e.key)) {
+        e.preventDefault();
+        return false;
     }
 });
 
