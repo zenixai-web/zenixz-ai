@@ -47,8 +47,12 @@ APPS_SCRIPT_STOCK_URL = os.environ.get(
 )
 
 ADMIN_SECRET = os.environ.get("ZENIX_ADMIN_SECRET", "zenix-admin-secret-change-me")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemini-4-neon").strip()
+OPENROUTER_CHAT_URL = os.environ.get(
+    "OPENROUTER_CHAT_URL",
+    "https://openrouter.ai/api/v1/chat/completions",
+).strip()
 
 
 def _utc_now_iso() -> str:
@@ -430,7 +434,19 @@ def _record_order_usage_and_store(order_dict: Dict[str, Any]) -> Dict[str, Any]:
     return final_order
 
 
-def _generate_gemini_reply(
+def _resolve_openrouter_model(config_context: Dict[str, Any]) -> str:
+    requested = (
+        config_context.get("openrouter_model")
+        or config_context.get("model")
+        or ""
+    )
+    requested_str = str(requested).strip()
+    if requested_str:
+        return requested_str
+    return OPENROUTER_MODEL or "google/gemini-4-neon"
+
+
+def _generate_openrouter_reply(
     message: str,
     history: List[Dict[str, Any]],
     config_context: Dict[str, Any],
@@ -446,7 +462,7 @@ def _generate_gemini_reply(
     delivery_info = config_context.get("delivery_info") or ""
     custom_instructions = config_context.get("custom_instructions") or ""
 
-    if not GEMINI_API_KEY:
+    if not OPENROUTER_API_KEY:
         msg_l = (message or "").lower()
         if any(k in msg_l for k in ("price", "මිල", "ගණන්", "rate")):
             if products:
@@ -482,51 +498,72 @@ def _generate_gemini_reply(
         f"Extra instructions: {custom_instructions}"
     )
 
-    contents: List[Dict[str, Any]] = []
+    messages: List[Dict[str, Any]] = [
+        {"role": "system", "content": system_prompt}
+    ]
+
     for item in (history or [])[-8:]:
-        role = "model" if item.get("role") == "assistant" else "user"
+        role = "assistant" if item.get("role") == "assistant" else "user"
         txt = str(item.get("content") or "").strip()
         if txt:
-            contents.append({"role": role, "parts": [{"text": txt}]})
+            messages.append({"role": role, "content": txt})
 
-    user_parts: List[Dict[str, Any]] = []
-    if message:
-        user_parts.append({"text": message})
     if image_base64:
         mime = "image/jpeg"
         if image_name and image_name.lower().endswith(".png"):
             mime = "image/png"
         elif image_name and image_name.lower().endswith(".webp"):
             mime = "image/webp"
-        user_parts.append({"inline_data": {"mime_type": mime, "data": image_base64}})
 
-    if user_parts:
-        contents.append({"role": "user", "parts": user_parts})
+        user_content: List[Dict[str, Any]] = []
+        if message:
+            user_content.append({"type": "text", "text": message})
+        user_content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{mime};base64,{image_base64}"},
+            }
+        )
+        messages.append({"role": "user", "content": user_content})
+    elif message:
+        messages.append({"role": "user", "content": message})
 
-    endpoint = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{urllib.parse.quote(GEMINI_MODEL)}:generateContent?key={urllib.parse.quote(GEMINI_API_KEY)}"
-    )
+    model_to_use = _resolve_openrouter_model(config_context)
     req_body = {
-        "system_instruction": {"parts": [{"text": system_prompt}]},
-        "contents": contents,
+        "model": model_to_use,
+        "messages": messages,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": os.environ.get("OPENROUTER_SITE_URL", "https://zenixai.online"),
+        "X-Title": os.environ.get("OPENROUTER_APP_NAME", b_name),
     }
 
     try:
         req = urllib.request.Request(
-            endpoint,
-            data=json.dumps(req_body).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            OPENROUTER_CHAT_URL,
+            data=json.dumps(req_body, ensure_ascii=False).encode("utf-8"),
+            headers=headers,
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             parsed = json.loads(resp.read().decode("utf-8"))
-            candidates = parsed.get("candidates") or []
-            if candidates:
-                parts = ((candidates[0].get("content") or {}).get("parts")) or []
-                texts = [p.get("text", "") for p in parts if isinstance(p, dict) and p.get("text")]
-                if texts:
-                    return "\n".join(texts).strip()
+            choices = parsed.get("choices") or []
+            if choices:
+                msg_obj = (choices[0].get("message") or {})
+                content = msg_obj.get("content")
+                if isinstance(content, str) and content.strip():
+                    return content.strip()
+                if isinstance(content, list):
+                    texts = [
+                        part.get("text", "")
+                        for part in content
+                        if isinstance(part, dict) and part.get("text")
+                    ]
+                    if texts:
+                        return "\n".join(texts).strip()
     except Exception:
         pass
 
@@ -898,7 +935,7 @@ def chat_endpoint(
     usage["by_client"] = by_client
     _save_json(USAGE_FILE, usage)
 
-    reply = _generate_gemini_reply(
+    reply = _generate_openrouter_reply(
         message=msg_text,
         history=payload.history,
         config_context=ctx,
