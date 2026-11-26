@@ -4,12 +4,11 @@ import hmac
 import json
 import os
 import random
-import secrets
 import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -26,12 +25,13 @@ ALLOW_DEV_CONSOLE_OTP = os.environ.get("ALLOW_DEV_CONSOLE_OTP", "0").strip() == 
 SESSION_TOKEN_SECRET = os.environ.get("SESSION_TOKEN_SECRET", "zenix-session-secret-change-me").strip()
 
 OTP_STORE = {}
+RESET_OTP_STORE = {}
 OTP_TTL_SECONDS = 300  # 5 minutes
 
 # Same IP OTP rate limit (cost & spam protection)
 IP_OTP_HISTORY = defaultdict(list)
 IP_OTP_WINDOW_SECONDS = 600  # 10 minutes
-IP_OTP_MAX_REQUESTS = 5     # Max 5 OTP sends per IP per 10 mins
+IP_OTP_MAX_REQUESTS = 8     # Max 8 OTP sends per IP per 10 mins
 
 # Deduplicate conversation increments per client + bot + session
 SEEN_CONVERSATIONS = set()
@@ -43,31 +43,58 @@ GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main").strip()
 USAGE_JSON_PATH = os.environ.get("USAGE_JSON_PATH", "data/usage.json").strip()
 LOCAL_USAGE_FILE = os.environ.get("LOCAL_USAGE_FILE", "data/usage.json").strip()
 
+_FIRESTORE_LAST_ERROR = ""
+
 
 def _init_firestore():
+    global _FIRESTORE_LAST_ERROR
     if firebase_admin._apps:
         return firestore.client()
 
     raw_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
     key_path = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH", "").strip()
 
-    if raw_json:
-        cred_dict = json.loads(raw_json)
-        cred = credentials.Certificate(cred_dict)
-    elif key_path and os.path.exists(key_path):
-        cred = credentials.Certificate(key_path)
-    else:
-        cred = credentials.ApplicationDefault()
+    try:
+        if raw_json:
+            cred_dict = json.loads(raw_json)
+            if isinstance(cred_dict, dict) and "private_key" in cred_dict:
+                cred_dict["private_key"] = str(cred_dict["private_key"]).replace("\\n", "\n")
+            cred = credentials.Certificate(cred_dict)
+        elif key_path and os.path.exists(key_path):
+            cred = credentials.Certificate(key_path)
+        else:
+            cred = credentials.ApplicationDefault()
 
-    firebase_admin.initialize_app(cred)
-    return firestore.client()
+        firebase_admin.initialize_app(cred)
+        _FIRESTORE_LAST_ERROR = ""
+        return firestore.client()
+    except Exception as exc:
+        _FIRESTORE_LAST_ERROR = str(exc)
+        raise
 
 
 def _get_db():
+    global _FIRESTORE_LAST_ERROR
     try:
         return _init_firestore()
-    except Exception:
+    except Exception as exc:
+        _FIRESTORE_LAST_ERROR = str(exc)
         return None
+
+import secrets
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 120000).hex()
+    return f"{salt}${digest}"
+
+
+def _verify_password(password: str, stored_hash: str) -> bool:
+    if not password or not stored_hash or "$" not in stored_hash:
+        return False
+    salt, expected = stored_hash.split("$", 1)
+    actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 120000).hex()
+    return hmac.compare_digest(actual, expected)
 
 
 def _issue_client_token(client_id: str, email: str) -> str:
@@ -142,17 +169,17 @@ def check_and_record_ip_rate_limit(ip_addr: str) -> tuple[bool, int]:
     return False, 0
 
 
-def send_otp_via_brevo_https(to_email: str, otp_code: str, client_id: str) -> None:
+def send_otp_via_brevo_https(to_email: str, otp_code: str, client_id: str, purpose: str = "Login") -> None:
     if not BREVO_API_KEY:
         raise RuntimeError("Missing BREVO_API_KEY.")
 
     payload = {
         "sender": {"name": SENDER_NAME, "email": SENDER_EMAIL},
         "to": [{"email": to_email}],
-        "subject": "Zenix AI Dashboard — Your Email OTP Code",
+        "subject": f"Zenix AI Dashboard — Your {purpose} OTP Code",
         "htmlContent": f"""
             <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-              <h2 style="margin-bottom: 8px;">Zenix AI Dashboard OTP</h2>
+              <h2 style="margin-bottom: 8px;">Zenix AI Dashboard — {purpose} OTP</h2>
               <p><strong>Client ID:</strong> {client_id}</p>
               <p>Your 6-digit verification code is:</p>
               <div style="font-size: 24px; font-weight: bold; letter-spacing: 6px; padding: 10px 16px; background: #f3f4f6; display: inline-block; border-radius: 8px;">
@@ -177,7 +204,7 @@ def send_otp_via_brevo_https(to_email: str, otp_code: str, client_id: str) -> No
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=8) as resp:
             if resp.status not in (200, 201, 202):
                 raise RuntimeError(f"Brevo API HTTP {resp.status}")
     except urllib.error.HTTPError as exc:
@@ -250,7 +277,7 @@ def _github_get_file(path: str) -> tuple[dict | None, str | None]:
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=8) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
             raw_bytes = base64.b64decode(payload["content"])
             return json.loads(raw_bytes.decode("utf-8")), payload.get("sha")
@@ -284,7 +311,7 @@ def _github_put_file(path: str, doc: dict, sha: str | None, commit_msg: str) -> 
         },
         method="PUT",
     )
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with urllib.request.urlopen(req, timeout=8) as resp:
         if resp.status not in (200, 201):
             raise RuntimeError(f"GitHub update failed with HTTP {resp.status}")
 
@@ -292,28 +319,43 @@ def _github_put_file(path: str, doc: dict, sha: str | None, commit_msg: str) -> 
 def _load_usage_doc() -> tuple[dict, str | None]:
     doc = None
     sha = None
-    if GITHUB_TOKEN and GITHUB_REPO:
-        doc, sha = _github_get_file(USAGE_JSON_PATH)
-    if doc is None:
-        if os.path.exists(LOCAL_USAGE_FILE):
+    if os.path.exists(LOCAL_USAGE_FILE):
+        try:
             with open(LOCAL_USAGE_FILE, "r", encoding="utf-8") as f:
                 doc = json.load(f)
-        else:
-            doc = _default_usage_doc()
+        except Exception:
+            doc = None
+
+    if doc is None and GITHUB_TOKEN and GITHUB_REPO:
+        try:
+            doc, sha = _github_get_file(USAGE_JSON_PATH)
+        except Exception:
+            doc = None
+    elif GITHUB_TOKEN and GITHUB_REPO:
+        try:
+            _, sha = _github_get_file(USAGE_JSON_PATH)
+        except Exception:
+            sha = None
+
+    if doc is None:
+        doc = _default_usage_doc()
     doc.setdefault("clients", {})
     doc.setdefault("plans", _default_usage_doc()["plans"])
     return doc, sha
 
 
-def _save_usage_doc(doc: dict, sha: str | None, commit_msg: str) -> None:
+def _save_usage_doc(doc: dict, sha: str | None, commit_msg: str, sync_github: bool = True) -> None:
     local_dir = os.path.dirname(LOCAL_USAGE_FILE)
     if local_dir:
         os.makedirs(local_dir, exist_ok=True)
     with open(LOCAL_USAGE_FILE, "w", encoding="utf-8") as f:
         json.dump(doc, f, indent=2)
 
-    if GITHUB_TOKEN and GITHUB_REPO:
-        _github_put_file(USAGE_JSON_PATH, doc, sha, commit_msg)
+    if sync_github and GITHUB_TOKEN and GITHUB_REPO:
+        try:
+            _github_put_file(USAGE_JSON_PATH, doc, sha, commit_msg)
+        except Exception:
+            pass
 
 
 def _get_client_conversation_limit(doc: dict, client_entry: dict) -> int:
@@ -341,30 +383,36 @@ def _is_client_active_now(client_entry: dict) -> tuple[bool, str]:
     return True, "active"
 
 
-# --- Firebase Firestore Helpers (New Addition) ---
+# --- Firebase Firestore Helpers ---
 
 
 def _fs_find_email_owner(db, email_lower: str) -> str | None:
     if not db or not email_lower:
         return None
-    docs = db.collection("clients").where("email", "==", email_lower).limit(1).stream()
-    for d in docs:
-        return str(d.id).upper()
+    try:
+        docs = db.collection("clients").where("email", "==", email_lower).limit(1).stream()
+        for d in docs:
+            return str(d.id).upper()
+    except Exception:
+        return None
     return None
 
 
 def _fs_get_client(db, cid: str) -> dict | None:
     if not db or not cid:
         return None
-    snap = db.collection("clients").document(cid.upper()).get()
-    if snap.exists:
-        data = snap.to_dict() or {}
-        data["client_id"] = cid.upper()
-        return data
+    try:
+        snap = db.collection("clients").document(cid.upper()).get()
+        if snap.exists:
+            data = snap.to_dict() or {}
+            data["client_id"] = cid.upper()
+            return data
+    except Exception:
+        return None
     return None
 
 
-def _fs_sync_client(cid: str, client_entry: dict) -> None:
+def _fs_sync_client(cid: str, client_entry: dict, password_hash: str | None = None) -> None:
     db = _get_db()
     if not db or not cid:
         return
@@ -379,6 +427,8 @@ def _fs_sync_client(cid: str, client_entry: dict) -> None:
         "agents": client_entry.get("agents") or {},
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+    if password_hash:
+        doc_payload["password_hash"] = password_hash
     db.collection("clients").document(clean_cid).set(doc_payload, merge=True)
 
 
@@ -406,32 +456,38 @@ def _fs_save_otp(store_key: str, email_lower: str, cid: str, otp_code: str, expi
     db = _get_db()
     if not db:
         return
-    db.collection("otp_codes").document(store_key).set({
-        "client_id": cid.upper(),
-        "email": email_lower,
-        "otp": otp_code,
-        "expires_at": expires_at,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
+    try:
+        db.collection("otp_codes").document(store_key).set({
+            "client_id": cid.upper(),
+            "email": email_lower,
+            "otp": str(otp_code).strip(),
+            "expires_at": float(expires_at),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
 
 
 def _fs_get_and_consume_otp(store_key: str, entered_otp: str, consume: bool = True) -> dict | None:
     db = _get_db()
     if not db:
         return None
-    doc_ref = db.collection("otp_codes").document(store_key)
-    snap = doc_ref.get()
-    if not snap.exists:
+    try:
+        doc_ref = db.collection("otp_codes").document(store_key)
+        snap = doc_ref.get()
+        if not snap.exists:
+            return None
+        rec = snap.to_dict() or {}
+        if time.time() > float(rec.get("expires_at", 0)):
+            doc_ref.delete()
+            return None
+        if str(rec.get("otp", "")).strip() != str(entered_otp or "").strip():
+            return None
+        if consume:
+            doc_ref.delete()
+        return rec
+    except Exception:
         return None
-    rec = snap.to_dict() or {}
-    if time.time() > float(rec.get("expires_at", 0)):
-        doc_ref.delete()
-        return None
-    if str(rec.get("otp", "")).strip() != str(entered_otp or "").strip():
-        return None
-    if consume:
-        doc_ref.delete()
-    return rec
 
 
 def _generate_unique_client_id(doc: dict, db) -> str:
@@ -452,11 +508,10 @@ def register_client_in_usage_json(client_id: str, store_name: str = "", email: s
     email_clean = str(email or "").strip().lower()
     db = _get_db()
 
-    if not cid:
-        if db and email_clean:
-            existing_owner = _fs_find_email_owner(db, email_clean)
-            if existing_owner:
-                cid = existing_owner
+    if not cid and db and email_clean:
+        existing_owner = _fs_find_email_owner(db, email_clean)
+        if existing_owner:
+            cid = existing_owner
 
     doc, sha = _load_usage_doc()
     if not cid:
@@ -484,9 +539,12 @@ def register_client_in_usage_json(client_id: str, store_name: str = "", email: s
             doc["clients"][cid]["email"] = email_clean
 
     if created_new:
-        _save_usage_doc(doc, sha, f"Auto-register client {cid} (plan_active=false, expires_at=null)")
+        _save_usage_doc(doc, sha, f"Auto-register client {cid} (plan_active=false, expires_at=null)", sync_github=False)
 
-    _fs_sync_client(cid, doc["clients"][cid])
+    try:
+        _fs_sync_client(cid, doc["clients"][cid])
+    except Exception:
+        pass
     return cid, doc["clients"][cid]
 
 
@@ -527,7 +585,10 @@ def _increment_usage_in_doc(doc: dict, cid: str, bot_id: str, conv_inc: int = 1,
 
     new_used = min(used + int(conv_inc), limit) if limit > 0 else used + int(conv_inc)
     bot_entry["conversations_used"] = new_used
-    _fs_sync_client(cid, client_entry)
+    try:
+        _fs_sync_client(cid, client_entry)
+    except Exception:
+        pass
     return {
         "ok": True,
         "changed": True,
@@ -535,6 +596,16 @@ def _increment_usage_in_doc(doc: dict, cid: str, bot_id: str, conv_inc: int = 1,
         "conversations_limit": limit,
         "limit_reached": bool(limit > 0 and new_used >= limit),
     }
+
+
+@app.get("/api/health/firestore")
+def api_health_firestore():
+    db = _get_db()
+    return jsonify({
+        "ok": bool(db is not None),
+        "firestore_connected": bool(db is not None),
+        "error": _FIRESTORE_LAST_ERROR or None,
+    }), (200 if db else 500)
 
 
 @app.post("/api/clients/register")
@@ -612,7 +683,7 @@ def api_track_usage():
         if not res.get("ok"):
             return jsonify(res), 403
         if res.get("changed"):
-            _save_usage_doc(doc, sha, f"Track usage for {cid} ({bot_id}): {res.get('conversations_used')}")
+            _save_usage_doc(doc, sha, f"Track usage for {cid} ({bot_id}): {res.get('conversations_used')}", sync_github=False)
         return jsonify(res), 200
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404
@@ -668,8 +739,11 @@ def api_create_order():
         usage_res = _increment_usage_in_doc(
             doc, cid, bot_id, conv_inc=1, session_id=str(data.get("session_id", "")).strip()
         )
-        _save_usage_doc(doc, sha, f"Add order {order_record['order_id']} for {cid}")
-        _fs_save_order(cid, order_record)
+        _save_usage_doc(doc, sha, f"Add order {order_record['order_id']} for {cid}", sync_github=False)
+        try:
+            _fs_save_order(cid, order_record)
+        except Exception:
+            pass
 
         return jsonify({
             "ok": True,
@@ -739,10 +813,13 @@ def api_chat():
                 ],
             }
             client_entry.setdefault("orders_today", []).insert(0, saved_order)
-            _fs_save_order(cid, saved_order)
+            try:
+                _fs_save_order(cid, saved_order)
+            except Exception:
+                pass
 
         if usage_res.get("changed") or saved_order:
-            _save_usage_doc(doc, sha, f"Chat update for {cid} ({bot_id})")
+            _save_usage_doc(doc, sha, f"Chat update for {cid} ({bot_id})", sync_github=False)
 
         reply_text = (
             f"Order {saved_order['order_id']} recorded for {saved_order['customer_name'] or 'Customer'}."
@@ -797,17 +874,20 @@ def api_send_otp():
 
     otp_code = f"{random.randint(100000, 999999)}"
     expires_at = time.time() + OTP_TTL_SECONDS
-    store_key = f"{client_id}:{to_email_lower}"
-    OTP_STORE[store_key] = {
+    otp_record = {
         "otp": otp_code,
         "email": to_email_lower,
         "client_id": client_id,
         "expires_at": expires_at,
     }
-    _fs_save_otp(store_key, to_email_lower, client_id, otp_code, expires_at)
+
+    keys = {f"{client_id}:{to_email_lower}", f"email:{to_email_lower}"}
+    for k in keys:
+        OTP_STORE[k] = dict(otp_record)
+        _fs_save_otp(k, to_email_lower, client_id, otp_code, expires_at)
 
     try:
-        send_otp_via_brevo_https(to_email, otp_code, client_id)
+        send_otp_via_brevo_https(to_email, otp_code, client_id, purpose="Login")
         return jsonify({"ok": True, "message": "OTP sent to email.", "client_id": client_id}), 200
     except Exception as exc:
         if ALLOW_DEV_CONSOLE_OTP:
@@ -825,40 +905,35 @@ def api_verify_otp():
     store_name = str(data.get("store_name", "")).strip()
     is_new_account = bool(data.get("is_new_account", False))
 
-    db = _get_db()
-    lookup_cid = requested_cid
-    if not lookup_cid and db and to_email:
-        lookup_cid = _fs_find_email_owner(db, to_email) or ""
-    if not lookup_cid:
-        lookup_cid = "NEW-CLIENT"
+    if not entered_otp:
+        return jsonify({"error": "OTP code is required."}), 400
 
-    candidate_keys = [f"{lookup_cid}:{to_email}"]
-    if requested_cid and f"{requested_cid}:{to_email}" not in candidate_keys:
+    candidate_keys = []
+    if requested_cid:
         candidate_keys.append(f"{requested_cid}:{to_email}")
-    if f"NEW-CLIENT:{to_email}" not in candidate_keys:
-        candidate_keys.append(f"NEW-CLIENT:{to_email}")
+    candidate_keys.append(f"NEW-CLIENT:{to_email}")
+    candidate_keys.append(f"email:{to_email}")
 
     matched = False
-    matched_key = candidate_keys[0]
     for k in candidate_keys:
         rec = OTP_STORE.get(k)
-        if rec and time.time() <= rec["expires_at"] and entered_otp == rec["otp"]:
+        if rec and time.time() <= float(rec.get("expires_at", 0)) and str(rec.get("otp", "")).strip() == entered_otp:
             matched = True
-            matched_key = k
             break
         fs_rec = _fs_get_and_consume_otp(k, entered_otp, consume=True)
         if fs_rec:
             matched = True
-            matched_key = k
+            if not to_email and fs_rec.get("email"):
+                to_email = str(fs_rec.get("email")).strip().lower()
             break
 
     if not matched:
-        for k in candidate_keys:
-            OTP_STORE.pop(k, None)
         return jsonify({"error": "OTP expired or invalid."}), 401
 
-    OTP_STORE.pop(matched_key, None)
+    for k in candidate_keys:
+        OTP_STORE.pop(k, None)
 
+    db = _get_db()
     final_cid = requested_cid if (requested_cid and requested_cid != "NEW-CLIENT") else ""
     if not final_cid and db and to_email:
         final_cid = _fs_find_email_owner(db, to_email) or ""
@@ -900,6 +975,95 @@ def api_verify_otp():
     }), 200
 
 
+# --- Reset Password OTP Endpoints ---
+
+
+@app.post("/api/password/reset/send-otp")
+def api_password_reset_send_otp():
+    ip_addr = get_client_ip()
+    blocked, retry_after = check_and_record_ip_rate_limit(ip_addr)
+    if blocked:
+        return jsonify({
+            "error": "Too many OTP requests from this IP. Please try again later.",
+            "retry_after_seconds": retry_after,
+        }), 429
+
+    data = request.get_json(silent=True) or {}
+    client_id = str(data.get("client_id", "")).strip().upper()
+    to_email = str(data.get("email", "")).strip().lower()
+
+    if not client_id:
+        return jsonify({"error": "Client ID is required."}), 400
+    if "@" not in to_email or "." not in to_email.split("@")[-1]:
+        return jsonify({"error": "Valid email address is required."}), 400
+
+    db = _get_db()
+    if db:
+        client_doc = _fs_get_client(db, client_id)
+        if client_doc and client_doc.get("email") and str(client_doc.get("email")).strip().lower() != to_email:
+            return jsonify({"error": "Client ID සහ Email එක නොගැළපේ."}), 403
+
+    otp_code = f"{random.randint(100000, 999999)}"
+    expires_at = time.time() + OTP_TTL_SECONDS
+    reset_key = f"reset:{client_id}:{to_email}"
+    RESET_OTP_STORE[reset_key] = {
+        "otp": otp_code,
+        "client_id": client_id,
+        "email": to_email,
+        "expires_at": expires_at,
+    }
+    _fs_save_otp(reset_key, to_email, client_id, otp_code, expires_at)
+
+    try:
+        send_otp_via_brevo_https(to_email, otp_code, client_id, purpose="Password Reset")
+        return jsonify({"ok": True, "message": "Password reset OTP sent to email.", "client_id": client_id}), 200
+    except Exception as exc:
+        if ALLOW_DEV_CONSOLE_OTP:
+            print(f"[DEV RESET OTP] To: {to_email} | Client: {client_id} | OTP: {otp_code}", flush=True)
+            return jsonify({"ok": True, "message": "Fallback OTP printed in terminal.", "client_id": client_id}), 200
+        return jsonify({"error": f"Failed to send reset OTP: {str(exc)}"}), 500
+
+
+@app.post("/api/password/reset/confirm")
+def api_password_reset_confirm():
+    data = request.get_json(silent=True) or {}
+    client_id = str(data.get("client_id", "")).strip().upper()
+    to_email = str(data.get("email", "")).strip().lower()
+    entered_otp = str(data.get("otp", "")).strip()
+    new_password = str(data.get("new_password", "")).strip()
+
+    if not client_id or not to_email or not entered_otp:
+        return jsonify({"error": "Client ID, Email සහ OTP අවශ්‍ය වේ."}), 400
+    if len(new_password) < 4:
+        return jsonify({"error": "New password අවම වශයෙන් අක්ෂර 4ක් වත් විය යුතුය."}), 400
+
+    reset_key = f"reset:{client_id}:{to_email}"
+    rec = RESET_OTP_STORE.get(reset_key)
+    valid = bool(rec and time.time() <= float(rec.get("expires_at", 0)) and str(rec.get("otp", "")).strip() == entered_otp)
+    if not valid:
+        fs_rec = _fs_get_and_consume_otp(reset_key, entered_otp, consume=True)
+        if not fs_rec:
+            return jsonify({"error": "Invalid or expired reset OTP."}), 401
+
+    RESET_OTP_STORE.pop(reset_key, None)
+
+    resolved_cid, client_entry = register_client_in_usage_json(client_id, email=to_email)
+    pw_hash = _hash_password(new_password)
+    try:
+        _fs_sync_client(resolved_cid, client_entry, password_hash=pw_hash)
+    except Exception:
+        pass
+
+    token = _issue_client_token(resolved_cid, to_email)
+    return jsonify({
+        "ok": True,
+        "message": "Password reset successful.",
+        "client_id": resolved_cid,
+        "email": to_email,
+        "token": token,
+    }), 200
+
+
 # --- Client-Isolated Dashboard & Order Tracking Endpoints (Firebase Firestore + usage.json) ---
 
 
@@ -925,7 +1089,7 @@ def api_my_dashboard():
     merged = dict(usage_client or {})
     if fs_client:
         for k, v in fs_client.items():
-            if v is not None:
+            if v is not None and k != "password_hash":
                 merged[k] = v
 
     plan_name = merged.get("plan")
@@ -965,13 +1129,16 @@ def api_my_orders():
     orders_by_id = {}
     db = _get_db()
     if db:
-        docs = db.collection("orders").where("client_id", "==", authed_cid).stream()
-        for d in docs:
-            item = d.to_dict() or {}
-            oid = str(item.get("order_id") or d.id).strip()
-            item["order_id"] = oid
-            item["client_id"] = authed_cid
-            orders_by_id[oid] = item
+        try:
+            docs = db.collection("orders").where("client_id", "==", authed_cid).stream()
+            for d in docs:
+                item = d.to_dict() or {}
+                oid = str(item.get("order_id") or d.id).strip()
+                item["order_id"] = oid
+                item["client_id"] = authed_cid
+                orders_by_id[oid] = item
+        except Exception:
+            pass
 
     usage_doc, _ = _load_usage_doc()
     usage_client = (usage_doc.get("clients") or {}).get(authed_cid) or {}
