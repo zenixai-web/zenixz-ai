@@ -2,6 +2,25 @@
   if (window.__ZENIX_WIDGET_LOADED__) return;
   window.__ZENIX_WIDGET_LOADED__ = true;
 
+  // පරණ Store Assistant / Legacy elements තිබේ නම් සම්පූර්ණයෙන්ම ඉවත් කරන්න
+  function removeLegacyStoreAssistant() {
+    const legacySelectors = [
+      "[data-zenix-legacy]",
+      "#legacy-chatbot",
+      "#store-assistant-widget",
+      ".legacy-chat-widget",
+      ".store-assistant-container",
+      "#chat-container"
+    ];
+    legacySelectors.forEach((sel) => {
+      document.querySelectorAll(sel).forEach((el) => {
+        if (el && !el.closest("#zenix-chat-widget-root")) {
+          el.remove();
+        }
+      });
+    });
+  }
+
   const CHAT_FONT_STACK = '"Google Sans", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
   function injectChatFont() {
@@ -33,32 +52,21 @@
       (s.src || "").includes("app.js")
     );
 
-  let scriptUrl = null;
-  try {
-    if (scriptEl && scriptEl.src) {
-      scriptUrl = new URL(scriptEl.src, window.location.href);
-    }
-  } catch (_) {}
-
-  const inferredOrigin =
-    scriptUrl && scriptUrl.origin && scriptUrl.origin !== "null"
-      ? scriptUrl.origin
-      : window.location.origin && window.location.origin !== "null"
-      ? window.location.origin
-      : "https://zenixz-ai-1.onrender.com/";
-
   const API_BASE =
     (scriptEl && scriptEl.getAttribute("data-api-base")) ||
     window.ZENIX_API_BASE ||
-    inferredOrigin;
+    "https://zenixz-ai-1.onrender.com";
 
   const BOTPRESS_WEBHOOK_URL =
     (scriptEl && scriptEl.getAttribute("data-botpress-webhook")) ||
     window.ZENIX_BOTPRESS_WEBHOOK_URL ||
     "";
 
+  const urlParams = new URLSearchParams(window.location.search);
+
   const CLIENT_ID_FROM_SCRIPT =
     (scriptEl && scriptEl.getAttribute("data-client-id")) ||
+    urlParams.get("client_id") ||
     window.ZENIX_CLIENT_ID ||
     "";
 
@@ -172,22 +180,29 @@
     }
   }
 
+  // භාෂා 3න්ම කෙටි Welcome Message එක
+  const TRILINGUAL_WELCOME =
+    "Hello! I'm your AI Assistant. How can I help you?\n" +
+    "ආයුබෝවන්! මම ඔබේ AI සහායකයා. ඔබට කොහොමද උදව් කරන්න පුළුවන්?\n" +
+    "வணக்கம்! நான் உங்கள் AI உதவியாளர். நான் உங்களுக்கு எப்படி உதவ முடியும்?\n\n" +
+    "💬 You can chat in English, සිංහල, or தமிழ்.";
+
   const DEFAULT_CONFIG = {
     botName: ACTIVE_CLIENT_NAME ? `${ACTIVE_CLIENT_NAME} AI Assistant` : "Zenix AI Assistant",
-    welcomeMessage: "ආයුබෝවන්! මම ඔබේ AI සහායකයා. මට ඔබට කොහොමද උදව් කරන්න පුළුවන්?",
+    welcomeMessage: TRILINGUAL_WELCOME,
     primaryColor: "#2563eb",
     secondaryColor: "#1e40af",
     position: "bottom-right",
-    theme: "light",
+    theme: "dark",
     fontFamily: CHAT_FONT_STACK,
     fontSize: 14,
     allowVoice: true,
     allowImage: true,
     allowFileUpload: true,
     showPoweredBy: false,
-    quickReplies: ["මිල ගණන් දැනගන්න", "Order එකක් දාන්න", "Contact Info"],
+    quickReplies: ["Pricing", "Place Order", "Bank Transfer", "Contact Info"],
     currency: "LKR",
-    language: "si",
+    language: "en", // Default English automatically
     businessType: "general",
     businessName: ACTIVE_CLIENT_NAME || "",
     bankDetails: "",
@@ -219,6 +234,7 @@
   let pendingPaymentProofBase64 = null;
   let pendingPaymentProofName = null;
   let pendingPaymentProofDataUrl = null;
+  let bankTransferModeEnabled = false;
 
   let conversationHistory = [];
   let messageCounter = 0;
@@ -242,42 +258,31 @@
 
   const processedStockOrderIds = new Set();
 
+  // PNG, JPG, JPEG, PDF පමණක් validate කිරීම
+  function isAllowedAttachmentFile(file) {
+    if (!file) return false;
+    const name = String(file.name || "").toLowerCase();
+    const type = String(file.type || "").toLowerCase();
+    const validExt = /\.(png|jpe?g|pdf)$/i.test(name);
+    const validMime =
+      type === "image/png" ||
+      type === "image/jpeg" ||
+      type === "image/jpg" ||
+      type === "application/pdf";
+    return validExt || validMime;
+  }
+
   const UI_STRINGS = {
-    si: {
-      placeholder: "ඔබේ පණිවිඩය මෙතන ලියන්න...",
-      send: "යවන්න",
-      typing: "AI සහායකයා ලියමින් සිටී...",
-      voiceListening: "කතා කරන්න... (සවන් දෙමින්)",
-      voiceNotSupported: "ඔබේ Browser එක Voice input සඳහා සහය නොදක්වයි.",
-      imageAttached: "පින්තූරය තෝරා ඇත",
-      proofAttached: "Payment slip/proof තෝරා ඇත",
-      removeFile: "ඉවත් කරන්න",
-      orderStarted: "හරි! අපි ඔබේ Order එක සකසමු. ඔබට අවශ්‍ය Product / Item එකේ නම කියන්න.",
-      orderAskQty: (item, price) =>
-        `"${item}" (Unit price: ${price ? price.toLocaleString() : "0"}) සඳහා ඔබට අවශ්‍ය ප්‍රමාණය (Quantity) කීයද?`,
-      orderAskName: "ඔබේ සම්පූර්ණ නම (Full Name) ඇතුළත් කරන්න.",
-      orderAskPhone: "ඔබේ දුරකථන අංකය (Phone Number) ඇතුළත් කරන්න.",
-      orderAskAddress: "Delivery කරන්න ඕනෑ ලිපිනය (Delivery Address) ඇතුළත් කරන්න.",
-      orderAskPayment: (summaryText) =>
-        `${summaryText}\n\nPayment ක්‍රමය තෝරන්න:\n1. Bank Transfer / Slip Upload\n2. Cash on Delivery (COD)\n\n"Bank Transfer" හෝ "COD" ලෙස type කරන්න (Bank transfer නම් slip/proof photo එකක්/PDF එකක් attach කරන්න).`,
-      orderConfirmed: (ord) =>
-        `✅ **Order එක සාර්ථකව තහවුරු වුණා!**\n\n• **Order ID:** ${ord.order_id}\n• **Item:** ${ord.item}\n• **Quantity:** ${ord.quantity}\n• **Total:** ${Number(ord.total || 0).toLocaleString()} ${ord.currency || "LKR"}\n• **Name:** ${ord.customer_name}\n• **Phone:** ${ord.phone}\n• **Address:** ${ord.address}\n• **Payment:** ${ord.payment_method}${ord.payment_proof_name ? `\n• **Proof:** ${ord.payment_proof_name}` : ""}\n\nඉක්මනින් අපේ team එක ඔබව සම්බන්ධ කරගනී.`,
-      orderCancelled: "Order එක cancel කරන ලදී. වෙනත් උදව්වක් අවශ්‍යද?",
-      clearChat: "Chat Clear",
-      newOrderBtn: "New Order",
-      uploadProofBtn: "Upload Proof",
-      uploadImageBtn: "Photo",
-      voiceBtn: "Voice",
-      offlineMsg: "Server එකට සම්බන්ධ වීමට නොහැකි විය. කරුණාකර නැවත උත්සාහ කරන්න."
-    },
     en: {
       placeholder: "Type your message here...",
       send: "Send",
       typing: "AI Assistant is typing...",
       voiceListening: "Listening... speak now",
       voiceNotSupported: "Voice input is not supported in your browser.",
-      imageAttached: "Image attached",
+      imageAttached: "File attached",
       proofAttached: "Payment proof attached",
+      invalidFileType: "Only PNG, JPG, JPEG, and PDF files are allowed.",
+      attachTitle: "Attach PNG, JPG, or PDF",
       removeFile: "Remove",
       orderStarted: "Great! Let's place your order. Please tell me the product or item name you want.",
       orderAskQty: (item, price) =>
@@ -286,25 +291,60 @@
       orderAskPhone: "Please enter your phone number.",
       orderAskAddress: "Please enter your delivery address.",
       orderAskPayment: (summaryText) =>
-        `${summaryText}\n\nChoose payment method:\n1. Bank Transfer (attach slip/proof image or PDF)\n2. Cash on Delivery (COD)\n\nType "Bank Transfer" or "COD".`,
+        `${summaryText}\n\nChoose payment method:\n1. Bank Transfer (attach PNG, JPG, or PDF slip)\n2. Cash on Delivery (COD)\n\nType "Bank Transfer" or "COD".`,
       orderConfirmed: (ord) =>
         `✅ **Order Confirmed!**\n\n• **Order ID:** ${ord.order_id}\n• **Item:** ${ord.item}\n• **Quantity:** ${ord.quantity}\n• **Total:** ${Number(ord.total || 0).toLocaleString()} ${ord.currency || "LKR"}\n• **Name:** ${ord.customer_name}\n• **Phone:** ${ord.phone}\n• **Address:** ${ord.address}\n• **Payment:** ${ord.payment_method}${ord.payment_proof_name ? `\n• **Proof:** ${ord.payment_proof_name}` : ""}\n\nOur team will contact you shortly.`,
       orderCancelled: "Order cancelled. How else can I help you?",
       clearChat: "Clear",
-      newOrderBtn: "Order",
-      uploadProofBtn: "Proof",
-      uploadImageBtn: "Photo",
+      newOrderBtn: "New Order",
+      uploadProofBtn: "Upload Proof",
       voiceBtn: "Voice",
-      offlineMsg: "Unable to reach the server right now. Please try again."
+      darkBtn: "🌙 Dark",
+      lightBtn: "☀️ Light",
+      offlineMsg: "Unable to reach the server right now. Please try again.",
+      chips: ["Pricing", "Place Order", "Bank Transfer", "Contact Info"]
+    },
+    si: {
+      placeholder: "ඔබේ පණිවිඩය මෙතන ලියන්න...",
+      send: "Send",
+      typing: "AI සහායකයා ලියමින් සිටී...",
+      voiceListening: "කතා කරන්න... (සවන් දෙමින්)",
+      voiceNotSupported: "ඔබේ Browser එක Voice input සඳහා සහය නොදක්වයි.",
+      imageAttached: "ගොනුව තෝරා ඇත",
+      proofAttached: "Payment proof තෝරා ඇත",
+      invalidFileType: "අවසර ඇත්තේ PNG, JPG, JPEG සහ PDF ගොනු සඳහා පමණි.",
+      attachTitle: "PNG, JPG හෝ PDF අමුණන්න",
+      removeFile: "ඉවත් කරන්න",
+      orderStarted: "හරි! අපි ඔබේ Order එක සකසමු. ඔබට අවශ්‍ය Product / Item එකේ නම කියන්න.",
+      orderAskQty: (item, price) =>
+        `"${item}" (Unit price: ${price ? Number(price).toLocaleString() : "0"}) සඳහා ඔබට අවශ්‍ය ප්‍රමාණය (Quantity) කීයද?`,
+      orderAskName: "ඔබේ සම්පූර්ණ නම (Full Name) ඇතුළත් කරන්න.",
+      orderAskPhone: "ඔබේ දුරකථන අංකය (Phone Number) ඇතුළත් කරන්න.",
+      orderAskAddress: "Delivery කරන්න ඕනෑ ලිපිනය (Delivery Address) ඇතුළත් කරන්න.",
+      orderAskPayment: (summaryText) =>
+        `${summaryText}\n\nPayment ක්‍රමය තෝරන්න:\n1. Bank Transfer / Slip Upload\n2. Cash on Delivery (COD)\n\n"Bank Transfer" හෝ "COD" ලෙස type කරන්න (Bank transfer නම් PNG/JPG/PDF slip එක attach කරන්න).`,
+      orderConfirmed: (ord) =>
+        `✅ **Order එක සාර්ථකව තහවුරු වුණා!**\n\n• **Order ID:** ${ord.order_id}\n• **Item:** ${ord.item}\n• **Quantity:** ${ord.quantity}\n• **Total:** ${Number(ord.total || 0).toLocaleString()} ${ord.currency || "LKR"}\n• **Name:** ${ord.customer_name}\n• **Phone:** ${ord.phone}\n• **Address:** ${ord.address}\n• **Payment:** ${ord.payment_method}${ord.payment_proof_name ? `\n• **Proof:** ${ord.payment_proof_name}` : ""}\n\nඉක්මනින් අපේ team එක ඔබව සම්බන්ධ කරගනී.`,
+      orderCancelled: "Order එක cancel කරන ලදී. වෙනත් උදව්වක් අවශ්‍යද?",
+      clearChat: "Clear",
+      newOrderBtn: "New Order",
+      uploadProofBtn: "Upload Proof",
+      voiceBtn: "Voice",
+      darkBtn: "🌙 Dark",
+      lightBtn: "☀️ Light",
+      offlineMsg: "Server එකට සම්බන්ධ වීමට නොහැකි විය. කරුණාකර නැවත උත්සාහ කරන්න.",
+      chips: ["මිල ගණන් දැනගන්න", "Order එකක් දාන්න", "Bank Transfer", "Contact Info"]
     },
     ta: {
       placeholder: "உங்கள் செய்தியை இங்கே தட்டச்சு செய்யவும்...",
-      send: "அனுப்பு",
+      send: "Send",
       typing: "AI உதவியாளர் எழுதுகிறார்...",
       voiceListening: "பேசுங்கள்... கேட்கிறது",
       voiceNotSupported: "உங்கள் உலாவி குரல் உள்ளீட்டை ஆதரிக்கவில்லை.",
-      imageAttached: "படம் இணைக்கப்பட்டது",
+      imageAttached: "கோப்பு இணைக்கப்பட்டது",
       proofAttached: "பணம் செலுத்திய ஆவணம் இணைக்கப்பட்டது",
+      invalidFileType: "PNG, JPG, JPEG மற்றும் PDF கோப்புகள் மட்டுமே அனுமதிக்கப்படும்.",
+      attachTitle: "PNG, JPG அல்லது PDF இணைக்க",
       removeFile: "நீக்கு",
       orderStarted: "சரி! உங்கள் ஆர்டரைத் தொடங்குவோம். உங்களுக்கு தேவையான பொருளின் பெயரைச் சொல்லவும்.",
       orderAskQty: (item, price) =>
@@ -313,24 +353,26 @@
       orderAskPhone: "உங்கள் தொலைபேசி எண்ணை உள்ளிடவும்.",
       orderAskAddress: "டெலிவரி முகவரியை உள்ளிடவும்.",
       orderAskPayment: (summaryText) =>
-        `${summaryText}\n\nபணம் செலுத்தும் முறையைத் தேர்ந்தெடுக்கவும்:\n1. Bank Transfer (ரசீது/படம் இணைக்கவும்)\n2. Cash on Delivery (COD)`,
+        `${summaryText}\n\nபணம் செலுத்தும் முறையைத் தேர்ந்தெடுக்கவும்:\n1. Bank Transfer (PNG/JPG/PDF ரசீது இணைக்கவும்)\n2. Cash on Delivery (COD)`,
       orderConfirmed: (ord) =>
         `✅ **ஆர்டர் உறுதி செய்யப்பட்டது!**\n\n• **Order ID:** ${ord.order_id}\n• **Item:** ${ord.item}\n• **Quantity:** ${ord.quantity}\n• **Total:** ${Number(ord.total || 0).toLocaleString()} ${ord.currency || "LKR"}\n• **Name:** ${ord.customer_name}\n• **Phone:** ${ord.phone}\n• **Address:** ${ord.address}\n• **Payment:** ${ord.payment_method}`,
       orderCancelled: "ஆர்டர் ரத்து செய்யப்பட்டது. வேறு உதவி தேவையா?",
-      clearChat: "அழி",
-      newOrderBtn: "Order",
-      uploadProofBtn: "Proof",
-      uploadImageBtn: "Photo",
+      clearChat: "Clear",
+      newOrderBtn: "New Order",
+      uploadProofBtn: "Upload Proof",
       voiceBtn: "Voice",
-      offlineMsg: "சர்வருடன் இணைக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்."
+      darkBtn: "🌙 Dark",
+      lightBtn: "☀️ Light",
+      offlineMsg: "சர்வருடன் இணைக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+      chips: ["விலைகள்", "ஆர்டர் செய்", "Bank Transfer", "தொடர்பு விவரம்"]
     }
   };
 
   function getLangStrings() {
-    const lang = (config.language || "si").toLowerCase();
-    if (lang.startsWith("en")) return UI_STRINGS.en;
+    const lang = (config.language || "en").toLowerCase();
+    if (lang.startsWith("si")) return UI_STRINGS.si;
     if (lang.startsWith("ta")) return UI_STRINGS.ta;
-    return UI_STRINGS.si;
+    return UI_STRINGS.en;
   }
 
   function escapeHtml(str) {
@@ -434,9 +476,7 @@
     if (!item || qty <= 0) return;
 
     const dedupKey = orderId ? `order:${orderId}` : `item:${item.toLowerCase()}:qty:${qty}:${Date.now()}`;
-    if (processedStockOrderIds.has(dedupKey)) {
-      return;
-    }
+    if (processedStockOrderIds.has(dedupKey)) return;
     processedStockOrderIds.add(dedupKey);
 
     try {
@@ -577,14 +617,8 @@
               cfg.allow_file_upload !== undefined ? Boolean(cfg.allow_file_upload) : config.allowFileUpload,
             showPoweredBy:
               cfg.show_powered_by !== undefined ? Boolean(cfg.show_powered_by) : config.showPoweredBy,
-            quickReplies:
-              Array.isArray(cfg.quick_replies) && cfg.quick_replies.length
-                ? cfg.quick_replies
-                : Array.isArray(cfg.quickReplies) && cfg.quickReplies.length
-                ? cfg.quickReplies
-                : config.quickReplies,
             currency: cfg.currency || config.currency,
-            language: cfg.language || config.language,
+            language: "en",
             businessType: cfg.business_type || cfg.businessType || config.businessType,
             businessName: cfg.business_name || cfg.businessName || config.businessName,
             bankDetails: cfg.bank_details || cfg.bankDetails || config.bankDetails,
@@ -619,6 +653,9 @@
     const style = document.createElement("style");
     style.id = "zenix-chat-widget-styles";
     style.textContent = `
+      html, body {
+        background-color: transparent !important;
+      }
       .zenix-widget-root {
         position: fixed;
         z-index: 2147483000;
@@ -654,9 +691,9 @@
       .zenix-chat-window {
         position: absolute;
         bottom: 72px;
-        width: 375px;
+        width: 380px;
         max-width: calc(100vw - 28px);
-        height: 540px;
+        height: 550px;
         max-height: calc(100vh - 105px);
         border-radius: 18px;
         overflow: hidden;
@@ -682,12 +719,12 @@
         border-color: rgba(51, 65, 85, 0.8);
       }
       .zenix-chat-header {
-        padding: 14px 16px;
+        padding: 12px 14px;
         color: #ffffff;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 10px;
+        gap: 8px;
       }
       .zenix-header-info {
         display: flex;
@@ -696,7 +733,7 @@
       }
       .zenix-header-title {
         font-weight: 600;
-        font-size: 15px;
+        font-size: 14.5px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -708,16 +745,17 @@
       .zenix-header-actions {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 4px;
+        flex-wrap: wrap;
       }
       .zenix-icon-btn {
         background: rgba(255, 255, 255, 0.18);
         border: none;
         color: #ffffff;
-        border-radius: 8px;
-        padding: 5px 8px;
+        border-radius: 7px;
+        padding: 4px 7px;
         font-size: 11px;
-        font-weight: 500;
+        font-weight: 600;
         cursor: pointer;
         transition: background 0.15s ease;
       }
@@ -737,7 +775,7 @@
         background: #020617;
       }
       .zenix-msg {
-        max-width: 84%;
+        max-width: 85%;
         padding: 10px 13px;
         border-radius: 14px;
         word-wrap: break-word;
@@ -832,10 +870,13 @@
         background: #f8fafc;
         color: #334155;
         border-radius: 8px;
-        padding: 4px 8px;
+        padding: 4px 9px;
         font-size: 11px;
         font-weight: 500;
         cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
       }
       .zenix-chat-window.dark .zenix-tool-btn {
         background: #1e293b;
@@ -847,10 +888,40 @@
         color: #b91c1c;
         border-color: #fca5a5;
       }
+      .zenix-proof-btn-hidden {
+        display: none !important;
+      }
       .zenix-input-row {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
+      }
+      .zenix-attach-icon-btn {
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        color: #1e293b;
+        border-radius: 10px;
+        width: 38px;
+        height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+      }
+      .zenix-attach-icon-btn:hover {
+        border-color: #2563eb;
+        color: #2563eb;
+      }
+      .zenix-chat-window.dark .zenix-attach-icon-btn {
+        background: #1e293b;
+        color: #e2e8f0;
+        border-color: #334155;
+      }
+      .zenix-chat-window.dark .zenix-attach-icon-btn:hover {
+        border-color: #60a5fa;
+        color: #60a5fa;
       }
       .zenix-text-input {
         flex: 1;
@@ -888,6 +959,24 @@
 
   let domRefs = {};
 
+  function setBankTransferProofVisible(show) {
+    bankTransferModeEnabled = Boolean(show);
+    if (domRefs.proofBtn) {
+      domRefs.proofBtn.classList.toggle("zenix-proof-btn-hidden", !bankTransferModeEnabled);
+    }
+  }
+
+  function detectBankTransferIntent(text) {
+    const t = String(text || "").toLowerCase();
+    return (
+      t.includes("bank") ||
+      t.includes("transfer") ||
+      t.includes("slip") ||
+      t.includes("බැංකු") ||
+      t.includes("வங்கி")
+    );
+  }
+
   function buildWidgetDom() {
     createWidgetStyles();
     if (document.getElementById("zenix-chat-widget-root")) return;
@@ -921,6 +1010,27 @@
     const headerActions = document.createElement("div");
     headerActions.className = "zenix-header-actions";
 
+    const langBtn = document.createElement("button");
+    langBtn.type = "button";
+    langBtn.className = "zenix-icon-btn";
+    langBtn.title = "Switch Language (EN / SI / TA)";
+    langBtn.textContent = "🌐 EN";
+    langBtn.addEventListener("click", () => {
+      const order = ["en", "si", "ta"];
+      const idx = order.indexOf((config.language || "en").toLowerCase());
+      config.language = order[(idx + 1) % order.length];
+      applyConfigToUi();
+    });
+
+    const themeToggleBtn = document.createElement("button");
+    themeToggleBtn.type = "button";
+    themeToggleBtn.className = "zenix-icon-btn";
+    themeToggleBtn.textContent = config.theme === "dark" ? s.lightBtn : s.darkBtn;
+    themeToggleBtn.addEventListener("click", () => {
+      config.theme = config.theme === "dark" ? "light" : "dark";
+      applyConfigToUi();
+    });
+
     const clearBtn = document.createElement("button");
     clearBtn.type = "button";
     clearBtn.className = "zenix-icon-btn";
@@ -929,6 +1039,7 @@
       domRefs.messagesEl.innerHTML = "";
       conversationHistory = [];
       resetOrderDraft();
+      setBankTransferProofVisible(false);
       appendBotMessage(config.welcomeMessage);
     });
 
@@ -938,6 +1049,8 @@
     closeBtn.textContent = "✕";
     closeBtn.addEventListener("click", () => toggleWidget(false));
 
+    headerActions.appendChild(langBtn);
+    headerActions.appendChild(themeToggleBtn);
     headerActions.appendChild(clearBtn);
     headerActions.appendChild(closeBtn);
     header.appendChild(headerInfo);
@@ -972,30 +1085,24 @@
     orderBtn.textContent = `🛒 ${s.newOrderBtn}`;
     orderBtn.addEventListener("click", () => startOrderFlow(""));
 
+    // Bank Transfer proof button: Bank transfer තෝරද්දී පමණක් පෙනේ
     const proofBtn = document.createElement("button");
     proofBtn.type = "button";
-    proofBtn.className = "zenix-tool-btn";
+    proofBtn.className = "zenix-tool-btn zenix-proof-btn-hidden";
     proofBtn.textContent = `🧾 ${s.uploadProofBtn}`;
 
     const proofInput = document.createElement("input");
     proofInput.type = "file";
-    proofInput.accept = "image/*,.pdf";
+    proofInput.accept = ".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf";
     proofInput.style.display = "none";
 
     proofBtn.addEventListener("click", () => proofInput.click());
     proofInput.addEventListener("change", handleProofFileSelect);
 
-    const photoBtn = document.createElement("button");
-    photoBtn.type = "button";
-    photoBtn.className = "zenix-tool-btn";
-    photoBtn.textContent = `🖼️ ${s.uploadImageBtn}`;
-
     const photoInput = document.createElement("input");
     photoInput.type = "file";
-    photoInput.accept = "image/*";
+    photoInput.accept = ".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf";
     photoInput.style.display = "none";
-
-    photoBtn.addEventListener("click", () => photoInput.click());
     photoInput.addEventListener("change", handlePhotoFileSelect);
 
     const voiceBtn = document.createElement("button");
@@ -1004,13 +1111,14 @@
     voiceBtn.textContent = `🎙️ ${s.voiceBtn}`;
     voiceBtn.addEventListener("click", toggleVoiceInput);
 
-    toolbar.appendChild(orderBtn);
+    if (config.orderFlowEnabled) {
+      toolbar.appendChild(orderBtn);
+    }
     if (config.allowFileUpload) {
       toolbar.appendChild(proofBtn);
       toolbar.appendChild(proofInput);
     }
     if (config.allowImage) {
-      toolbar.appendChild(photoBtn);
       toolbar.appendChild(photoInput);
     }
     if (config.allowVoice) {
@@ -1019,6 +1127,17 @@
 
     const inputRow = document.createElement("div");
     inputRow.className = "zenix-input-row";
+
+    // High-quality crisp SVG paperclip attachment icon (PNG, JPG, JPEG, PDF only)
+    const attachIconBtn = document.createElement("button");
+    attachIconBtn.type = "button";
+    attachIconBtn.className = "zenix-attach-icon-btn";
+    attachIconBtn.title = s.attachTitle;
+    attachIconBtn.setAttribute("aria-label", s.attachTitle);
+    attachIconBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`;
+    attachIconBtn.addEventListener("click", () => {
+      if (photoInput) photoInput.click();
+    });
 
     const textInput = document.createElement("input");
     textInput.type = "text";
@@ -1038,6 +1157,9 @@
     sendBtn.textContent = s.send;
     sendBtn.addEventListener("click", handleUserSubmit);
 
+    if (config.allowImage || config.allowFileUpload) {
+      inputRow.appendChild(attachIconBtn);
+    }
     inputRow.appendChild(textInput);
     inputRow.appendChild(sendBtn);
 
@@ -1073,13 +1195,20 @@
       win,
       titleEl,
       subEl,
+      langBtn,
+      themeToggleBtn,
+      clearBtn,
+      orderBtn,
+      proofBtn,
+      voiceBtn,
+      attachIconBtn,
       messagesEl,
       quickRepliesEl,
       attachmentBar,
       attachmentLabel,
+      removeAttachmentBtn,
       textInput,
       sendBtn,
-      voiceBtn,
       photoInput,
       proofInput,
       launcherBtn,
@@ -1093,6 +1222,8 @@
   function applyConfigToUi() {
     if (!domRefs.root) return;
     const s = getLangStrings();
+    const langCode = (config.language || "en").toLowerCase();
+
     domRefs.root.className = `zenix-widget-root ${
       config.position === "bottom-left" ? "pos-bottom-left" : "pos-bottom-right"
     }`;
@@ -1100,11 +1231,31 @@
       config.theme === "dark" ? "dark" : ""
     }`;
     domRefs.win.style.fontSize = `${config.fontSize || 14}px`;
-    domRefs.titleEl.textContent = config.botName || "AI Assistant";
+    domRefs.titleEl.textContent = config.botName || "Zenix AI Assistant";
     domRefs.textInput.placeholder = s.placeholder;
     domRefs.sendBtn.textContent = s.send;
     domRefs.sendBtn.style.background = config.primaryColor;
     domRefs.launcherBtn.style.background = `linear-gradient(135deg, ${config.primaryColor}, ${config.secondaryColor})`;
+
+    if (domRefs.langBtn) {
+      domRefs.langBtn.textContent = langCode.startsWith("si")
+        ? "🌐 SI"
+        : langCode.startsWith("ta")
+        ? "🌐 TA"
+        : "🌐 EN";
+    }
+    if (domRefs.themeToggleBtn) {
+      domRefs.themeToggleBtn.textContent = config.theme === "dark" ? s.lightBtn : s.darkBtn;
+    }
+    if (domRefs.clearBtn) domRefs.clearBtn.textContent = s.clearChat;
+    if (domRefs.orderBtn) domRefs.orderBtn.textContent = `🛒 ${s.newOrderBtn}`;
+    if (domRefs.proofBtn) domRefs.proofBtn.textContent = `🧾 ${s.uploadProofBtn}`;
+    if (domRefs.voiceBtn) domRefs.voiceBtn.textContent = `🎙️ ${s.voiceBtn}`;
+    if (domRefs.attachIconBtn) domRefs.attachIconBtn.title = s.attachTitle;
+    if (domRefs.removeAttachmentBtn) domRefs.removeAttachmentBtn.textContent = s.removeFile;
+
+    setBankTransferProofVisible(bankTransferModeEnabled);
+
     if (domRefs.poweredEl) {
       domRefs.poweredEl.style.display = config.showPoweredBy ? "block" : "none";
     }
@@ -1114,7 +1265,9 @@
   function renderQuickReplies() {
     if (!domRefs.quickRepliesEl) return;
     domRefs.quickRepliesEl.innerHTML = "";
-    const list = Array.isArray(config.quickReplies) ? config.quickReplies : [];
+    const s = getLangStrings();
+    const list = s.chips;
+
     list.forEach((label) => {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -1217,6 +1370,13 @@
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     const s = getLangStrings();
+
+    if (!isAllowedAttachmentFile(file)) {
+      e.target.value = "";
+      appendBotMessage(s.invalidFileType);
+      return;
+    }
+
     try {
       const dataUrl = await readFileAsDataUrl(file);
       const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
@@ -1224,7 +1384,7 @@
       pendingImageName = file.name;
       pendingImageDataUrl = dataUrl;
       if (domRefs.attachmentBar) {
-        domRefs.attachmentLabel.textContent = `🖼️ ${s.imageAttached}: ${file.name}`;
+        domRefs.attachmentLabel.textContent = `📎 ${s.imageAttached}: ${file.name}`;
         domRefs.attachmentBar.classList.add("active");
       }
     } catch (_) {}
@@ -1234,12 +1394,20 @@
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     const s = getLangStrings();
+
+    if (!isAllowedAttachmentFile(file)) {
+      e.target.value = "";
+      appendBotMessage(s.invalidFileType);
+      return;
+    }
+
     try {
       const dataUrl = await readFileAsDataUrl(file);
       const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
       pendingPaymentProofBase64 = base64;
       pendingPaymentProofName = file.name;
       pendingPaymentProofDataUrl = dataUrl;
+      setBankTransferProofVisible(true);
       if (domRefs.attachmentBar) {
         domRefs.attachmentLabel.textContent = `🧾 ${s.proofAttached}: ${file.name}`;
         domRefs.attachmentBar.classList.add("active");
@@ -1268,8 +1436,8 @@
     }
 
     recognition = new SpeechRec();
-    const lang = (config.language || "si").toLowerCase();
-    recognition.lang = lang.startsWith("en") ? "en-US" : lang.startsWith("ta") ? "ta-LK" : "si-LK";
+    const lang = (config.language || "en").toLowerCase();
+    recognition.lang = lang.startsWith("si") ? "si-LK" : lang.startsWith("ta") ? "ta-LK" : "en-US";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
@@ -1366,6 +1534,7 @@
 
     resetOrderDraft();
     clearPendingAttachments();
+    setBankTransferProofVisible(false);
     appendBotMessage(s.orderConfirmed(created));
     return created;
   }
@@ -1377,6 +1546,7 @@
 
     if (lower === "cancel" || lower.includes("cancel order") || trimmed.includes("අවලංගු")) {
       resetOrderDraft();
+      setBankTransferProofVisible(false);
       appendBotMessage(s.orderCancelled);
       return true;
     }
@@ -1435,8 +1605,10 @@
         lower.includes("1")
       ) {
         method = "Bank Transfer";
+        setBankTransferProofVisible(true);
       } else if (lower.includes("cod") || lower.includes("cash") || lower.includes("2")) {
         method = "Cash on Delivery";
+        setBankTransferProofVisible(false);
       } else {
         method = trimmed || "COD";
       }
@@ -1455,7 +1627,8 @@
       t.includes("buy") ||
       t.includes("ඕඩර්") ||
       t.includes("මිලදී") ||
-      t.includes("ගන්න ඕන")
+      t.includes("ගන්න ඕන") ||
+      t.includes("ஆர்டர்")
     );
   }
 
@@ -1468,6 +1641,7 @@
         site_id: SITE_ID,
         client_id: ACTIVE_CLIENT_ID || CLIENT_ID_FROM_SCRIPT || "",
         client_key: ACTIVE_CLIENT_KEY || CLIENT_KEY_FROM_SCRIPT || "",
+        language: config.language || "en",
         history: conversationHistory.slice(-12),
         image_base64: imageBase64 || null,
         image_name: imageName || null,
@@ -1511,6 +1685,10 @@
         (data.data && (data.data.reply || data.data.message)) ||
         "";
 
+      if (data.show_bank_proof || detectBankTransferIntent(replyText)) {
+        setBankTransferProofVisible(true);
+      }
+
       if (data.order && typeof data.order === "object") {
         await finalizeAndSaveOrderInstant(data.order);
       }
@@ -1533,6 +1711,10 @@
     const imgName = pendingImageName;
 
     if (!cleanText && !imgB64) return;
+
+    if (detectBankTransferIntent(cleanText)) {
+      setBankTransferProofVisible(true);
+    }
 
     isSending = true;
     appendUserMessage(cleanText, imgDataUrl || pendingImageDataUrl || null);
@@ -1566,9 +1748,11 @@
   }
 
   async function init() {
+    removeLegacyStoreAssistant();
     await verifyClientKeyAndLoadConfig();
     buildWidgetDom();
     applyConfigToUi();
+    removeLegacyStoreAssistant();
   }
 
   if (document.readyState === "loading") {
