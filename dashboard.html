@@ -1048,14 +1048,79 @@
     }
 
     async function loadUsageJson() {
+      let fileData = null;
       try {
         const res = await fetch("data/usage.json?t=" + Date.now(), { cache: "no-store" });
         if (res.ok) {
-          currentDataset = await res.json();
+          fileData = await res.json();
         }
       } catch {
-        // Fallback blank/inactive data when offline or missing
+        // Fallback when offline or static
       }
+
+      const baseDoc = fileData || FALLBACK_DATA;
+      baseDoc.clients = baseDoc.clients || {};
+
+      const apiBase = String(window.ZENIX_API_BASE || authPass.api_base || "").replace(/\/+$/, "");
+      const token = String(authPass.token || "").trim();
+
+      if (apiBase && token) {
+        try {
+          const headers = { "Authorization": "Bearer " + token };
+          const dashRes = await fetch(
+            apiBase + "/api/my/dashboard?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID),
+            { headers, cache: "no-store" }
+          );
+          if (dashRes.ok) {
+            const dashJson = await dashRes.json();
+            const existingClient = baseDoc.clients[ACTIVE_CLIENT_ID] || {
+              store_name: ACTIVE_CLIENT_ID + " Store",
+              plan: null,
+              plan_active: false,
+              expires_at: null,
+              agents: {
+                bot_1: {
+                  label: "Main Order Agent",
+                  conversations_used: 0,
+                  file_storage_mb: 0,
+                  vector_db_mb: 0,
+                  table_rows_used: 0
+                }
+              },
+              orders_today: []
+            };
+
+            const mergedClient = Object.assign({}, existingClient, dashJson.client || {}, {
+              store_name: dashJson.store_name || existingClient.store_name,
+              plan: dashJson.plan === "No Active Plan" ? null : (dashJson.plan ?? existingClient.plan),
+              plan_active: Boolean(dashJson.plan_active),
+              expires_at: dashJson.expires_at ?? existingClient.expires_at,
+              agents: dashJson.agents || existingClient.agents
+            });
+
+            const ordersRes = await fetch(
+              apiBase + "/api/my/orders?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID),
+              { headers, cache: "no-store" }
+            );
+            if (ordersRes.ok) {
+              const ordersJson = await ordersRes.json();
+              const scopedOrders = Array.isArray(ordersJson.orders)
+                ? ordersJson.orders.filter(
+                    (o) => String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase() === ACTIVE_CLIENT_ID.toUpperCase()
+                  )
+                : [];
+              mergedClient.orders = scopedOrders;
+              mergedClient.orders_today = scopedOrders.slice(0, 5);
+            }
+
+            baseDoc.clients[ACTIVE_CLIENT_ID] = mergedClient;
+          }
+        } catch {
+          // Keep fileData fallback if API request fails
+        }
+      }
+
+      currentDataset = baseDoc;
       renderDashboard();
     }
 

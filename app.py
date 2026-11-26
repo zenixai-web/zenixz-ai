@@ -205,15 +205,22 @@ def _default_usage_doc() -> dict:
                 "vector_db_limit_mb": 100,
                 "table_rows_limit": 1000,
             },
+            "credits_10000": {
+                "conversations_limit": 10000,
+                "file_storage_limit_mb": 10000,
+                "vector_db_limit_mb": 10000,
+                "table_rows_limit": 10000,
+            },
         },
         "clients": {},
     }
 
 
 def _build_zero_client_entry(client_id: str, store_name: str = "", email: str = "") -> dict:
+    clean_cid = str(client_id or "").strip().upper()
     return {
-        "store_name": store_name or f"{client_id} Store",
-        "email": email,
+        "store_name": store_name or f"{clean_cid} Store",
+        "email": (email or "").strip().lower(),
         "plan": None,
         "plan_active": False,
         "expires_at": None,
@@ -427,30 +434,60 @@ def _fs_get_and_consume_otp(store_key: str, entered_otp: str, consume: bool = Tr
     return rec
 
 
-def register_client_in_usage_json(client_id: str, store_name: str = "", email: str = "") -> dict:
-    cid = str(client_id or "").strip().upper()
-    if not cid:
-        raise ValueError("client_id is required")
+def _generate_unique_client_id(doc: dict, db) -> str:
+    existing_ids = {str(k).strip().upper() for k in (doc.get("clients") or {}).keys()}
+    for _ in range(50):
+        num = random.randint(1000, 9999)
+        candidate = f"CLT-{num}"
+        if candidate in existing_ids:
+            continue
+        if db and _fs_get_client(db, candidate):
+            continue
+        return candidate
+    return f"CLT-{int(time.time()) % 100000}"
 
+
+def register_client_in_usage_json(client_id: str, store_name: str = "", email: str = "") -> tuple[str, dict]:
+    cid = str(client_id or "").strip().upper()
     email_clean = str(email or "").strip().lower()
     db = _get_db()
+
+    if not cid:
+        if db and email_clean:
+            existing_owner = _fs_find_email_owner(db, email_clean)
+            if existing_owner:
+                cid = existing_owner
+
+    doc, sha = _load_usage_doc()
+    if not cid:
+        for k, v in (doc.get("clients") or {}).items():
+            if email_clean and str((v or {}).get("email") or "").strip().lower() == email_clean:
+                cid = str(k).strip().upper()
+                break
+
+    if not cid:
+        cid = _generate_unique_client_id(doc, db)
+
     if db and email_clean:
         existing_owner = _fs_find_email_owner(db, email_clean)
         if existing_owner and existing_owner != cid:
             raise ValueError("මෙම Email එකෙන් දැනටමත් Account එකක් සාදා ඇත. වෙනත් Email එකක් භාවිතා කරන්න.")
 
-    doc, sha = _load_usage_doc()
+    created_new = False
     if cid not in doc["clients"]:
         doc["clients"][cid] = _build_zero_client_entry(cid, store_name=store_name, email=email_clean)
-        _save_usage_doc(doc, sha, f"Auto-register client {cid} (plan_active=false, expires_at=null)")
+        created_new = True
     else:
         if store_name:
             doc["clients"][cid]["store_name"] = store_name
         if email_clean and not doc["clients"][cid].get("email"):
             doc["clients"][cid]["email"] = email_clean
 
+    if created_new:
+        _save_usage_doc(doc, sha, f"Auto-register client {cid} (plan_active=false, expires_at=null)")
+
     _fs_sync_client(cid, doc["clients"][cid])
-    return doc["clients"][cid]
+    return cid, doc["clients"][cid]
 
 
 def _increment_usage_in_doc(doc: dict, cid: str, bot_id: str, conv_inc: int = 1, session_id: str = "") -> dict:
@@ -507,12 +544,9 @@ def api_register_client():
     store_name = str(data.get("store_name", "")).strip()
     email = str(data.get("email", "")).strip().lower()
 
-    if not client_id:
-        return jsonify({"error": "client_id is required."}), 400
-
     try:
-        entry = register_client_in_usage_json(client_id, store_name=store_name, email=email)
-        return jsonify({"ok": True, "client_id": client_id, "client": entry}), 201
+        resolved_cid, entry = register_client_in_usage_json(client_id, store_name=store_name, email=email)
+        return jsonify({"ok": True, "client_id": resolved_cid, "client": entry}), 201
     except ValueError as exc:
         msg = str(exc)
         status_code = 409 if "Email" in msg else 400
@@ -739,13 +773,20 @@ def api_send_otp():
     data = request.get_json(silent=True) or {}
     to_email = str(data.get("email", "")).strip()
     to_email_lower = to_email.lower()
-    client_id = str(data.get("client_id", "CLIENT")).strip().upper()
+    client_id = str(data.get("client_id", "")).strip().upper()
     is_new_account = bool(data.get("is_new_account", False))
 
     if "@" not in to_email or "." not in to_email.split("@")[-1]:
         return jsonify({"error": "Valid email address is required."}), 400
 
     db = _get_db()
+    if not client_id and db and to_email_lower:
+        owner_cid = _fs_find_email_owner(db, to_email_lower)
+        if owner_cid:
+            client_id = owner_cid
+    if not client_id:
+        client_id = "NEW-CLIENT"
+
     if db and is_new_account:
         existing_owner = _fs_find_email_owner(db, to_email_lower)
         if existing_owner:
@@ -767,11 +808,11 @@ def api_send_otp():
 
     try:
         send_otp_via_brevo_https(to_email, otp_code, client_id)
-        return jsonify({"ok": True, "message": "OTP sent to email."}), 200
+        return jsonify({"ok": True, "message": "OTP sent to email.", "client_id": client_id}), 200
     except Exception as exc:
         if ALLOW_DEV_CONSOLE_OTP:
             print(f"[DEV OTP FALLBACK] To: {to_email} | Client: {client_id} | OTP: {otp_code}", flush=True)
-            return jsonify({"ok": True, "message": "Fallback OTP printed in terminal."}), 200
+            return jsonify({"ok": True, "message": "Fallback OTP printed in terminal.", "client_id": client_id}), 200
         return jsonify({"error": f"Failed to send email OTP: {str(exc)}"}), 500
 
 
@@ -779,56 +820,87 @@ def api_send_otp():
 def api_verify_otp():
     data = request.get_json(silent=True) or {}
     to_email = str(data.get("email", "")).strip().lower()
-    client_id = str(data.get("client_id", "CLIENT")).strip().upper()
+    requested_cid = str(data.get("client_id", "")).strip().upper()
     entered_otp = str(data.get("otp", "")).strip()
     store_name = str(data.get("store_name", "")).strip()
     is_new_account = bool(data.get("is_new_account", False))
 
-    store_key = f"{client_id}:{to_email}"
-    record = OTP_STORE.get(store_key)
-    valid_from_mem = bool(record and time.time() <= record["expires_at"] and entered_otp == record["otp"])
-
-    if not valid_from_mem:
-        fs_rec = _fs_get_and_consume_otp(store_key, entered_otp, consume=True)
-        if not fs_rec:
-            OTP_STORE.pop(store_key, None)
-            return jsonify({"error": "OTP expired or invalid."}), 401
-        record = fs_rec
-
-    OTP_STORE.pop(store_key, None)
-
     db = _get_db()
-    if db:
+    lookup_cid = requested_cid
+    if not lookup_cid and db and to_email:
+        lookup_cid = _fs_find_email_owner(db, to_email) or ""
+    if not lookup_cid:
+        lookup_cid = "NEW-CLIENT"
+
+    candidate_keys = [f"{lookup_cid}:{to_email}"]
+    if requested_cid and f"{requested_cid}:{to_email}" not in candidate_keys:
+        candidate_keys.append(f"{requested_cid}:{to_email}")
+    if f"NEW-CLIENT:{to_email}" not in candidate_keys:
+        candidate_keys.append(f"NEW-CLIENT:{to_email}")
+
+    matched = False
+    matched_key = candidate_keys[0]
+    for k in candidate_keys:
+        rec = OTP_STORE.get(k)
+        if rec and time.time() <= rec["expires_at"] and entered_otp == rec["otp"]:
+            matched = True
+            matched_key = k
+            break
+        fs_rec = _fs_get_and_consume_otp(k, entered_otp, consume=True)
+        if fs_rec:
+            matched = True
+            matched_key = k
+            break
+
+    if not matched:
+        for k in candidate_keys:
+            OTP_STORE.pop(k, None)
+        return jsonify({"error": "OTP expired or invalid."}), 401
+
+    OTP_STORE.pop(matched_key, None)
+
+    final_cid = requested_cid if (requested_cid and requested_cid != "NEW-CLIENT") else ""
+    if not final_cid and db and to_email:
+        final_cid = _fs_find_email_owner(db, to_email) or ""
+
+    if db and to_email:
         existing_owner = _fs_find_email_owner(db, to_email)
         if is_new_account and existing_owner:
             return jsonify({
                 "error": "මෙම Email එකෙන් දැනටමත් Account එකක් සාදා ඇත. වෙනත් Email එකක් භාවිතා කරන්න.",
                 "code": "EMAIL_ALREADY_EXISTS",
             }), 409
-        if existing_owner and existing_owner != client_id:
+        if existing_owner and final_cid and existing_owner != final_cid:
             return jsonify({
                 "error": "මෙම Email එක වෙනත් Client ID එකකට සම්බන්ධ කර ඇත.",
                 "code": "EMAIL_MISMATCH_CLIENT",
             }), 403
 
-        existing_client = _fs_get_client(db, client_id)
-        if not existing_client:
-            default_entry = _build_zero_client_entry(client_id, store_name=store_name, email=to_email)
-            _fs_sync_client(client_id, default_entry)
-        elif to_email and existing_client.get("email") and existing_client.get("email") != to_email:
-            return jsonify({"error": "Email does not match this Client ID."}), 403
+        if final_cid:
+            existing_client = _fs_get_client(db, final_cid)
+            if existing_client and existing_client.get("email") and existing_client.get("email") != to_email:
+                return jsonify({"error": "Email does not match this Client ID."}), 403
 
-    token = _issue_client_token(client_id, to_email)
+    try:
+        resolved_cid, client_entry = register_client_in_usage_json(
+            final_cid, store_name=store_name, email=to_email
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "code": "EMAIL_ALREADY_EXISTS"}), 409
+
+    token = _issue_client_token(resolved_cid, to_email)
     return jsonify({
         "ok": True,
         "verified": True,
-        "client_id": client_id,
+        "client_id": resolved_cid,
         "email": to_email,
+        "store_name": client_entry.get("store_name", f"{resolved_cid} Store"),
+        "plan_active": bool(client_entry.get("plan_active", False)),
         "token": token,
     }), 200
 
 
-# --- Client-Isolated Dashboard & Order Tracking Endpoints (Firebase Firestore) ---
+# --- Client-Isolated Dashboard & Order Tracking Endpoints (Firebase Firestore + usage.json) ---
 
 
 @app.get("/api/my/dashboard")
@@ -840,20 +912,26 @@ def api_my_dashboard():
     if requested_cid and requested_cid != authed_cid:
         return jsonify({"error": "Access denied: you can only view your own dashboard."}), 403
 
-    db = _get_db()
-    if not db:
-        return jsonify({"error": "Firebase Firestore is not configured."}), 500
-
-    client_doc = _fs_get_client(db, authed_cid)
-    if not client_doc:
-        return jsonify({"error": "Client account not found."}), 404
-
     usage_doc, _ = _load_usage_doc()
     plans = usage_doc.get("plans") or _default_usage_doc()["plans"]
-    plan_name = client_doc.get("plan")
+    usage_client = (usage_doc.get("clients") or {}).get(authed_cid)
+
+    db = _get_db()
+    fs_client = _fs_get_client(db, authed_cid) if db else None
+
+    if not usage_client and not fs_client:
+        return jsonify({"error": "Client account not found."}), 404
+
+    merged = dict(usage_client or {})
+    if fs_client:
+        for k, v in fs_client.items():
+            if v is not None:
+                merged[k] = v
+
+    plan_name = merged.get("plan")
     conv_limit = int((plans.get(plan_name) or {}).get("conversations_limit", 0)) if plan_name else 0
 
-    agents = client_doc.get("agents") or {}
+    agents = merged.get("agents") or {}
     total_conversations_used = sum(
         int((bot_data or {}).get("conversations_used", 0))
         for bot_data in agents.values()
@@ -863,12 +941,15 @@ def api_my_dashboard():
     return jsonify({
         "ok": True,
         "client_id": authed_cid,
-        "store_name": client_doc.get("store_name") or authed_cid,
+        "store_name": merged.get("store_name") or f"{authed_cid} Store",
+        "email": merged.get("email") or "",
         "plan": plan_name or "No Active Plan",
-        "plan_active": bool(client_doc.get("plan_active", False)),
-        "expires_at": client_doc.get("expires_at"),
+        "plan_active": bool(merged.get("plan_active", False)),
+        "expires_at": merged.get("expires_at"),
         "conversations_used": total_conversations_used,
         "conversations_limit": conv_limit,
+        "agents": agents,
+        "client": merged,
     }), 200
 
 
@@ -881,17 +962,28 @@ def api_my_orders():
     if requested_cid and requested_cid != authed_cid:
         return jsonify({"error": "Access denied: you can only view your own orders."}), 403
 
+    orders_by_id = {}
     db = _get_db()
-    if not db:
-        return jsonify({"error": "Firebase Firestore is not configured."}), 500
+    if db:
+        docs = db.collection("orders").where("client_id", "==", authed_cid).stream()
+        for d in docs:
+            item = d.to_dict() or {}
+            oid = str(item.get("order_id") or d.id).strip()
+            item["order_id"] = oid
+            item["client_id"] = authed_cid
+            orders_by_id[oid] = item
 
-    docs = db.collection("orders").where("client_id", "==", authed_cid).stream()
-    my_orders = []
-    for d in docs:
-        item = d.to_dict() or {}
-        item.setdefault("order_id", d.id)
-        my_orders.append(item)
+    usage_doc, _ = _load_usage_doc()
+    usage_client = (usage_doc.get("clients") or {}).get(authed_cid) or {}
+    for o in (usage_client.get("orders_today") or []):
+        if isinstance(o, dict):
+            oid = str(o.get("order_id") or "").strip()
+            if oid and oid not in orders_by_id:
+                item = dict(o)
+                item["client_id"] = authed_cid
+                orders_by_id[oid] = item
 
+    my_orders = list(orders_by_id.values())
     my_orders.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
     return jsonify({
         "ok": True,
