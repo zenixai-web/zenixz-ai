@@ -69,6 +69,41 @@
       }
     }
 
+    @keyframes otpPanelReveal {
+      from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes otpPulseGlow {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(79, 124, 255, 0.45), 0 0 18px rgba(79, 124, 255, 0.2);
+      }
+      50% {
+        box-shadow: 0 0 0 6px rgba(79, 124, 255, 0), 0 0 26px rgba(79, 124, 255, 0.42);
+      }
+    }
+
+    @keyframes spinLoader {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes shimmerSweep {
+      0% {
+        transform: translateX(-120%);
+      }
+      100% {
+        transform: translateX(220%);
+      }
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
@@ -133,9 +168,10 @@
     }
 
     .error-popup-box.is-info {
-      background: #102038;
-      border-color: rgba(79, 124, 255, 0.65);
+      background: #0f2442;
+      border-color: rgba(79, 124, 255, 0.75);
       color: #dbeafe;
+      box-shadow: 0 14px 36px rgba(37, 99, 235, 0.28);
     }
 
     .error-popup-close {
@@ -251,6 +287,7 @@
       padding: 11px 13px;
       font-size: 15px;
       outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
     input:focus {
@@ -321,17 +358,33 @@
       letter-spacing: 0.35em;
       font-weight: 700;
       font-size: 18px !important;
+      animation: otpPulseGlow 2.2s ease-in-out infinite;
     }
 
     .otp-notice {
-      background: rgba(79, 124, 255, 0.1);
-      border: 1px solid rgba(79, 124, 255, 0.28);
-      border-radius: 11px;
-      padding: 11px 13px;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(79, 124, 255, 0.16), rgba(34, 197, 94, 0.08));
+      border: 1px solid rgba(79, 124, 255, 0.38);
+      border-radius: 12px;
+      padding: 12px 14px;
       margin-bottom: 13px;
       font-size: 12.5px;
       color: #dbeafe;
-      line-height: 1.5;
+      line-height: 1.55;
+      animation: otpPanelReveal 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .otp-notice::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 45%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+      animation: shimmerSweep 2.4s ease-in-out infinite;
+      pointer-events: none;
     }
 
     .otp-timer-text {
@@ -369,15 +422,35 @@
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
     }
 
     .btn:hover:not(:disabled) {
       background: var(--accent-hover);
+      transform: translateY(-1px);
     }
 
     .btn:disabled {
-      opacity: 0.65;
+      opacity: 0.72;
       cursor: not-allowed;
+    }
+
+    .btn.is-sending {
+      box-shadow: 0 0 22px rgba(79, 124, 255, 0.45);
+    }
+
+    .btn-spinner {
+      width: 15px;
+      height: 15px;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spinLoader 0.7s linear infinite;
+      flex-shrink: 0;
     }
 
     .btn-secondary {
@@ -653,6 +726,17 @@
       }
     })();
 
+    function setButtonBusy(btn, busy, busyLabel, idleLabel) {
+      if (!btn) return;
+      btn.disabled = Boolean(busy);
+      btn.classList.toggle("is-sending", Boolean(busy));
+      if (busy) {
+        btn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span><span>${busyLabel}</span>`;
+      } else {
+        btn.textContent = idleLabel;
+      }
+    }
+
     let errorHideTimer = null;
     const errorPopupWrap = document.getElementById("errorPopupWrap");
     const errorPopupBox = document.getElementById("errorPopupBox");
@@ -888,6 +972,11 @@
       resetForm.classList.add("hidden");
       emailSentSection.classList.add("hidden");
       target.classList.remove("hidden");
+      if (target === otpForm) {
+        otpForm.style.animation = "none";
+        void otpForm.offsetWidth;
+        otpForm.style.animation = "otpPanelReveal 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards";
+      }
     }
 
     function resetLoginStateOnEntry(isBackNavigation = false) {
@@ -1013,8 +1102,7 @@
       }
 
       const btn = document.getElementById("sendClientIdSubmitBtn");
-      btn.disabled = true;
-      btn.textContent = "Sending Client ID...";
+      setButtonBusy(btn, true, "Sending Client ID...", "Send Client ID");
 
       try {
         let sentViaBackend = false;
@@ -1067,8 +1155,7 @@
           showErrorPopup("මෙම Email Address එකට අදාළ Account එකක් හමු නොවීය.");
         }
       } finally {
-        btn.disabled = false;
-        btn.textContent = "Send Client ID";
+        setButtonBusy(btn, false, "Sending Client ID...", "Send Client ID");
       }
     });
 
@@ -1079,22 +1166,30 @@
 
       const isEmail = isValidEmailAddress(cleanVal);
       const isCid = /^CLT-/i.test(cleanVal);
+      const bodyPayload = {
+        client_id: isCid ? cleanVal.toUpperCase() : "",
+        email: isEmail ? normalizeEmail(cleanVal) : "",
+        username: (!isEmail && !isCid) ? cleanVal : ""
+      };
 
-      try {
-        const res = await fetch(`${OTP_CONFIG.API_BASE_URL}/api/clients/lookup`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            client_id: isCid ? cleanVal.toUpperCase() : "",
-            email: isEmail ? normalizeEmail(cleanVal) : "",
-            username: (!isEmail && !isCid) ? cleanVal : ""
-          })
-        });
-        if (!res.ok) return null;
-        return await res.json();
-      } catch {
-        return null;
+      for (const path of ["/api/clients/lookup", "/api/client/lookup"]) {
+        try {
+          const res = await fetch(`${OTP_CONFIG.API_BASE_URL}${path}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(bodyPayload)
+          });
+          if (res.ok) {
+            return await res.json();
+          }
+          if (res.status !== 404) {
+            return null;
+          }
+        } catch {
+          // Try next endpoint
+        }
       }
+      return null;
     }
 
     async function dispatchOtpToEmail(rec, flowType = "login", newPassword = "") {
@@ -1130,11 +1225,25 @@
                 is_new_account: isRegister
               };
 
-          const res = await fetch(`${OTP_CONFIG.API_BASE_URL}${endpoint}`, {
+          let res = await fetch(`${OTP_CONFIG.API_BASE_URL}${endpoint}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
           });
+
+          if (isReset && res.status === 404) {
+            res = await fetch(`${OTP_CONFIG.API_BASE_URL}/api/otp/send`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                client_id: rec.client_id,
+                email: targetEmail,
+                username: rec.username || rec.generated_username || "",
+                is_new_account: false
+              })
+            });
+          }
+
           const data = await res.json().catch(() => ({}));
           if (res.ok) {
             backendOtpActive = true;
@@ -1153,7 +1262,7 @@
         console.info("[Zenix AI Test OTP dispatched to email]:", expectedOtp);
       }
 
-      const sentMsg = `OTP Code sent to your email (${targetEmail}).`;
+      const sentMsg = `✨ OTP Code sent to your email (${targetEmail}).`;
       document.getElementById("otpEmailNotice").innerHTML = `
         ${sentMsg} Email එක පරීක්ෂා කර 6-digit OTP code එක enter කරන්න.
         <div class="otp-timer-text" id="otpCountdownText">Resend available in 30s</div>
@@ -1200,8 +1309,7 @@
       }
 
       const continueBtn = document.getElementById("continueBtn");
-      continueBtn.disabled = true;
-      continueBtn.textContent = "Sending OTP...";
+      setButtonBusy(continueBtn, true, "Sending OTP...", "Continue");
 
       try {
         let matchedKey = Object.keys(records).find((k) => {
@@ -1258,6 +1366,8 @@
             last_login_at: "-"
           };
 
+          records[resolvedCid] = crossDeviceRec;
+          saveRecords(records);
           sessionStorage.setItem(LAST_ID_KEY, remoteUser);
           sessionStorage.setItem(LAST_EMAIL_KEY, remoteOwnerEmail);
           await openOtpStep(resolvedCid, "login", "", crossDeviceRec);
@@ -1266,8 +1376,7 @@
 
         showErrorPopup("Account එකක් හමු නොවීය. කරුණාකර Username / Client ID / Email පරීක්ෂා කරන්න හෝ Create Account කරන්න.");
       } finally {
-        continueBtn.disabled = false;
-        continueBtn.textContent = "Continue";
+        setButtonBusy(continueBtn, false, "Sending OTP...", "Continue");
       }
     });
 
@@ -1275,8 +1384,15 @@
       if (resendOtpBtn.disabled) return;
       const rec = pendingDraftRecord || (pendingUserKey ? records[pendingUserKey] : null);
       if (!rec) return;
-      await dispatchOtpToEmail(rec, pendingFlowType, pendingNewPassword);
-      otpVerifyInput.value = "";
+      setButtonBusy(resendOtpBtn, true, "Resending...", "Resend Code");
+      try {
+        await dispatchOtpToEmail(rec, pendingFlowType, pendingNewPassword);
+        otpVerifyInput.value = "";
+      } finally {
+        if (!otpCooldownInterval) {
+          setButtonBusy(resendOtpBtn, false, "Resending...", "Resend Code");
+        }
+      }
     });
 
     document.getElementById("cancelOtpBtn").addEventListener("click", () => {
@@ -1314,8 +1430,7 @@
       }
 
       const verifyBtn = document.getElementById("verifyOtpBtn");
-      verifyBtn.disabled = true;
-      verifyBtn.textContent = "Verifying...";
+      setButtonBusy(verifyBtn, true, "Verifying...", "Verify & Continue");
 
       try {
         records = getRecords();
@@ -1334,7 +1449,7 @@
         if (backendOtpActive && OTP_CONFIG.API_BASE_URL) {
           try {
             if (pendingFlowType === "reset") {
-              const resetConfirmRes = await fetch(`${OTP_CONFIG.API_BASE_URL}/api/password/reset/confirm`, {
+              let resetConfirmRes = await fetch(`${OTP_CONFIG.API_BASE_URL}/api/password/reset/confirm`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -1344,6 +1459,19 @@
                   new_password: pendingNewPassword
                 })
               });
+              if (resetConfirmRes.status === 404) {
+                resetConfirmRes = await fetch(`${OTP_CONFIG.API_BASE_URL}/api/otp/verify`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    client_id: rec.client_id,
+                    email: boundEmail,
+                    otp: enteredOtp,
+                    password: pendingNewPassword,
+                    is_new_account: false
+                  })
+                });
+              }
               const resetConfirmData = await resetConfirmRes.json().catch(() => ({}));
               if (!resetConfirmRes.ok) {
                 showErrorPopup(resetConfirmData.error || resetConfirmData.detail || "OTP rejected: Invalid Email OTP code.");
@@ -1473,8 +1601,7 @@
           window.location.replace("./dashboard.html?client_id=" + encodeURIComponent(resolvedCid));
         }
       } finally {
-        verifyBtn.disabled = false;
-        verifyBtn.textContent = "Verify & Continue";
+        setButtonBusy(verifyBtn, false, "Verifying...", "Verify & Continue");
       }
     });
 
@@ -1546,8 +1673,7 @@
       }
 
       const saveBtn = document.getElementById("saveNewPassBtn");
-      saveBtn.disabled = true;
-      saveBtn.textContent = "Sending OTP...";
+      setButtonBusy(saveBtn, true, "Sending OTP...", "Save New Password");
 
       try {
         let matchedKey = Object.keys(records).find((k) => {
@@ -1594,8 +1720,7 @@
         okEl.textContent = "Sending OTP to registered email...";
         await openOtpStep(matchedKey, "reset", pwCheck.formatted, targetRec);
       } finally {
-        saveBtn.disabled = false;
-        saveBtn.textContent = "Save New Password";
+        setButtonBusy(saveBtn, false, "Sending OTP...", "Save New Password");
       }
     });
 
@@ -1635,8 +1760,7 @@
       }
 
       const regBtn = document.getElementById("registerContinueBtn");
-      regBtn.disabled = true;
-      regBtn.textContent = "Sending OTP...";
+      setButtonBusy(regBtn, true, "Sending OTP...", "Continue");
 
       try {
         const existingRemote = await lookupBackendAccount(emailVal);
@@ -1670,8 +1794,7 @@
 
         await openOtpStep(key, "register", "", newRec);
       } finally {
-        regBtn.disabled = false;
-        regBtn.textContent = "Continue";
+        setButtonBusy(regBtn, false, "Sending OTP...", "Continue");
       }
     });
   </script>

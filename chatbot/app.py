@@ -29,7 +29,6 @@ CLIENTS_FILE = DATA_DIR / "clients.json"
 ORDERS_FILE = DATA_DIR / "orders.json"
 SYSTEM_STATE_FILE = DATA_DIR / "system_state.json"
 
-# Secrets/API Keys are read strictly from environment variables (never hardcoded).
 AI_API_KEY = os.environ.get("AI_API_KEY", "").strip()
 AI_API_URL = os.environ.get("AI_API_URL", "").strip()
 AI_MODEL = os.environ.get("AI_MODEL", "gemini-4-hydrogen").strip()
@@ -134,6 +133,19 @@ def _hash_password(password: str) -> str:
         "sha256", password.encode("utf-8"), salt.encode("utf-8"), 120000
     ).hex()
     return f"{salt}${digest}"
+
+
+def _verify_password(password: str, stored_hash: str) -> bool:
+    if not password or not stored_hash or "$" not in stored_hash:
+        return False
+    try:
+        salt, digest = stored_hash.split("$", 1)
+        calc = hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"), salt.encode("utf-8"), 120000
+        ).hex()
+        return hmac.compare_digest(calc, digest)
+    except Exception:
+        return False
 
 
 def _issue_client_token(client_id: str, email: str) -> str:
@@ -241,8 +253,8 @@ def _fs_get_client(db, cid: str) -> Optional[Dict[str, Any]]:
             data = snap.to_dict() or {}
             data["client_id"] = cid.upper()
             return data
-    except Exception:
-        pass
+    except Exception as exc:
+        globals()["_FIRESTORE_LAST_ERROR"] = str(exc)
     return None
 
 
@@ -255,8 +267,12 @@ def _fs_find_by_email(db, email_lower: str) -> Optional[str]:
         )
         for d in docs:
             return str(d.id).upper()
-    except Exception:
-        pass
+        for d in db.collection("clients").stream():
+            data = d.to_dict() or {}
+            if str(data.get("email") or "").strip().lower() == email_lower:
+                return str(d.id).upper()
+    except Exception as exc:
+        globals()["_FIRESTORE_LAST_ERROR"] = str(exc)
     return None
 
 
@@ -264,6 +280,7 @@ def _fs_find_by_username(db, username_val: str) -> Optional[Dict[str, Any]]:
     if not db or not username_val:
         return None
     u_clean = username_val.strip()
+    u_lower = u_clean.lower()
     try:
         for field_name in ("username", "generated_username"):
             docs = (
@@ -273,8 +290,15 @@ def _fs_find_by_username(db, username_val: str) -> Optional[Dict[str, Any]]:
                 data = d.to_dict() or {}
                 data["client_id"] = str(d.id).upper()
                 return data
-    except Exception:
-        pass
+        for d in db.collection("clients").stream():
+            data = d.to_dict() or {}
+            u_match = str(data.get("username") or "").strip().lower()
+            g_match = str(data.get("generated_username") or "").strip().lower()
+            if u_lower in (u_match, g_match):
+                data["client_id"] = str(d.id).upper()
+                return data
+    except Exception as exc:
+        globals()["_FIRESTORE_LAST_ERROR"] = str(exc)
     return None
 
 
@@ -316,7 +340,8 @@ def _is_client_active(entry: Dict[str, Any]) -> tuple[bool, str, bool]:
 
 def _save_client_record(
     cid: str, entry: Dict[str, Any], password_hash: Optional[str] = None
-) -> None:
+) -> Dict[str, Any]:
+    global _FIRESTORE_LAST_ERROR
     clean_cid = cid.upper()
     quota = _get_client_quota(entry)
     embed_key = (
@@ -339,6 +364,7 @@ def _save_client_record(
         or clean_cid,
         "store_name": entry.get("store_name") or f"{clean_cid} Store",
         "email": (entry.get("email") or "").strip().lower(),
+        "business_reg_no": (entry.get("business_reg_no") or "").strip().upper(),
         "plan": (entry.get("plan") or "normal").strip().lower(),
         "plan_active": bool(entry.get("plan_active", False)),
         "expires_at": entry.get("expires_at"),
@@ -363,18 +389,24 @@ def _save_client_record(
     }
     if password_hash:
         payload["password_hash"] = password_hash
+    elif entry.get("password_hash"):
+        payload["password_hash"] = entry["password_hash"]
 
     local_map = _load_json(CLIENTS_FILE, {})
+    merged_local = {**local_map.get(clean_cid, {}), **payload} if isinstance(local_map, dict) else payload
     if isinstance(local_map, dict):
-        local_map[clean_cid] = {**local_map.get(clean_cid, {}), **payload}
+        local_map[clean_cid] = merged_local
         _save_json(CLIENTS_FILE, local_map)
 
     db = _get_db()
     if db:
         try:
             db.collection("clients").document(clean_cid).set(payload, merge=True)
-        except Exception:
-            pass
+            _FIRESTORE_LAST_ERROR = ""
+        except Exception as exc:
+            _FIRESTORE_LAST_ERROR = str(exc)
+
+    return merged_local
 
 
 def _build_embed_html(
@@ -474,7 +506,7 @@ def _resolve_client(
             for k, v in local_map.items():
                 u_match = str((v or {}).get("username") or "").strip().lower()
                 g_match = str((v or {}).get("generated_username") or "").strip().lower()
-                if usr.lower() in (u_match, g_match) and usr.lower():
+                if usr.lower() in (u_match, g_match):
                     rec = dict(v)
                     rec["client_id"] = str(k).upper()
                     return str(k).upper(), rec
@@ -903,27 +935,43 @@ class ChatIn(BaseModel):
     order: Optional[Dict[str, Any]] = None
 
 
+class ClientLookupIn(BaseModel):
+    client_id: Optional[str] = ""
+    email: Optional[str] = ""
+    username: Optional[str] = ""
+
+
+class ForgotIdIn(BaseModel):
+    email: str = Field(..., min_length=3)
+
+
 class OtpSendIn(BaseModel):
     email: Optional[str] = ""
     client_id: Optional[str] = ""
     username: Optional[str] = ""
+    store_name: Optional[str] = ""
+    business_reg_no: Optional[str] = ""
     password: Optional[str] = ""
+    new_password: Optional[str] = ""
     is_new_account: bool = False
 
 
 class OtpVerifyIn(BaseModel):
     email: Optional[str] = ""
+    owner_email: Optional[str] = ""
     client_id: Optional[str] = ""
     username: Optional[str] = ""
     otp: str = Field(..., min_length=1)
     store_name: Optional[str] = ""
+    business_reg_no: Optional[str] = ""
     password: Optional[str] = ""
+    new_password: Optional[str] = ""
     is_new_account: bool = False
 
 
 # --- App ---
 
-app = FastAPI(title="Zenix AI Client Server", version="4.4.0")
+app = FastAPI(title="Zenix AI Client Server", version="4.5.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -941,9 +989,12 @@ def root():
 @app.get("/health")
 def health():
     maint = _get_maintenance_state()
+    db = _get_db()
     return {
         "ok": True,
         "maintenance_mode": bool(maint.get("maintenance_mode")),
+        "firestore_connected": bool(db),
+        "firestore_error": _FIRESTORE_LAST_ERROR,
         "timestamp": _utc_now_iso(),
     }
 
@@ -1003,8 +1054,66 @@ def admin_update_client(
     if payload.table_rows_limit is not None:
         entry["table_rows_limit"] = max(0, int(payload.table_rows_limit))
 
-    _save_client_record(resolved_cid, entry)
-    return {"ok": True, "client_id": resolved_cid, "client": entry}
+    saved_entry = _save_client_record(resolved_cid, entry)
+    return {"ok": True, "client_id": resolved_cid, "client": saved_entry}
+
+
+@app.post("/api/clients/lookup")
+@app.post("/api/client/lookup")
+def lookup_client(payload: ClientLookupIn):
+    cid_in = (payload.client_id or "").strip().upper()
+    em_in = (payload.email or "").strip().lower()
+    usr_in = (payload.username or "").strip()
+
+    if not cid_in and not em_in and not usr_in:
+        raise HTTPException(status_code=400, detail="Identifier required")
+
+    db = _get_db()
+    resolved_cid, rec = _resolve_client(
+        db, client_id=cid_in, email=em_in, username=usr_in
+    )
+    if not resolved_cid or not rec:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    active, reason, changed = _is_client_active(rec)
+    if changed:
+        _save_client_record(resolved_cid, rec)
+
+    return {
+        "ok": True,
+        "client_id": resolved_cid,
+        "username": rec.get("username") or rec.get("generated_username") or resolved_cid,
+        "generated_username": rec.get("generated_username")
+        or rec.get("username")
+        or resolved_cid,
+        "store_name": rec.get("store_name") or f"{resolved_cid} Store",
+        "email": (rec.get("email") or "").strip().lower(),
+        "owner_email": (rec.get("email") or "").strip().lower(),
+        "business_reg_no": (rec.get("business_reg_no") or "").strip().upper(),
+        "plan": (rec.get("plan") or "normal").strip().lower(),
+        "plan_active": bool(active),
+        "reason": reason,
+    }
+
+
+@app.post("/api/client/forgot-id")
+@app.post("/api/client/resend-id")
+def forgot_client_id(payload: ForgotIdIn):
+    em_in = (payload.email or "").strip().lower()
+    if not em_in or "@" not in em_in:
+        raise HTTPException(status_code=400, detail="Valid email required")
+
+    db = _get_db()
+    resolved_cid, rec = _resolve_client(db, email=em_in)
+    if not resolved_cid or not rec:
+        raise HTTPException(status_code=404, detail="No account found for this email")
+
+    return {
+        "ok": True,
+        "client_id": resolved_cid,
+        "username": rec.get("username") or resolved_cid,
+        "email": em_in,
+    }
 
 
 @app.post("/api/client/quotas")
@@ -1160,6 +1269,7 @@ def get_client_embed(
 
 
 @app.post("/api/otp/send")
+@app.post("/api/password/reset/send-otp")
 def send_otp(payload: OtpSendIn):
     cid_in = (payload.client_id or "").strip().upper()
     usr_in = (payload.username or "").strip()
@@ -1176,11 +1286,19 @@ def send_otp(payload: OtpSendIn):
             detail="Account not found for the provided Client ID / Email / Username",
         )
 
+    if existing and payload.password and existing.get("password_hash"):
+        if not _verify_password(payload.password, str(existing["password_hash"])):
+            raise HTTPException(status_code=401, detail="Password incorrect.")
+
     target_email = em_in or str((existing or {}).get("email") or "").strip().lower()
     if not target_email or "@" not in target_email:
         raise HTTPException(status_code=400, detail="Valid email required")
 
-    target_cid = (resolved_cid or cid_in or "NEW-CLIENT").upper()
+    target_cid = (resolved_cid or cid_in or "").upper()
+    if not target_cid and payload.is_new_account:
+        target_cid = f"CLT-{random.randint(1000, 9999)}"
+    if not target_cid:
+        target_cid = "NEW-CLIENT"
 
     now = time.time()
     recent = [t for t in IP_OTP_HISTORY[target_email] if now - t < 600]
@@ -1195,6 +1313,10 @@ def send_otp(payload: OtpSendIn):
         "email": target_email,
         "client_id": target_cid,
         "username": usr_in,
+        "store_name": (payload.store_name or "").strip(),
+        "business_reg_no": (payload.business_reg_no or "").strip().upper(),
+        "password": payload.new_password or payload.password or "",
+        "is_new_account": bool(payload.is_new_account),
         "expires_at": now + OTP_TTL_SECONDS,
     }
 
@@ -1211,10 +1333,11 @@ def send_otp(payload: OtpSendIn):
 
 
 @app.post("/api/otp/verify")
+@app.post("/api/password/reset/confirm")
 def verify_otp(payload: OtpVerifyIn):
     cid_in = (payload.client_id or "").strip().upper()
     usr_in = (payload.username or "").strip()
-    em_in = (payload.email or "").strip().lower()
+    em_in = (payload.email or payload.owner_email or "").strip().lower()
 
     db = _get_db()
     resolved_cid, existing = _resolve_client(
@@ -1231,28 +1354,44 @@ def verify_otp(payload: OtpVerifyIn):
         or str(rec.get("otp")) != payload.otp.strip()
     ):
         raise HTTPException(status_code=401, detail="Invalid or expired OTP")
+
+    stored_cid = str(rec.get("client_id") or "").strip().upper()
+    stored_pw = str(rec.get("password") or "")
+    stored_store = str(rec.get("store_name") or "")
+    stored_br = str(rec.get("business_reg_no") or "")
+    stored_new_acc = bool(rec.get("is_new_account"))
     OTP_STORE.pop(target_email, None)
 
-    final_cid = (resolved_cid or cid_in or "").upper()
-    if not final_cid:
+    final_cid = (resolved_cid or cid_in or stored_cid or "").upper()
+    if not final_cid or final_cid == "NEW-CLIENT":
         final_cid = f"CLT-{random.randint(1000, 9999)}"
+
+    digits_match = "".join(ch for ch in final_cid if ch.isdigit())
+    default_user = f"USR-{digits_match}" if digits_match else final_cid
 
     entry = dict(existing or {})
     entry["client_id"] = final_cid
     entry["email"] = target_email
-    if payload.store_name:
-        entry["store_name"] = payload.store_name.strip()
+
+    store_clean = (payload.store_name or stored_store or "").strip()
+    if store_clean:
+        entry["store_name"] = store_clean
     elif not existing:
         entry["store_name"] = f"{final_cid} Store"
+
+    br_clean = (payload.business_reg_no or stored_br or "").strip().upper()
+    if br_clean:
+        entry["business_reg_no"] = br_clean
 
     if usr_in:
         entry["username"] = usr_in
     elif not entry.get("username"):
-        entry["username"] = final_cid
+        entry["username"] = default_user
+    entry.setdefault("generated_username", entry["username"])
 
-    if payload.is_new_account and not existing:
-        entry.setdefault("plan", "normal")
-        entry.setdefault("plan_active", False)
+    if payload.is_new_account or stored_new_acc:
+        entry["plan"] = "normal"
+        entry["plan_active"] = False
         entry.setdefault("conversations_limit", 0)
         entry.setdefault("conversations_used", 0)
         entry.setdefault("ai_credits", 0)
@@ -1264,20 +1403,24 @@ def verify_otp(payload: OtpVerifyIn):
         entry.setdefault("table_rows_used", 0)
         entry.setdefault("table_rows_limit", 0)
 
-    pw_hash = _hash_password(payload.password) if payload.password else None
-    _save_client_record(final_cid, entry, password_hash=pw_hash)
+    raw_pw = payload.new_password or payload.password or stored_pw or ""
+    pw_hash = _hash_password(raw_pw) if raw_pw else None
+    saved_entry = _save_client_record(final_cid, entry, password_hash=pw_hash)
 
     token = _issue_client_token(final_cid, target_email)
     return {
         "ok": True,
         "verified": True,
         "client_id": final_cid,
-        "username": entry.get("username") or final_cid,
-        "store_name": entry.get("store_name") or final_cid,
+        "username": saved_entry.get("username") or default_user,
+        "generated_username": saved_entry.get("generated_username")
+        or saved_entry.get("username")
+        or default_user,
+        "store_name": saved_entry.get("store_name") or final_cid,
         "email": target_email,
         "token": token,
-        "plan": entry.get("plan") or "normal",
-        "plan_active": bool(entry.get("plan_active", False)),
+        "plan": saved_entry.get("plan") or "normal",
+        "plan_active": bool(saved_entry.get("plan_active", False)),
     }
 
 
