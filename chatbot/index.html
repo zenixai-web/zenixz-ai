@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="si">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Sinhala:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@400;500;600;700&family=Noto+Sans+Sinhala:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
   <style>
@@ -22,7 +22,7 @@
       --border-focus: #3b82f6;
       --text-main: #e8eef8;
       --text-muted: #94a3b8;
-      --font-ui: "Inter", "Noto Sans Sinhala", "Noto Sans Tamil", "Nirmala UI", "Iskoola Pota", system-ui, -apple-system, sans-serif;
+      --font-ui: "Google Sans", "Inter", "Noto Sans Sinhala", "Noto Sans Tamil", "Nirmala UI", "Iskoola Pota", system-ui, -apple-system, sans-serif;
     }
 
     * {
@@ -47,6 +47,17 @@
     }
 
     .chat-shell {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-shell);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .chat-shell.hidden-by-plan {
       display: none !important;
     }
 
@@ -176,6 +187,46 @@
 
     #paymentCards {
       display: none;
+      padding: 0 16px 12px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .active-payment-card-box {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+
+    .pay-card {
+      flex: 1;
+      min-width: 140px;
+      background: #151e30;
+      color: #e8eef8;
+      border: 1px solid rgba(96, 165, 250, 0.35);
+      border-radius: 12px;
+      padding: 11px 13px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .pay-card:hover {
+      background: #1d2b45;
+      border-color: #3b82f6;
+    }
+
+    .pay-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #93c5fd;
+      margin-bottom: 3px;
+    }
+
+    .pay-sub {
+      font-size: 11.5px;
+      color: #94a3b8;
     }
 
     #attachedPreview {
@@ -395,13 +446,29 @@
       color: #334155 !important;
     }
   </style>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var api = (params.get("api") || params.get("api_base") || "").trim();
+      var clientId = (params.get("client_id") || params.get("cid") || "").trim().toUpperCase();
+      var clientKey = (params.get("client_key") || params.get("key") || "").trim();
+      var clientName = (params.get("client_name") || params.get("store_name") || "").trim();
+      var siteId = (params.get("site_id") || "").trim();
+
+      if (api) window.ZENIX_API_BASE = api.replace(/\/+$/, "");
+      if (clientId) window.ZENIX_CLIENT_ID = clientId;
+      if (clientKey) window.ZENIX_CLIENT_KEY = clientKey;
+      if (clientName) window.ZENIX_CLIENT_NAME = clientName;
+      if (siteId) window.ZENIX_SITE_ID = siteId;
+    })();
+  </script>
 </head>
 <body>
-  <div class="chat-shell">
+  <div class="chat-shell hidden-by-plan" id="chatShell">
     <div class="chat-header">
       <div class="chat-title-wrap">
         <span class="status-dot"></span>
-        <div class="chat-title">Store Assistant</div>
+        <div class="chat-title" id="chatTitleText">Store Assistant</div>
       </div>
       <div class="header-controls">
         <button id="themeToggleBtn" type="button" title="Switch Theme" aria-label="Switch Theme">☀️</button>
@@ -432,5 +499,7 @@
   <script src="./app.js" defer></script>
 </body>
 </html>
+```[cite: 15]
 
+---
 

@@ -97,6 +97,7 @@
     }
 
     input,
+    select,
     button,
     a.btn-link {
       border-radius: 9px;
@@ -257,14 +258,15 @@
       color: #ffffff;
     }
 
-    .status-pill {
-      display: inline-block;
-      padding: 3px 9px;
-      border-radius: 999px;
-      font-size: 11.5px;
+    .status-select {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 5px 8px;
+      font-size: 12px;
       font-weight: 600;
-      background: rgba(34, 197, 94, 0.15);
-      color: var(--accent-2);
+      min-width: 105px;
     }
 
     .detail-card {
@@ -309,6 +311,170 @@
       font-size: 14px;
       word-break: break-word;
     }
+
+    .proof-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .proof-view-btn {
+      background: rgba(34, 197, 94, 0.16);
+      color: var(--accent-2);
+      border: 1px solid rgba(34, 197, 94, 0.38);
+      border-radius: 8px;
+      padding: 7px 13px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .proof-view-btn:hover {
+      background: var(--accent-2);
+      color: #ffffff;
+    }
+
+    .proof-meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .proof-expired-msg {
+      color: var(--danger);
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+
+    /* Payment Proof Lightbox Modal */
+    .proof-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(5, 8, 18, 0.78);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      z-index: 100;
+    }
+
+    .proof-modal-backdrop.open {
+      display: flex;
+    }
+
+    .proof-modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      width: 100%;
+      max-width: 680px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    }
+
+    .proof-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-2);
+    }
+
+    .proof-modal-title {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .proof-modal-sub {
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .proof-modal-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .proof-download-btn {
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .proof-download-btn:hover {
+      opacity: 0.92;
+    }
+
+    .proof-close-btn {
+      background: rgba(239, 68, 68, 0.16);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      border-radius: 8px;
+      width: 34px;
+      height: 34px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    .proof-close-btn:hover {
+      background: var(--danger);
+      color: #ffffff;
+    }
+
+    .proof-modal-body {
+      padding: 18px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: var(--bg);
+      min-height: 240px;
+    }
+
+    .proof-modal-body img {
+      max-width: 100%;
+      max-height: 62vh;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      object-fit: contain;
+      background: #ffffff;
+    }
+
+    .proof-modal-body iframe {
+      width: 100%;
+      height: 60vh;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #ffffff;
+    }
   </style>
 </head>
 <body>
@@ -330,7 +496,7 @@
   <main class="container">
     <div class="info-banner">
       <strong>Client-Isolated Order Tracker:</strong>
-      ඔබගේ verified Client ID එකට පමණක් අදාළ orders මෙහි පෙන්වයි. Order ID හෝ Customer Phone Number මඟින් search කර සම්පූර්ණ විස්තර බලන්න.
+      Board එකේ පෙන්වන්නේ පැය 24කට (24 Hours) ඇතුළත orders පමණි. <strong>දින 30ක් (30 Days)</strong> ඇතුළත order එකක් නම්, <strong>Order ID</strong> හෝ <strong>Phone Number</strong> search කළ විට order විස්තර පෙන්වන අතර <strong>View</strong> ඔබා Payment Proof චෙක් කරන්න පුළුවන්. Proof එක බැලූ පසු <strong>දින 2කින් (48 Hours)</strong> ස්වයංක්‍රීයව delete වන ලෙස සකසා ඇත.
     </div>
 
     <div class="blocked-box" id="blockedBox">
@@ -387,9 +553,31 @@
     </section>
   </main>
 
+  <!-- Payment Proof Modal (View + 30d Download + Close Icon) -->
+  <div class="proof-modal-backdrop" id="proofModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="proofModalTitle">
+    <div class="proof-modal">
+      <div class="proof-modal-header">
+        <div>
+          <div class="proof-modal-title" id="proofModalTitle">Payment Proof</div>
+          <div class="proof-modal-sub" id="proofModalSub">30-day archive window</div>
+        </div>
+        <div class="proof-modal-controls">
+          <button class="proof-download-btn" id="proofDownloadBtn" type="button">⬇ Download</button>
+          <button class="proof-close-btn" id="proofCloseBtn" type="button" title="Close" aria-label="Close Payment Proof">✕</button>
+        </div>
+      </div>
+      <div class="proof-modal-body" id="proofModalBody"></div>
+    </div>
+  </div>
+
   <script>
     const THEME_KEY = "zenix_dashboard_theme";
     const themeBtn = document.getElementById("themeBtn");
+
+    // Board shows orders from last 24 hours; searching by Order ID/phone finds older orders up to 30 days for proof access
+    const BOARD_WINDOW_MS = 24 * 60 * 60 * 1000;          // 24 hours on board
+    const ORDER_SEARCH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30 days searchable window
+    const AUTO_DELETE_AFTER_VIEW_MS = 2 * 24 * 60 * 60 * 1000; // 2 days (48h) auto-delete after viewing proof
 
     function applyTheme(theme) {
       const next = theme === "light" ? "light" : "dark";
@@ -442,14 +630,14 @@
       if (host === "127.0.0.1" || host === "localhost") {
         return "http://127.0.0.1:8000";
       }
-      return "https://zenixz-ai.onrender.com";
+      return "https://zenixz-ai-1.onrender.com";
     }
 
     const API_BASE = resolveApiBase();
 
     document.getElementById("clientBadge").textContent = "ID: " + ACTIVE_CLIENT_ID;
     document.getElementById("scopeText").textContent =
-      "Client Scope: " + ACTIVE_CLIENT_ID + " (Strict Isolation Enabled)";
+      "Client Scope: " + ACTIVE_CLIENT_ID + " (24h Board • 30d Search Proof)";
     document.getElementById("backDashboardLink").setAttribute(
       "href",
       "./dashboard.html?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID)
@@ -464,7 +652,15 @@
     const detailGrid = document.getElementById("detailGrid");
     const proofBox = document.getElementById("proofBox");
 
+    const proofModalBackdrop = document.getElementById("proofModalBackdrop");
+    const proofModalTitle = document.getElementById("proofModalTitle");
+    const proofModalSub = document.getElementById("proofModalSub");
+    const proofModalBody = document.getElementById("proofModalBody");
+    const proofDownloadBtn = document.getElementById("proofDownloadBtn");
+    const proofCloseBtn = document.getElementById("proofCloseBtn");
+
     let allOrders = [];
+    let activeProofItem = null;
 
     function escapeHtml(val) {
       const amp = String.fromCharCode(38);
@@ -482,6 +678,275 @@
     function normalizeDigits(v) {
       return String(v ?? "").replace(/[^0-9]/g, "");
     }
+
+    function getOrderTimestampMs(order) {
+      const raw = order && (order.created_at || order.order_date || order.timestamp);
+      if (!raw) return null;
+      const ms = typeof raw === "number" ? raw : Date.parse(raw);
+      return Number.isNaN(ms) ? null : ms;
+    }
+
+
+    const VIEWED_PROOFS_KEY = "zenix_proof_viewed_at_" + ACTIVE_CLIENT_ID;
+
+    function getViewedProofMap() {
+      try {
+        return JSON.parse(localStorage.getItem(VIEWED_PROOFS_KEY) || "{}") || {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveViewedProofMap(map) {
+      try {
+        localStorage.setItem(VIEWED_PROOFS_KEY, JSON.stringify(map));
+      } catch {}
+    }
+
+    function markProofViewed(orderId) {
+      if (!orderId) return Date.now();
+      const map = getViewedProofMap();
+      const key = String(orderId).trim().toUpperCase();
+      if (!map[key]) {
+        map[key] = Date.now();
+        saveViewedProofMap(map);
+      }
+      return Number(map[key]);
+    }
+
+    function getAutoDeleteStatus(order) {
+      const key = String((order && order.order_id) || "").trim().toUpperCase();
+      const map = getViewedProofMap();
+      const viewedAt = Number(map[key] || 0);
+      if (!viewedAt) {
+        return { viewed: false, expired: false, remainingMs: AUTO_DELETE_AFTER_VIEW_MS };
+      }
+      const deleteAt = viewedAt + AUTO_DELETE_AFTER_VIEW_MS;
+      const remainingMs = deleteAt - Date.now();
+      return {
+        viewed: true,
+        expired: remainingMs <= 0,
+        remainingMs: Math.max(0, remainingMs)
+      };
+    }
+
+    function formatRemaining2Days(ms) {
+      const totalHours = Math.max(0, Math.floor(ms / (60 * 60 * 1000)));
+      const days = Math.floor(totalHours / 24);
+      const hrs = totalHours % 24;
+      if (days <= 0) return "Auto-deletes in " + hrs + "h";
+      return "Auto-deletes in " + days + "d " + hrs + "h";
+    }
+
+    function isWithin30Days(order) {
+      const createdMs = getOrderTimestampMs(order);
+      if (createdMs === null) return true;
+      return (Date.now() - createdMs) <= ORDER_SEARCH_WINDOW_MS;
+    }
+
+    async function notifyBackendScheduleDelete(orderId) {
+      if (!API_BASE || !TOKEN || !orderId) return;
+      try {
+        await fetch(API_BASE + "/api/my/orders/proof/schedule-delete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + TOKEN
+          },
+          body: JSON.stringify({
+            client_id: ACTIVE_CLIENT_ID,
+            order_id: orderId,
+            delete_after_days: 2
+          })
+        });
+      } catch {}
+    }
+
+    function isWithin24Hours(order) {
+      const createdMs = getOrderTimestampMs(order);
+      if (createdMs === null) return true;
+      return (Date.now() - createdMs) <= BOARD_WINDOW_MS;
+    }
+
+    // Extract a valid URL or data URI from payment_proof (Photo / Image / PDF)
+    function extractProofUrl(raw) {
+      const str = String(raw || "").trim();
+      if (!str) return "";
+      if (str.startsWith("data:image/") || str.startsWith("data:application/pdf")) {
+        return str;
+      }
+      const match = str.match(/https?:\/\/[^\s"'<>]+/i);
+      if (match && match[0]) {
+        return match[0].replace(/[),.;]+$/, "");
+      }
+      if (str.startsWith("http://") || str.startsWith("https://")) {
+        return str;
+      }
+      return "";
+    }
+
+    // Check 30-day proof retention window
+    function getProofWindowStatus(order) {
+      const explicitExp = order && (order.proof_expires_at || order.payment_proof_expires_at);
+      if (explicitExp) {
+        const expMs = typeof explicitExp === "number" ? explicitExp : Date.parse(explicitExp);
+        if (!Number.isNaN(expMs)) {
+          const remainingMs = expMs - Date.now();
+          return {
+            expired: remainingMs <= 0,
+            remainingMs: Math.max(0, remainingMs),
+            expiresAtMs: expMs
+          };
+        }
+      }
+
+      const createdMs = getOrderTimestampMs(order);
+      if (createdMs !== null) {
+        const expiresAtMs = createdMs + PROOF_RETENTION_MS;
+        const remainingMs = expiresAtMs - Date.now();
+        return {
+          expired: remainingMs <= 0,
+          remainingMs: Math.max(0, remainingMs),
+          expiresAtMs
+        };
+      }
+
+      return {
+        expired: false,
+        remainingMs: PROOF_RETENTION_MS,
+        expiresAtMs: Date.now() + PROOF_RETENTION_MS
+      };
+    }
+
+    function formatRemainingDays(ms) {
+      const totalHours = Math.max(0, Math.floor(ms / (60 * 60 * 1000)));
+      const days = Math.floor(totalHours / 24);
+      const hrs = totalHours % 24;
+      if (days <= 0) return hrs + "h left (30d limit)";
+      return days + "d " + hrs + "h left (30d limit)";
+    }
+
+    function guessFileExtension(url, contentType) {
+      const ct = String(contentType || "").toLowerCase();
+      if (ct.includes("png") || url.includes("data:image/png")) return ".png";
+      if (ct.includes("jpeg") || ct.includes("jpg") || url.includes("data:image/jpeg")) return ".jpg";
+      if (ct.includes("webp") || url.includes("data:image/webp")) return ".webp";
+      if (ct.includes("gif") || url.includes("data:image/gif")) return ".gif";
+      if (ct.includes("pdf") || url.includes("data:application/pdf")) return ".pdf";
+
+      try {
+        const pathname = new URL(url, window.location.origin).pathname.toLowerCase();
+        const extMatch = pathname.match(/\.(png|jpe?g|webp|gif|pdf)$/);
+        if (extMatch) return extMatch[0];
+      } catch {}
+      return ".png";
+    }
+
+    async function downloadProofFile(url, orderId) {
+      if (!url) return;
+      const safeOrderId = String(orderId || "order").replace(/[^a-zA-Z0-9_-]/g, "_");
+
+      if (url.startsWith("data:")) {
+        const ext = guessFileExtension(url, "");
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "payment-proof-" + safeOrderId + ext;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      try {
+        const res = await fetch(url, { mode: "cors" });
+        if (!res.ok) throw new Error("Fetch failed");
+        const blob = await res.blob();
+        const ext = guessFileExtension(url, blob.type);
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = "payment-proof-" + safeOrderId + ext;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
+      } catch {
+        const a = document.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.download = "payment-proof-" + safeOrderId;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+    }
+
+    function openProofModal(order) {
+      if (!order) return;
+      if (!isWithin30Days(order)) {
+        alert("මෙම Order එක දින 30ක (30 Days) කාලය ඉක්මවා ඇත.");
+        return;
+      }
+      const delStatus = getAutoDeleteStatus(order);
+      if (delStatus.expired) {
+        order.payment_proof = "";
+        alert("Payment Proof බැලූ පසු දින 2ක කාලය අවසන් වී ඇති බැවින් එය ස්වයංක්‍රීයව ඉවත් වී ඇත.");
+        openDetail(order);
+        return;
+      }
+
+      const proofUrl = extractProofUrl(order.payment_proof);
+      if (!proofUrl) return;
+
+      markProofViewed(order.order_id);
+      notifyBackendScheduleDelete(order.order_id);
+      const updatedDel = getAutoDeleteStatus(order);
+
+      activeProofItem = {
+        url: proofUrl,
+        orderId: order.order_id || "order"
+      };
+
+      proofModalTitle.textContent = "Payment Proof — " + String(order.order_id || "-");
+      proofModalSub.textContent = formatRemaining2Days(updatedDel.remainingMs) + " (after view)";
+
+      const isPdf =
+        proofUrl.startsWith("data:application/pdf") ||
+        proofUrl.toLowerCase().split("?")[0].endsWith(".pdf");
+
+      if (isPdf) {
+        proofModalBody.innerHTML =
+          '<iframe src="' + escapeHtml(proofUrl) + '" title="Payment Proof PDF"></iframe>';
+      } else {
+        proofModalBody.innerHTML =
+          '<img src="' + escapeHtml(proofUrl) + '" alt="Payment Proof" />';
+      }
+
+      proofModalBackdrop.classList.add("open");
+    }
+
+    function closeProofModal() {
+      proofModalBackdrop.classList.remove("open");
+      proofModalBody.innerHTML = "";
+      activeProofItem = null;
+    }
+
+    proofCloseBtn.addEventListener("click", closeProofModal);
+    proofModalBackdrop.addEventListener("click", (e) => {
+      if (e.target === proofModalBackdrop) {
+        closeProofModal();
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && proofModalBackdrop.classList.contains("open")) {
+        closeProofModal();
+      }
+    });
+    proofDownloadBtn.addEventListener("click", () => {
+      if (!activeProofItem) return;
+      downloadProofFile(activeProofItem.url, activeProofItem.orderId);
+    });
 
     function openDetail(order) {
       if (!order) return;
@@ -502,31 +967,95 @@
         '<div class="detail-box"><span>Status</span><strong>' + escapeHtml(order.status || "Pending") + '</strong></div>' +
         '<div class="detail-box"><span>Created At</span><strong>' + escapeHtml(order.created_at || "-") + '</strong></div>';
 
-      const proof = String(order.payment_proof || "").trim();
-      if (!proof) {
-        proofBox.innerHTML = '<div class="detail-box"><span>Payment Proof</span><strong>No proof attached</strong></div>';
-      } else if (proof.startsWith("http://") || proof.startsWith("https://") || proof.startsWith("data:image/")) {
-        const safe = escapeHtml(proof);
-        proofBox.innerHTML =
-          '<div class="detail-box"><span>Payment Proof</span><img src="' + safe + '" alt="Payment Proof" style="max-width:260px;border-radius:8px;margin-top:6px;" /></div>';
+      const proofUrl = extractProofUrl(order.payment_proof);
+      const delStatus = getAutoDeleteStatus(order);
+
+      proofBox.innerHTML = "";
+      const wrapper = document.createElement("div");
+      wrapper.className = "detail-box";
+
+      const labelEl = document.createElement("span");
+      labelEl.textContent = "Payment Proof (Photo / Image / PDF — Auto-deletes 2 days after viewing)";
+      wrapper.appendChild(labelEl);
+
+      if (delStatus.expired) {
+        order.payment_proof = "";
+        const expEl = document.createElement("div");
+        expEl.className = "proof-expired-msg";
+        expEl.textContent = "Auto-deleted (2 days passed after viewing)";
+        wrapper.appendChild(expEl);
+      } else if (!proofUrl) {
+        const noneEl = document.createElement("strong");
+        noneEl.textContent = "No proof attached / Already deleted";
+        wrapper.appendChild(noneEl);
       } else {
-        proofBox.innerHTML = '<div class="detail-box"><span>Payment Proof</span><strong>' + escapeHtml(proof) + '</strong></div>';
+        const actionsEl = document.createElement("div");
+        actionsEl.className = "proof-actions";
+
+        const viewBtn = document.createElement("button");
+        viewBtn.type = "button";
+        viewBtn.className = "proof-view-btn";
+        viewBtn.textContent = "👁 View";
+        viewBtn.addEventListener("click", () => openProofModal(order));
+
+        const dlBtn = document.createElement("button");
+        dlBtn.type = "button";
+        dlBtn.className = "btn-ghost";
+        dlBtn.textContent = "⬇ Download";
+        dlBtn.addEventListener("click", () => downloadProofFile(proofUrl, order.order_id));
+
+        const metaEl = document.createElement("span");
+        metaEl.className = "proof-meta";
+        metaEl.style.margin = "0";
+        metaEl.textContent = delStatus.viewed
+          ? formatRemaining2Days(delStatus.remainingMs)
+          : "Deletes 2 days after View";
+
+        actionsEl.appendChild(viewBtn);
+        actionsEl.appendChild(dlBtn);
+        actionsEl.appendChild(metaEl);
+        wrapper.appendChild(actionsEl);
       }
 
+      proofBox.appendChild(wrapper);
       detailCard.style.display = "block";
     }
 
-    function renderRows(rows) {
+    async function updateStatusBackend(orderId, newStatus) {
+      if (!API_BASE || !TOKEN || !orderId) return;
+      try {
+        await fetch(API_BASE + "/api/my/orders/status", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + TOKEN
+          },
+          body: JSON.stringify({
+            client_id: ACTIVE_CLIENT_ID,
+            order_id: orderId,
+            status: newStatus
+          })
+        });
+        await fetchOrders();
+      } catch {}
+    }
+
+    function renderRows(rows, isSearchResult) {
       ordersTbody.innerHTML = "";
       const scoped = (rows || []).filter((o) => {
         const cid = String((o && o.client_id) || "").trim().toUpperCase();
         return cid === ACTIVE_CLIENT_ID;
       });
 
-      countBadge.textContent = "Orders: " + scoped.length;
+      countBadge.textContent = isSearchResult
+        ? "Found: " + scoped.length
+        : "24h Orders: " + scoped.length;
 
       if (scoped.length === 0) {
-        ordersTbody.innerHTML = '<tr><td colspan="8" class="empty-row">No orders found for ' + escapeHtml(ACTIVE_CLIENT_ID) + '.</td></tr>';
+        const msg = isSearchResult
+          ? "No matching order found for " + escapeHtml(ACTIVE_CLIENT_ID) + "."
+          : "No orders within the last 24 hours for " + escapeHtml(ACTIVE_CLIENT_ID) + ". Search by Order ID to view older orders (up to 30 days).";
+        ordersTbody.innerHTML = '<tr><td colspan="8" class="empty-row">' + msg + "</td></tr>";
         return;
       }
 
@@ -541,6 +1070,22 @@
         btn.addEventListener("click", () => openDetail(o));
         tdId.appendChild(btn);
 
+        const tdStatus = document.createElement("td");
+        const sel = document.createElement("select");
+        sel.className = "status-select";
+        ["Pending", "Confirmed", "Close"].forEach((st) => {
+          const opt = document.createElement("option");
+          opt.value = st;
+          opt.textContent = st;
+          if (String(o.status || "Pending") === st) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        sel.addEventListener("change", () => {
+          o.status = sel.value;
+          updateStatusBackend(String(o.order_id || ""), sel.value);
+        });
+        tdStatus.appendChild(sel);
+
         const dateDisp = o.created_at
           ? new Date(o.created_at).toLocaleString()
           : "-";
@@ -551,9 +1096,9 @@
           "<td>" + escapeHtml(o.phone || "-") + "</td>" +
           "<td>" + escapeHtml(o.item || "-") + "</td>" +
           "<td>" + escapeHtml(o.quantity ?? 1) + "</td>" +
-          "<td>" + escapeHtml(o.payment_method || "-") + "</td>" +
-          '<td><span class="status-pill">' + escapeHtml(o.status || "Pending") + "</span></td>" +
-          "<td>" + escapeHtml(dateDisp) + "</td>";
+          "<td>" + escapeHtml(o.payment_method || "-") + "</td>";
+        tr.appendChild(tdStatus);
+        tr.innerHTML += "<td>" + escapeHtml(dateDisp) + "</td>";
 
         ordersTbody.appendChild(tr);
       });
@@ -564,20 +1109,24 @@
       const qDigits = normalizeDigits(searchInput.value);
 
       if (!q) {
-        renderRows(allOrders);
+        // Default board view: only orders within last 24 hours
+        const recent24h = allOrders.filter(isWithin24Hours);
+        renderRows(recent24h, false);
         return;
       }
 
+      // Search view: searches orders within 30 days (including orders older than 24h, e.g., day 15)
       const matches = allOrders.filter((o) => {
         const cid = String((o && o.client_id) || "").trim().toUpperCase();
         if (cid !== ACTIVE_CLIENT_ID) return false;
+        if (!isWithin30Days(o)) return false;
         const oid = String((o && o.order_id) || "").toLowerCase();
         const phone = String((o && o.phone) || "").toLowerCase();
         const phoneDigits = normalizeDigits((o && o.phone) || "");
         return oid.includes(q) || phone.includes(q) || (qDigits.length >= 3 && phoneDigits.includes(qDigits));
       });
 
-      renderRows(matches);
+      renderRows(matches, true);
       if (matches.length === 1) {
         openDetail(matches[0]);
       } else if (matches.length === 0) {
@@ -589,7 +1138,7 @@
       syncText.textContent = "Last Updated: " + new Date().toLocaleTimeString();
       if (!TOKEN) {
         blockedBox.style.display = "block";
-        renderRows([]);
+        renderRows([], false);
         return;
       }
 
@@ -604,7 +1153,7 @@
 
         if (!dashRes.ok) {
           blockedBox.style.display = "block";
-          renderRows([]);
+          renderRows([], false);
           return;
         }
 
@@ -612,7 +1161,7 @@
         if (dashData.plan_active !== true) {
           blockedBox.style.display = "block";
           allOrders = [];
-          renderRows([]);
+          renderRows([], false);
           return;
         }
 
@@ -627,7 +1176,7 @@
         );
 
         if (!ordRes.ok) {
-          renderRows([]);
+          renderRows([], false);
           return;
         }
 
@@ -640,7 +1189,7 @@
 
         applyFilter();
       } catch {
-        renderRows([]);
+        renderRows([], false);
       }
     }
 
@@ -655,7 +1204,7 @@
     document.getElementById("resetBtn").addEventListener("click", () => {
       searchInput.value = "";
       detailCard.style.display = "none";
-      renderRows(allOrders);
+      applyFilter();
     });
 
     document.getElementById("closeDetailBtn").addEventListener("click", () => {

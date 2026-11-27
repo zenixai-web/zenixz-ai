@@ -95,6 +95,12 @@
       font-weight: 600;
     }
 
+    .badge.plan-tier {
+      background: rgba(34, 197, 94, 0.14);
+      color: var(--accent-2);
+      border-color: rgba(34, 197, 94, 0.35);
+    }
+
     .controls-group {
       display: flex;
       flex-wrap: wrap;
@@ -308,6 +314,14 @@
       margin-bottom: 10px;
     }
 
+    .stock-mode-box {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
     .grid-2 {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -426,6 +440,17 @@
       color: #ffffff;
     }
 
+    .status-select {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 5px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      min-width: 105px;
+    }
+
     .order-detail-card {
       margin-top: 16px;
       background: var(--panel-2);
@@ -476,6 +501,7 @@
       <span class="store-title" id="storeTitle">Client Dashboard</span>
       <span class="badge" id="clientBadge">ID: -</span>
       <span class="badge" id="planStatusBadge">Plan: Checking</span>
+      <span class="badge plan-tier" id="planTierBadge">Tier: Normal</span>
     </div>
 
     <div class="controls-group">
@@ -492,7 +518,7 @@
   <main class="container">
     <div class="sync-banner" id="syncBanner">
       <strong>Isolated Client Workspace:</strong>
-      Plan එක Activate කළ පසු පමණක් Embed HTML, Knowledge Base, AI Credits, සහ Order Tracking access ලැබේ.
+      Plan එක Activate කළ පසු පමණක් Embed HTML, Knowledge Base, AI Credits, Stock Sync, සහ Order Tracking access ලැබේ.
     </div>
 
     <div class="last3-warning-box" id="last3DaysBanner"></div>
@@ -552,7 +578,6 @@
       </div>
     </section>
 
-    <!-- Shown ONLY after Plan is Active -->
     <section class="card embed-section" id="embedSection">
       <h3 style="margin-bottom: 6px; font-size: 16px;">Your Chatbot Embed HTML (Active Plan)</h3>
       <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 12px;">
@@ -566,7 +591,7 @@
     </section>
 
     <section class="card" id="knowledgeSection" style="margin-bottom: 18px;">
-      <h3 style="margin-bottom: 6px; font-size: 16px;">Private Knowledge Base & Order Webhook</h3>
+      <h3 style="margin-bottom: 6px; font-size: 16px;">Private Knowledge Base, Stock Sync & Order Webhook</h3>
       <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 14px;">
         මෙහි ඇතුළත් කරන Instructions / Knowledge Base එක ඔබගේ Chatbot එකට පමණක් අදාළ වන අතර වෙනත් කිසිවෙකුට නොපෙනේ.
       </div>
@@ -575,6 +600,30 @@
           <label for="kbInput">Chatbot Instructions / Knowledge Base (Products, Prices, Delivery Rules)</label>
           <textarea id="kbInput" placeholder="උදා: අපේ store එකේ delivery දින 2-3 ඇතුළත සිදු වේ. Order එකක් ගන්න customer ගේ name, phone, address, item, quantity ලබා ගන්න..."></textarea>
         </div>
+
+        <div class="stock-mode-box">
+          <div style="font-size: 13.5px; font-weight: 700; margin-bottom: 8px;" id="stockModeTitle">
+            Normal Plan — Stock CSV Check
+          </div>
+          <div class="field" id="normalStockGroup">
+            <label for="stockCsvInput">Google Sheet Published CSV URL (Normal Plan Stock Check)</label>
+            <input id="stockCsvInput" type="url" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv" />
+          </div>
+
+          <div id="premiumStockGroup" style="display: none;">
+            <div class="field">
+              <label for="stockWebappInput">Premium Stock Auto-Deduct Web App URL</label>
+              <input id="stockWebappInput" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+            </div>
+            <div class="field">
+              <label for="premiumScriptBox">Google Apps Script (`Code.gs`) — Copy & Deploy as Web App</label>
+              <div class="embed-code-box" id="premiumScriptBox"></div>
+              <button class="btn-ghost" id="copyScriptBtn" type="button">Copy Apps Script Code</button>
+              <span class="ok-msg" id="copyScriptStatus" style="margin-left: 8px;"></span>
+            </div>
+          </div>
+        </div>
+
         <div class="field">
           <label for="outputWebhookInput">Optional Output Webhook URL (Order Variables Receiver)</label>
           <input id="outputWebhookInput" type="url" placeholder="https://your-endpoint.example.com/webhook" />
@@ -590,7 +639,7 @@
         <div>
           <h3 style="font-size: 16px;" id="trackingHeading">Order Tracking (Recent Orders — Max 5)</h3>
           <div style="font-size: 12px; color: var(--muted);" id="trackingHint">
-            ඔබගේ Client Account එකට අදාළ Orders පෙන්වයි. Order ID හෝ Phone Number search කළ විට අදාළ Order එක පමණක් පෙන්වයි.
+            ඔබගේ Client Account එකට අදාළ Orders (24 hours ඇතුළත) පෙන්වයි. Status එක Pending / Confirmed / Close ලෙස වෙනස් කළ හැක.
           </div>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -732,7 +781,7 @@
       if (host === "127.0.0.1" || host === "localhost") {
         return "http://127.0.0.1:8000";
       }
-      return "https://zenixz-ai.onrender.com";
+      return "https://zenixz-ai-1.onrender.com";
     }
 
     const API_BASE = resolveApiBase();
@@ -765,6 +814,7 @@
 
     let currentDataset = { clients: {} };
     let isPlanActive = false;
+    let isPremiumPlan = false;
     let clientTodayOrders = [];
     let clientAllOrders = [];
     let shownExpiryWarningKey = null;
@@ -776,6 +826,7 @@
     const noPlanBox = document.getElementById("noPlanBox");
     const last3DaysBanner = document.getElementById("last3DaysBanner");
     const planStatusBadge = document.getElementById("planStatusBadge");
+    const planTierBadge = document.getElementById("planTierBadge");
     const embedSection = document.getElementById("embedSection");
     const embedClientIdLabel = document.getElementById("embedClientIdLabel");
     const embedCodeBox = document.getElementById("embedCodeBox");
@@ -792,6 +843,14 @@
     const orderDetailGrid = document.getElementById("orderDetailGrid");
     const orderProofContainer = document.getElementById("orderProofContainer");
     const kbInput = document.getElementById("kbInput");
+    const stockCsvInput = document.getElementById("stockCsvInput");
+    const stockWebappInput = document.getElementById("stockWebappInput");
+    const premiumScriptBox = document.getElementById("premiumScriptBox");
+    const copyScriptBtn = document.getElementById("copyScriptBtn");
+    const copyScriptStatus = document.getElementById("copyScriptStatus");
+    const stockModeTitle = document.getElementById("stockModeTitle");
+    const normalStockGroup = document.getElementById("normalStockGroup");
+    const premiumStockGroup = document.getElementById("premiumStockGroup");
     const outputWebhookInput = document.getElementById("outputWebhookInput");
     const saveKbBtn = document.getElementById("saveKbBtn");
     const kbStatus = document.getElementById("kbStatus");
@@ -807,10 +866,10 @@
         `  data-client-name="${safeName}"\n` +
         `  defer\n` +
         `></` + `script>`
-     );
-   }
+      );
+    }
 
-    function applyPlanAccessLock(active, storeName) {
+    function applyPlanAccessLock(active, storeName, premium, scriptCode) {
       embedSection.style.display = active ? "block" : "none";
       if (active) {
         embedClientIdLabel.textContent = ACTIVE_CLIENT_ID;
@@ -822,12 +881,29 @@
         orderDetailPanel.style.display = "none";
       }
 
+      isPremiumPlan = Boolean(active && premium);
+      planTierBadge.textContent = isPremiumPlan ? "Tier: Premium" : "Tier: Normal";
+
+      if (isPremiumPlan) {
+        stockModeTitle.textContent = "Premium Plan — Auto Stock Deduct & Apps Script";
+        normalStockGroup.style.display = "none";
+        premiumStockGroup.style.display = "block";
+        premiumScriptBox.textContent = scriptCode || "";
+      } else {
+        stockModeTitle.textContent = "Normal Plan — Stock CSV Check";
+        normalStockGroup.style.display = "block";
+        premiumStockGroup.style.display = "none";
+        premiumScriptBox.textContent = "";
+      }
+
       orderTrackingBtn.disabled = !active;
       fullOrderTrackingLink.classList.toggle("disabled-link", !active);
       panelFullTrackingLink.classList.toggle("disabled-link", !active);
 
       saveKbBtn.disabled = !active;
       kbInput.disabled = !active;
+      stockCsvInput.disabled = !active;
+      stockWebappInput.disabled = !active;
       outputWebhookInput.disabled = !active;
     }
 
@@ -983,6 +1059,26 @@
       orderDetailPanel.style.display = "block";
     }
 
+    async function updateOrderStatusBackend(orderId, newStatus) {
+      const token = String(authPass.token || "").trim();
+      if (!API_BASE || !token || !orderId) return;
+      try {
+        await fetch(API_BASE + "/api/my/orders/status", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({
+            client_id: ACTIVE_CLIENT_ID,
+            order_id: orderId,
+            status: newStatus
+          })
+        });
+        await loadFirestoreClientData();
+      } catch {}
+    }
+
     function renderOrdersTable(rows) {
       trackingOrdersBody.innerHTML = "";
       if (!isPlanActive || !Array.isArray(rows) || rows.length === 0) return;
@@ -999,14 +1095,30 @@
         btn.addEventListener("click", () => showOrderDetail(o));
         tdId.appendChild(btn);
 
+        const tdStatus = document.createElement("td");
+        const sel = document.createElement("select");
+        sel.className = "status-select";
+        ["Pending", "Confirmed", "Close"].forEach((st) => {
+          const opt = document.createElement("option");
+          opt.value = st;
+          opt.textContent = st;
+          if (String(o.status || "Pending") === st) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        sel.addEventListener("change", () => {
+          o.status = sel.value;
+          updateOrderStatusBackend(String(o.order_id || ""), sel.value);
+        });
+        tdStatus.appendChild(sel);
+
         tr.appendChild(tdId);
         tr.innerHTML +=
           "<td>" + escapeHtml(o.customer_name || "-") + "</td>" +
           "<td>" + escapeHtml(o.phone || "-") + "</td>" +
           "<td>" + escapeHtml(o.item || "-") + "</td>" +
           "<td>" + escapeHtml(o.quantity ?? 1) + "</td>" +
-          "<td>" + escapeHtml(o.payment_method || "-") + "</td>" +
-          "<td>" + escapeHtml(o.status || "Pending") + "</td>";
+          "<td>" + escapeHtml(o.payment_method || "-") + "</td>";
+        tr.appendChild(tdStatus);
         trackingOrdersBody.appendChild(tr);
       });
     }
@@ -1023,7 +1135,12 @@
       document.getElementById("storeTitle").textContent = storeTitleText;
       document.getElementById("clientBadge").textContent = "ID: " + ACTIVE_CLIENT_ID;
 
-      applyPlanAccessLock(isPlanActive, storeTitleText);
+      applyPlanAccessLock(
+        isPlanActive,
+        storeTitleText,
+        Boolean(clientData && clientData.is_premium),
+        (clientData && clientData.premium_apps_script) || ""
+      );
 
       const scoped = isPlanActive
         ? extractScopedClientOrders(clientData)
@@ -1034,6 +1151,8 @@
 
       if (clientData && !kbInitialized) {
         kbInput.value = clientData.knowledge_base || "";
+        stockCsvInput.value = clientData.stock_csv_url || "";
+        stockWebappInput.value = clientData.stock_webapp_url || "";
         outputWebhookInput.value = clientData.output_webhook_url || "";
         kbInitialized = true;
       }
@@ -1100,11 +1219,15 @@
         client_id: ACTIVE_CLIENT_ID,
         store_name: authPass.store_name || (ACTIVE_CLIENT_ID + " Store"),
         plan_active: false,
+        is_premium: false,
         conversations_used: 0,
         conversations_limit: 0,
         ai_credits: 0,
         ai_credits_used: 0,
         knowledge_base: "",
+        stock_csv_url: "",
+        stock_webapp_url: "",
+        premium_apps_script: "",
         output_webhook_url: "",
         orders: [],
         orders_today: []
@@ -1122,12 +1245,16 @@
             Object.assign(clientRecord, {
               store_name: dashJson.store_name || clientRecord.store_name,
               plan_active: dashJson.plan_active === true,
+              is_premium: dashJson.is_premium === true,
               expires_at: dashJson.expires_at ?? null,
               conversations_used: Number(dashJson.conversations_used || 0),
               conversations_limit: Number(dashJson.conversations_limit || 0),
               ai_credits: Number(dashJson.ai_credits || 0),
               ai_credits_used: Number(dashJson.ai_credits_used || 0),
               knowledge_base: dashJson.knowledge_base || "",
+              stock_csv_url: dashJson.stock_csv_url || "",
+              stock_webapp_url: dashJson.stock_webapp_url || "",
+              premium_apps_script: dashJson.premium_apps_script || "",
               output_webhook_url: dashJson.output_webhook_url || ""
             });
 
@@ -1165,6 +1292,16 @@
       }
     });
 
+    copyScriptBtn.addEventListener("click", async () => {
+      if (!isPremiumPlan || !premiumScriptBox.textContent) return;
+      try {
+        await navigator.clipboard.writeText(premiumScriptBox.textContent);
+        copyScriptStatus.textContent = "Apps Script copied!";
+      } catch {
+        copyScriptStatus.textContent = "Select and copy manually.";
+      }
+    });
+
     document.getElementById("kbForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       kbStatus.textContent = "";
@@ -1187,6 +1324,8 @@
           body: JSON.stringify({
             client_id: ACTIVE_CLIENT_ID,
             knowledge_base: kbInput.value.trim(),
+            stock_csv_url: stockCsvInput.value.trim(),
+            stock_webapp_url: stockWebappInput.value.trim(),
             output_webhook_url: outputWebhookInput.value.trim()
           })
         });

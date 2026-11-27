@@ -106,7 +106,6 @@
       display: none !important;
     }
 
-    /* Top Notification / Error Pop-up Box */
     .error-popup-wrap {
       position: fixed;
       top: 16px;
@@ -452,7 +451,6 @@
   </style>
 </head>
 <body>
-  <!-- Top Notification / Error Pop-up Box -->
   <div id="errorPopupWrap" class="error-popup-wrap hidden" role="alert" aria-live="assertive">
     <div class="error-popup-box" id="errorPopupBox">
       <span id="errorPopupText"></span>
@@ -541,7 +539,7 @@
         <button type="button" class="btn-secondary" id="cancelOtpBtn">Back</button>
       </form>
 
-      <!-- Email Sent Summary + Client ID + Username + Client's Password + Login Button -->
+      <!-- Email Sent Summary -->
       <div id="emailSentSection" class="hidden">
         <div class="msg-ok" id="emailSentHeader">Email sent.</div>
         <div class="mail-preview" id="emailPreviewBox"></div>
@@ -636,7 +634,7 @@
     const LAST_EMAIL_KEY = "zenix_last_email_hint";
 
     const OTP_CONFIG = {
-      API_BASE_URL: "https://zenixz-ai.onrender.com"
+      API_BASE_URL: "https://zenixz-ai-1.onrender.com"
     };
 
     const ALLOWED_BR_PREFIXES = ["BR", "PV", "NR"];
@@ -690,7 +688,6 @@
 
     document.getElementById("closeErrorPopup").addEventListener("click", hideErrorPopup);
 
-    // 30-second countdown lock for OTP resend
     let otpCooldownInterval = null;
     const resendOtpBtn = document.getElementById("resendOtpBtn");
     const otpCountdownText = document.getElementById("otpCountdownText");
@@ -878,7 +875,7 @@
     let expectedOtp = "";
     let backendOtpActive = false;
     let pendingUserKey = "";
-    let pendingFlowType = "login"; // "login" | "register" | "reset"
+    let pendingFlowType = "login";
     let pendingNewPassword = "";
     let pendingDraftRecord = null;
     let lastBackendClientId = "";
@@ -991,7 +988,6 @@
       clearFieldPasswordError(newPassInput, resetPwErrorPop);
     });
 
-    // --- Send Client ID to Email ---
     document.getElementById("openSendIdBtn").addEventListener("click", () => {
       document.getElementById("sendIdOk").textContent = "";
       const idOrEmail = loginEmailOrUser.value.trim();
@@ -1039,7 +1035,7 @@
                 break;
               }
               if (res.status === 404 || res.status === 400 || res.status === 403 || res.status === 401) {
-                showErrorPopup(data.error || "මෙම Email එකට අදාළ Client ID එක හමු නොවීය.");
+                showErrorPopup(data.error || data.detail || "මෙම Email එකට අදාළ Client ID එක හමු නොවීය.");
                 return;
               }
             } catch {
@@ -1125,7 +1121,7 @@
                 new_password: newPassword
               }
             : {
-                client_id: rec.client_id,
+                client_id: isRegister ? "" : rec.client_id,
                 email: targetEmail,
                 username: rec.username || rec.generated_username || "",
                 store_name: rec.store_name || "",
@@ -1146,7 +1142,7 @@
               lastBackendClientId = String(data.client_id).trim().toUpperCase();
             }
           } else {
-            showErrorPopup(data.error || "Email OTP යැවීමේදී ගැටලුවක් ඇති විය.");
+            showErrorPopup(data.error || data.detail || "Email OTP යැවීමේදී ගැටලුවක් ඇති විය.");
             return false;
           }
         } catch {
@@ -1238,7 +1234,6 @@
           return;
         }
 
-        // Cross-device / Cross-IP login via backend + Firebase
         const remoteAccount = await lookupBackendAccount(idVal);
         if (remoteAccount && remoteAccount.client_id) {
           const resolvedCid = String(remoteAccount.client_id).trim().toUpperCase();
@@ -1351,7 +1346,7 @@
               });
               const resetConfirmData = await resetConfirmRes.json().catch(() => ({}));
               if (!resetConfirmRes.ok) {
-                showErrorPopup(resetConfirmData.error || "OTP rejected: Invalid Email OTP code.");
+                showErrorPopup(resetConfirmData.error || resetConfirmData.detail || "OTP rejected: Invalid Email OTP code.");
                 return;
               }
               if (resetConfirmData.client_id) {
@@ -1375,7 +1370,7 @@
               });
               const verifyData = await verifyRes.json().catch(() => ({}));
               if (!verifyRes.ok) {
-                showErrorPopup(verifyData.error || "OTP rejected: Invalid Email OTP code.");
+                showErrorPopup(verifyData.error || verifyData.detail || "OTP rejected: Invalid Email OTP code.");
                 return;
               }
               backendToken = String(verifyData.token || "").trim();

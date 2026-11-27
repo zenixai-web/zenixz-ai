@@ -103,7 +103,7 @@
     if (host === "127.0.0.1" || host === "localhost") {
       return "http://127.0.0.1:8000";
     }
-    return "https://zenixz-ai.onrender.com";
+    return "https://zenixz-ai-1.onrender.com";
   }
 
   const API_BASE = resolveApiBase();
@@ -143,6 +143,9 @@
   let ACTIVE_CLIENT_ID = CLIENT_ID_FROM_SCRIPT;
   let ACTIVE_CLIENT_NAME = CLIENT_NAME_FROM_SCRIPT;
   let PLAN_IS_ACTIVE = false;
+  let CLIENT_PLAN_TYPE = "normal";
+  let STOCK_CSV_URL = "";
+  let STOCK_WEBAPP_URL = "";
 
   const SESSION_KEY = `zenix_sid_${STORAGE_SCOPE}`;
   let sessionId =
@@ -151,17 +154,31 @@
   sessionStorage.setItem(SESSION_KEY, sessionId);
 
   const ORDERS_LOCAL_KEY = `zenix_client_orders_v1_${STORAGE_SCOPE}`;
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
   const orderChannel =
     typeof BroadcastChannel !== "undefined"
       ? new BroadcastChannel(`zenix_orders_channel_${STORAGE_SCOPE}`)
       : null;
+
+  function isWithin24Hours(isoStr) {
+    if (!isoStr) return true;
+    const ts = Date.parse(String(isoStr));
+    if (Number.isNaN(ts)) return true;
+    return Date.now() - ts <= TWENTY_FOUR_HOURS_MS;
+  }
 
   function loadLocalOrders() {
     try {
       const raw = localStorage.getItem(ORDERS_LOCAL_KEY);
       if (!raw) return [];
       const arr = JSON.parse(raw);
-      return Array.isArray(arr) ? arr : [];
+      if (!Array.isArray(arr)) return [];
+      const valid = arr.filter((o) => isWithin24Hours(o && o.created_at));
+      if (valid.length !== arr.length) {
+        localStorage.setItem(ORDERS_LOCAL_KEY, JSON.stringify(valid.slice(0, 100)));
+      }
+      return valid;
     } catch (_) {
       return [];
     }
@@ -169,7 +186,10 @@
 
   function saveLocalOrders(list) {
     try {
-      localStorage.setItem(ORDERS_LOCAL_KEY, JSON.stringify(list.slice(0, 100)));
+      const valid = (Array.isArray(list) ? list : []).filter((o) =>
+        isWithin24Hours(o && o.created_at)
+      );
+      localStorage.setItem(ORDERS_LOCAL_KEY, JSON.stringify(valid.slice(0, 100)));
     } catch (_) {}
   }
 
@@ -190,7 +210,8 @@
 
   function persistOrderLocally(record) {
     const scopedRecord = Object.assign({}, record, {
-      client_id: ACTIVE_CLIENT_ID
+      client_id: ACTIVE_CLIENT_ID,
+      created_at: record.created_at || new Date().toISOString()
     });
     const current = loadLocalOrders();
     const filtered = current.filter(
@@ -205,7 +226,7 @@
   const DEFAULT_CONFIG = {
     botName: ACTIVE_CLIENT_NAME ? `${ACTIVE_CLIENT_NAME} AI Assistant` : "Zenix AI Assistant",
     welcomeMessage:
-      "Hello! I'm your AI Assistant. How can I help you?\nආයුබෝවන්! මම ඔබේ AI සහායකයා. ඔබට කොහොමද උදව් කරන්න පුළුවන්?",
+      "ආයුබෝවන්! මම ඔබේ AI සහායකයා. ඔබට කොහොමද උදව් කරන්න පුළුවන්?",
     primaryColor: "#2563eb",
     secondaryColor: "#1e40af",
     position: "bottom-right",
@@ -224,6 +245,7 @@
   let conversationHistory = [];
   let messageCounter = 0;
   let domRefs = {};
+  let attachedSlipData = null;
 
   let orderDraft = {
     active: false,
@@ -233,7 +255,8 @@
     customerName: "",
     phone: "",
     address: "",
-    paymentMethod: ""
+    paymentMethod: "",
+    paymentProof: ""
   };
 
   function generateOrderId() {
@@ -241,7 +264,7 @@
     const y = String(now.getFullYear()).slice(-2);
     const m = String(now.getMonth() + 1).padStart(2, "0");
     const d = String(now.getDate()).padStart(2, "0");
-    const rnd = Math.floor(1000 + Math.random() * 9000);
+    const rnd = Math.floor(100000 + Math.random() * 900000);
     return `ORD-${y}${m}${d}-${rnd}`;
   }
 
@@ -268,6 +291,18 @@
     return safe;
   }
 
+  function destroyWidgetIfInactive() {
+    PLAN_IS_ACTIVE = false;
+    const root = document.getElementById("zenix-chat-widget-root");
+    if (root && root.parentNode) {
+      root.parentNode.removeChild(root);
+    }
+    const shell = document.getElementById("chatShell");
+    if (shell) {
+      shell.classList.add("hidden-by-plan");
+    }
+  }
+
   async function verifyPlanStatus() {
     if (!ACTIVE_CLIENT_ID) return false;
     try {
@@ -284,14 +319,87 @@
       const data = await res.json();
       if (data.maintenance_mode) return false;
       if (data.allowed !== true || data.plan_active !== true) return false;
+
       if (data.store_name) {
         ACTIVE_CLIENT_NAME = data.store_name;
         config.botName = `${data.store_name} AI Assistant`;
       }
+      CLIENT_PLAN_TYPE = String(data.plan || "normal").trim().toLowerCase();
+      STOCK_CSV_URL = String(data.stock_csv_url || "").trim();
+      STOCK_WEBAPP_URL = String(data.stock_webapp_url || "").trim();
       return true;
     } catch (_) {
       return false;
     }
+  }
+
+  function parseCsvRow(line) {
+    const out = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        inQuotes = !inQuotes;
+      } else if (ch === "," && !inQuotes) {
+        out.push(cur.trim());
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur.trim());
+    return out;
+  }
+
+  async function checkStockFromCsv(itemName, qty) {
+    if (!STOCK_CSV_URL) return { checked: false, available: true, stockQty: null };
+    try {
+      const res = await fetch(STOCK_CSV_URL, { cache: "no-store" });
+      if (!res.ok) return { checked: false, available: true, stockQty: null };
+      const csvText = await res.text();
+      const lines = csvText
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      if (lines.length < 2) return { checked: false, available: true, stockQty: null };
+
+      const target = String(itemName || "").trim().toLowerCase();
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCsvRow(lines[i]);
+        const nameCol = String(cols[0] || "").trim().toLowerCase();
+        if (nameCol && (nameCol.includes(target) || target.includes(nameCol))) {
+          const rawStock = parseInt(String(cols[1] || "0").replace(/[^0-9-]/g, ""), 10);
+          const stockQty = Number.isNaN(rawStock) ? 0 : rawStock;
+          return {
+            checked: true,
+            available: stockQty >= Math.max(1, Number(qty || 1)),
+            stockQty
+          };
+        }
+      }
+      return { checked: false, available: true, stockQty: null };
+    } catch (_) {
+      return { checked: false, available: true, stockQty: null };
+    }
+  }
+
+  async function deductStockPremiumWebApp(orderObj) {
+    if (CLIENT_PLAN_TYPE !== "premium" || !STOCK_WEBAPP_URL) return;
+    try {
+      await fetch(STOCK_WEBAPP_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "deduct_stock",
+          client_id: ACTIVE_CLIENT_ID,
+          order_id: orderObj.order_id,
+          item: orderObj.item,
+          quantity: orderObj.quantity
+        })
+      });
+    } catch (_) {}
   }
 
   function createStyles() {
@@ -323,9 +431,9 @@
         position: absolute;
         bottom: 72px;
         right: 0;
-        width: 370px;
+        width: 375px;
         max-width: calc(100vw - 28px);
-        height: 520px;
+        height: 530px;
         max-height: calc(100vh - 105px);
         border-radius: 18px;
         overflow: hidden;
@@ -360,6 +468,7 @@
         padding: 10px 13px;
         border-radius: 14px;
         word-wrap: break-word;
+        line-height: 1.55;
       }
       .zenix-msg.bot {
         align-self: flex-start;
@@ -371,12 +480,44 @@
         align-self: flex-end;
         color: #ffffff;
       }
+      .zenix-pay-popup {
+        display: flex;
+        gap: 8px;
+        padding: 8px 12px;
+        background: #0f172a;
+        border-top: 1px solid #1e293b;
+      }
+      .zenix-pay-choice {
+        flex: 1;
+        background: #1e293b;
+        color: #f8fafc;
+        border: 1px solid #3b82f6;
+        border-radius: 10px;
+        padding: 9px 10px;
+        cursor: pointer;
+        text-align: left;
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .zenix-pay-choice:hover {
+        background: #2563eb;
+      }
+      .zenix-slip-bar {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 12px;
+        background: #172554;
+        color: #bfdbfe;
+        font-size: 12px;
+      }
       .zenix-input-area {
         padding: 10px 12px;
         border-top: 1px solid #1e293b;
         background: #0f172a;
         display: flex;
         gap: 6px;
+        align-items: center;
       }
       .zenix-text-input {
         flex: 1;
@@ -428,6 +569,63 @@
     if (el && el.parentNode) el.parentNode.removeChild(el);
   }
 
+  function renderBankDetailsCard() {
+    // Rendered dynamically in chat UI rather than exposed as a static global variable
+    const details = [
+      ["Bank", "Commercial Bank of Ceylon"],
+      ["Account Name", ACTIVE_CLIENT_NAME || "Zenix AI Store"],
+      ["Account No", "8012-3456-7890"],
+      ["Branch", "Colombo"]
+    ];
+    const lines = details.map(([k, v]) => `• **${k}:** ${v}`).join("\n");
+    appendMessage(
+      "bot",
+      `🏦 **Bank Transfer Details**\n${lines}\n\nකරුණාකර ඔබේ **සම්පූර්ණ නම** ලියන්න (පසුව Phone, Address සහ Slip PNG/JPG/PDF attach කරන්න).`
+    );
+  }
+
+  function showPaymentCardsPopup() {
+    if (!domRefs.payPopupEl) return;
+    domRefs.payPopupEl.innerHTML = "";
+    domRefs.payPopupEl.style.display = "flex";
+
+    const bankBtn = document.createElement("button");
+    bankBtn.type = "button";
+    bankBtn.className = "zenix-pay-choice";
+    bankBtn.innerHTML = "🏦 Bank Transfer<br><span style='font-size:11px;opacity:0.8'>Slip Upload (Pending)</span>";
+    bankBtn.addEventListener("click", () => selectPaymentMethod("Bank Transfer"));
+
+    const codBtn = document.createElement("button");
+    codBtn.type = "button";
+    codBtn.className = "zenix-pay-choice";
+    codBtn.innerHTML = "🚚 Cash on Delivery<br><span style='font-size:11px;opacity:0.8'>Pay on Arrival (Confirmed)</span>";
+    codBtn.addEventListener("click", () => selectPaymentMethod("Cash on Delivery"));
+
+    domRefs.payPopupEl.appendChild(bankBtn);
+    domRefs.payPopupEl.appendChild(codBtn);
+  }
+
+  function hidePaymentCardsPopup() {
+    if (domRefs.payPopupEl) {
+      domRefs.payPopupEl.style.display = "none";
+      domRefs.payPopupEl.innerHTML = "";
+    }
+  }
+
+  function selectPaymentMethod(method) {
+    hidePaymentCardsPopup();
+    orderDraft.paymentMethod = method;
+    orderDraft.step = "name";
+    if (method === "Bank Transfer") {
+      renderBankDetailsCard();
+    } else {
+      appendMessage(
+        "bot",
+        "🚚 **Cash on Delivery** තෝරාගත්තා. කරුණාකර ඔබේ **සම්පූර්ණ නම** ඇතුළත් කරන්න."
+      );
+    }
+  }
+
   function toggleWidget(forceState) {
     if (!domRefs.win) return;
     isOpen = typeof forceState === "boolean" ? forceState : !isOpen;
@@ -438,6 +636,10 @@
   }
 
   function resetOrderDraft() {
+    hidePaymentCardsPopup();
+    attachedSlipData = null;
+    if (domRefs.slipBarEl) domRefs.slipBarEl.style.display = "none";
+    if (domRefs.fileInputEl) domRefs.fileInputEl.value = "";
     orderDraft = {
       active: false,
       step: null,
@@ -446,15 +648,57 @@
       customerName: "",
       phone: "",
       address: "",
-      paymentMethod: ""
+      paymentMethod: "",
+      paymentProof: ""
     };
   }
 
-  function startOrderFlow() {
+  function startOrderFlow(prefillItem) {
     resetOrderDraft();
     orderDraft.active = true;
-    orderDraft.step = "item";
-    appendMessage("bot", "හරි! ඔබට අවශ්‍ය Product / Item එකේ නම ලියන්න.");
+    if (prefillItem) {
+      orderDraft.item = prefillItem;
+      orderDraft.step = "quantity";
+      appendMessage("bot", `"${orderDraft.item}" සඳහා Quantity එක කීයද?`);
+    } else {
+      orderDraft.step = "item";
+      appendMessage("bot", "හරි! ඔබට අවශ්‍ය Product / Item එකේ නම ලියන්න.");
+    }
+  }
+
+  async function finalizeOrder() {
+    const orderId = generateOrderId();
+    const isCod = /cod|cash/i.test(orderDraft.paymentMethod);
+    const statusLabel = isCod ? "Confirmed" : "Pending";
+    const proofPayload =
+      attachedSlipData && attachedSlipData.dataUrl
+        ? attachedSlipData.dataUrl
+        : orderDraft.paymentProof || "";
+
+    const orderObj = {
+      order_id: orderId,
+      client_id: ACTIVE_CLIENT_ID,
+      customer_name: orderDraft.customerName,
+      phone: orderDraft.phone,
+      address: orderDraft.address,
+      item: orderDraft.item,
+      quantity: orderDraft.quantity,
+      payment_method: orderDraft.paymentMethod || "Cash on Delivery",
+      payment_proof: proofPayload,
+      payment_proof_name: attachedSlipData ? attachedSlipData.name : "",
+      status: statusLabel,
+      created_at: new Date().toISOString()
+    };
+
+    persistOrderLocally(orderObj);
+    await deductStockPremiumWebApp(orderObj);
+    await sendChatToServer(`Order captured: ${orderObj.order_id}`, orderObj);
+
+    appendMessage(
+      "bot",
+      `✅ **Order Placed!**\n• **Order ID:** ${orderObj.order_id}\n• **Item:** ${orderObj.item}\n• **Qty:** ${orderObj.quantity}\n• **Payment Method:** ${orderObj.payment_method}\n• **Status:** ${orderObj.status}`
+    );
+    resetOrderDraft();
   }
 
   async function handleOrderStep(text) {
@@ -465,63 +709,79 @@
       appendMessage("bot", "Order එක cancel කරන ලදී.");
       return true;
     }
+
     if (orderDraft.step === "item") {
       orderDraft.item = t || "Item";
       orderDraft.step = "quantity";
       appendMessage("bot", `"${orderDraft.item}" සඳහා Quantity එක කීයද?`);
       return true;
     }
+
     if (orderDraft.step === "quantity") {
       const q = parseInt(t.replace(/[^0-9]/g, ""), 10);
-      orderDraft.quantity = !isNaN(q) && q > 0 ? Math.min(q, config.maxOrderQty || 50) : 1;
-      orderDraft.step = "name";
-      appendMessage("bot", "ඔබේ සම්පූර්ණ නම ඇතුළත් කරන්න.");
+      const qty = !isNaN(q) && q > 0 ? Math.min(q, config.maxOrderQty || 50) : 1;
+      orderDraft.quantity = qty;
+
+      const stockCheck = await checkStockFromCsv(orderDraft.item, qty);
+      if (stockCheck.checked && !stockCheck.available) {
+        appendMessage(
+          "bot",
+          `❌ සමාවන්න, "${orderDraft.item}" සඳහා ප්‍රමාණවත් stock නැත (Available: ${stockCheck.stockQty}). වෙනත් item එකක් හෝ quantity එකක් ලියන්න.`
+        );
+        orderDraft.step = "item";
+        return true;
+      }
+
+      orderDraft.step = "payment";
+      appendMessage(
+        "bot",
+        `✅ මේක ගන්න පුළුවන්! ඔබ ඕඩර් කරන්න කැමති මොකෙන්ද? පහළ cards වලින් **Bank Transfer** හෝ **Cash on Delivery** තෝරන්න.`
+      );
+      showPaymentCardsPopup();
       return true;
     }
+
+    if (orderDraft.step === "payment") {
+      selectPaymentMethod(t || "Cash on Delivery");
+      return true;
+    }
+
     if (orderDraft.step === "name") {
       orderDraft.customerName = t;
       orderDraft.step = "phone";
       appendMessage("bot", "ඔබේ දුරකථන අංකය (Phone Number) ඇතුළත් කරන්න.");
       return true;
     }
+
     if (orderDraft.step === "phone") {
       orderDraft.phone = t;
       orderDraft.step = "address";
       appendMessage("bot", "Delivery Address එක ඇතුළත් කරන්න.");
       return true;
     }
+
     if (orderDraft.step === "address") {
       orderDraft.address = t;
-      orderDraft.step = "payment";
-      appendMessage("bot", "Payment ක්‍රමය (Bank Transfer හෝ COD) තෝරන්න.");
+      if (orderDraft.paymentMethod === "Bank Transfer" && !attachedSlipData) {
+        orderDraft.step = "slip";
+        appendMessage(
+          "bot",
+          "📎 කරුණාකර ඔබේ Payment Slip එක (`PNG`, `JPG`, හෝ `PDF`) attach කරන්න (නැත්නම් slip reference / 'done' ලියන්න)."
+        );
+        return true;
+      }
+      await finalizeOrder();
       return true;
     }
-    if (orderDraft.step === "payment") {
-      orderDraft.paymentMethod = t || "COD";
-      const orderObj = {
-        order_id: generateOrderId(),
-        client_id: ACTIVE_CLIENT_ID,
-        customer_name: orderDraft.customerName,
-        phone: orderDraft.phone,
-        address: orderDraft.address,
-        item: orderDraft.item,
-        quantity: orderDraft.quantity,
-        payment_method: orderDraft.paymentMethod,
-        status: "Pending",
-        created_at: new Date().toISOString()
-      };
-      persistOrderLocally(orderObj);
-      await sendChatToServer(
-        `New order captured: ${orderObj.order_id}`,
-        orderObj
-      );
-      appendMessage(
-        "bot",
-        `✅ **Order Confirmed!**\n• **Order ID:** ${orderObj.order_id}\n• **Item:** ${orderObj.item}\n• **Qty:** ${orderObj.quantity}\n• **Name:** ${orderObj.customer_name}\n• **Phone:** ${orderObj.phone}\n• **Payment:** ${orderObj.payment_method}`
-      );
-      resetOrderDraft();
+
+    if (orderDraft.step === "slip") {
+      if (!attachedSlipData && t) {
+        orderDraft.paymentProof = t;
+      }
+      await finalizeOrder();
       return true;
     }
+
     return false;
   }
 
@@ -536,6 +796,12 @@
   }
 
   async function sendChatToServer(messageText, orderPayload) {
+    const stillActive = await verifyPlanStatus();
+    if (!stillActive) {
+      destroyWidgetIfInactive();
+      return;
+    }
+
     const typingId = appendMessage("bot", "ලියමින් සිටී...");
     try {
       const res = await fetch(`${API_BASE}/api/chat`, {
@@ -559,8 +825,8 @@
         return;
       }
       const data = await res.json();
-      if (data.blocked) {
-        appendMessage("bot", data.reply || "Service unavailable.");
+      if (data.blocked || data.plan_active === false) {
+        destroyWidgetIfInactive();
         return;
       }
       if (data.reply && !orderPayload) {
@@ -573,15 +839,40 @@
     }
   }
 
+  function handleFileSelected(file) {
+    if (!file) return;
+    const allowed = ["image/png", "image/jpeg", "application/pdf"];
+    if (!allowed.includes(file.type)) {
+      appendMessage("bot", "කරුණාකර PNG, JPG, හෝ PDF file එකක් පමණක් attach කරන්න.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async function (ev) {
+      attachedSlipData = {
+        name: file.name,
+        type: file.type,
+        dataUrl: String((ev && ev.target && ev.target.result) || "")
+      };
+      if (domRefs.slipNameEl) domRefs.slipNameEl.textContent = `📎 ${file.name}`;
+      if (domRefs.slipBarEl) domRefs.slipBarEl.style.display = "flex";
+
+      if (orderDraft.active && orderDraft.step === "slip") {
+        await finalizeOrder();
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
   async function handleSubmit() {
     if (isSending || !domRefs.textInput) return;
     const text = domRefs.textInput.value.trim();
-    if (!text) return;
+    if (!text && !attachedSlipData) return;
     domRefs.textInput.value = "";
 
     isSending = true;
-    appendMessage("user", text);
-    conversationHistory.push({ role: "user", content: text });
+    const displayMsg = text || (attachedSlipData ? `Attached: ${attachedSlipData.name}` : "");
+    appendMessage("user", displayMsg);
+    if (text) conversationHistory.push({ role: "user", content: text });
 
     try {
       if (orderDraft.active) {
@@ -589,7 +880,7 @@
         return;
       }
       if (config.orderFlowEnabled && looksLikeOrderIntent(text)) {
-        startOrderFlow();
+        startOrderFlow("");
         return;
       }
       await sendChatToServer(text, null);
@@ -629,8 +920,44 @@
     const messagesEl = document.createElement("div");
     messagesEl.className = "zenix-messages";
 
+    const payPopupEl = document.createElement("div");
+    payPopupEl.className = "zenix-pay-popup";
+    payPopupEl.style.display = "none";
+
+    const slipBarEl = document.createElement("div");
+    slipBarEl.className = "zenix-slip-bar";
+    const slipNameEl = document.createElement("span");
+    const removeSlipBtn = document.createElement("button");
+    removeSlipBtn.type = "button";
+    removeSlipBtn.className = "zenix-icon-btn";
+    removeSlipBtn.textContent = "✕";
+    removeSlipBtn.addEventListener("click", () => {
+      attachedSlipData = null;
+      slipBarEl.style.display = "none";
+      if (fileInputEl) fileInputEl.value = "";
+    });
+    slipBarEl.appendChild(slipNameEl);
+    slipBarEl.appendChild(removeSlipBtn);
+
     const inputArea = document.createElement("div");
     inputArea.className = "zenix-input-area";
+
+    const fileInputEl = document.createElement("input");
+    fileInputEl.type = "file";
+    fileInputEl.accept = ".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf";
+    fileInputEl.style.display = "none";
+    fileInputEl.addEventListener("change", (e) => {
+      const f = e.target && e.target.files && e.target.files[0];
+      handleFileSelected(f);
+    });
+
+    const attachBtn = document.createElement("button");
+    attachBtn.type = "button";
+    attachBtn.className = "zenix-icon-btn";
+    attachBtn.style.padding = "9px 10px";
+    attachBtn.title = "Attach PNG, JPG, or PDF";
+    attachBtn.textContent = "📎";
+    attachBtn.addEventListener("click", () => fileInputEl.click());
 
     const textInput = document.createElement("input");
     textInput.type = "text";
@@ -650,11 +977,15 @@
     sendBtn.textContent = "Send";
     sendBtn.addEventListener("click", handleSubmit);
 
+    inputArea.appendChild(fileInputEl);
+    inputArea.appendChild(attachBtn);
     inputArea.appendChild(textInput);
     inputArea.appendChild(sendBtn);
 
     win.appendChild(header);
     win.appendChild(messagesEl);
+    win.appendChild(payPopupEl);
+    win.appendChild(slipBarEl);
     win.appendChild(inputArea);
 
     const launcherBtn = document.createElement("button");
@@ -668,15 +999,32 @@
     root.appendChild(launcherBtn);
     (document.body || document.documentElement).appendChild(root);
 
-    domRefs = { root, win, messagesEl, textInput, sendBtn, launcherBtn };
+    domRefs = {
+      root,
+      win,
+      messagesEl,
+      payPopupEl,
+      slipBarEl,
+      slipNameEl,
+      fileInputEl,
+      textInput,
+      sendBtn,
+      launcherBtn
+    };
     appendMessage("bot", config.welcomeMessage);
   }
 
   async function init() {
     removeLegacyStoreAssistant();
-    if (!ACTIVE_CLIENT_ID) return;
+    if (!ACTIVE_CLIENT_ID) {
+      destroyWidgetIfInactive();
+      return;
+    }
     PLAN_IS_ACTIVE = await verifyPlanStatus();
-    if (!PLAN_IS_ACTIVE) return;
+    if (!PLAN_IS_ACTIVE) {
+      destroyWidgetIfInactive();
+      return;
+    }
     injectChatFont();
     buildWidget();
     removeLegacyStoreAssistant();

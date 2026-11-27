@@ -1,6 +1,6 @@
 import base64
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import json
@@ -9,6 +9,7 @@ import random
 import secrets
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -31,19 +32,22 @@ SYSTEM_STATE_FILE = DATA_DIR / "system_state.json"
 # Secrets/API Keys are read strictly from environment variables (never hardcoded).
 AI_API_KEY = os.environ.get("AI_API_KEY", "").strip()
 AI_API_URL = os.environ.get("AI_API_URL", "").strip()
-AI_MODEL = os.environ.get("AI_MODEL", "").strip()
+AI_MODEL = os.environ.get("AI_MODEL", "gemini-2.5-flash").strip()
 
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "").strip()
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "").strip()
 SENDER_NAME = os.environ.get("SENDER_NAME", "Zenix AI").strip()
-ALLOW_DEV_CONSOLE_OTP = os.environ.get("ALLOW_DEV_CONSOLE_OTP", "0").strip() == "1"
-SESSION_TOKEN_SECRET = os.environ.get("SESSION_TOKEN_SECRET", "").strip() or secrets.token_hex(32)
+SESSION_TOKEN_SECRET = (
+    os.environ.get("SESSION_TOKEN_SECRET", "").strip() or secrets.token_hex(32)
+)
 ADMIN_SECRET = os.environ.get("ZENIX_ADMIN_SECRET", "").strip()
 
 OTP_STORE: Dict[str, Dict[str, Any]] = {}
 OTP_TTL_SECONDS = 300
 IP_OTP_HISTORY: Dict[str, List[float]] = defaultdict(list)
 SEEN_CONV_SESSIONS = set()
+BOARD_WINDOW_HOURS = 24
+ORDER_RETENTION_DAYS = 30
 
 _FIRESTORE_LAST_ERROR = ""
 
@@ -54,6 +58,18 @@ def _utc_now() -> datetime:
 
 def _utc_now_iso() -> str:
     return _utc_now().isoformat()
+
+
+def _parse_iso_dt(val: Any) -> Optional[datetime]:
+    if not val:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(val).strip().replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        return None
 
 
 def _load_json(path: Path, default: Any) -> Any:
@@ -86,7 +102,9 @@ def _init_firestore():
         if raw_json:
             cred_dict = json.loads(raw_json)
             if isinstance(cred_dict, dict) and "private_key" in cred_dict:
-                cred_dict["private_key"] = str(cred_dict["private_key"]).replace("\\n", "\n")
+                cred_dict["private_key"] = str(cred_dict["private_key"]).replace(
+                    "\\n", "\n"
+                )
             cred = credentials.Certificate(cred_dict)
         elif key_path and os.path.exists(key_path):
             cred = credentials.Certificate(key_path)
@@ -196,7 +214,11 @@ def _get_maintenance_state() -> Dict[str, Any]:
             ),
         },
     )
-    return st if isinstance(st, dict) else {"maintenance_mode": False, "maintenance_message": ""}
+    return (
+        st
+        if isinstance(st, dict)
+        else {"maintenance_mode": False, "maintenance_message": ""}
+    )
 
 
 def _save_maintenance_state(st: Dict[str, Any]) -> None:
@@ -228,7 +250,9 @@ def _fs_find_by_email(db, email_lower: str) -> Optional[str]:
     if not db or not email_lower:
         return None
     try:
-        docs = db.collection("clients").where("email", "==", email_lower).limit(1).stream()
+        docs = (
+            db.collection("clients").where("email", "==", email_lower).limit(1).stream()
+        )
         for d in docs:
             return str(d.id).upper()
     except Exception:
@@ -242,7 +266,9 @@ def _fs_find_by_username(db, username_val: str) -> Optional[Dict[str, Any]]:
     u_clean = username_val.strip()
     try:
         for field_name in ("username", "generated_username"):
-            docs = db.collection("clients").where(field_name, "==", u_clean).limit(1).stream()
+            docs = (
+                db.collection("clients").where(field_name, "==", u_clean).limit(1).stream()
+            )
             for d in docs:
                 data = d.to_dict() or {}
                 data["client_id"] = str(d.id).upper()
@@ -272,16 +298,11 @@ def _is_client_active(entry: Dict[str, Any]) -> tuple[bool, str, bool]:
         return False, "inactive", False
     exp_val = entry.get("expires_at")
     if exp_val:
-        try:
-            dt = datetime.fromisoformat(str(exp_val).strip().replace("Z", "+00:00"))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            if _utc_now() > dt:
-                changed = entry.get("plan_active") is True
-                entry["plan_active"] = False
-                return False, "expired", changed
-        except ValueError:
-            pass
+        dt = _parse_iso_dt(exp_val)
+        if dt and _utc_now() > dt:
+            changed = entry.get("plan_active") is True
+            entry["plan_active"] = False
+            return False, "expired", changed
     if entry.get("plan_active") is not True:
         return False, "inactive", False
     return True, "active", False
@@ -292,21 +313,36 @@ def _save_client_record(
 ) -> None:
     clean_cid = cid.upper()
     quota = _get_client_quota(entry)
-    embed_key = str(entry.get("client_key") or "").strip() or f"zk_{secrets.token_hex(12)}"
+    embed_key = (
+        str(entry.get("client_key") or "").strip() or f"zk_{secrets.token_hex(12)}"
+    )
+    sheet_secret = (
+        str(entry.get("sheet_secret_key") or "").strip()
+        or f"sec_{secrets.token_hex(10)}"
+    )
 
     payload: Dict[str, Any] = {
         "client_id": clean_cid,
         "client_key": embed_key,
-        "username": entry.get("username") or entry.get("generated_username") or clean_cid,
-        "generated_username": entry.get("generated_username") or entry.get("username") or clean_cid,
+        "sheet_secret_key": sheet_secret,
+        "username": entry.get("username")
+        or entry.get("generated_username")
+        or clean_cid,
+        "generated_username": entry.get("generated_username")
+        or entry.get("username")
+        or clean_cid,
         "store_name": entry.get("store_name") or f"{clean_cid} Store",
         "email": (entry.get("email") or "").strip().lower(),
-        "plan": entry.get("plan"),
+        "plan": (entry.get("plan") or "normal").strip().lower(),
         "plan_active": bool(entry.get("plan_active", False)),
         "expires_at": entry.get("expires_at"),
         "knowledge_base": entry.get("knowledge_base") or "",
         "output_webhook_url": (entry.get("output_webhook_url") or "").strip(),
-        "stock_json": entry.get("stock_json") if isinstance(entry.get("stock_json"), dict) else {},
+        "stock_csv_url": (entry.get("stock_csv_url") or "").strip(),
+        "stock_webapp_url": (entry.get("stock_webapp_url") or "").strip(),
+        "stock_json": (
+            entry.get("stock_json") if isinstance(entry.get("stock_json"), dict) else {}
+        ),
         "conversations_limit": quota["conversations_limit"],
         "conversations_used": quota["conversations_used"],
         "ai_credits": quota["ai_credits"],
@@ -329,8 +365,13 @@ def _save_client_record(
             pass
 
 
-def _build_embed_html(cid: str, store_name: str, client_key: str, base_url: str = "") -> str:
-    clean_base = (base_url or os.environ.get("PUBLIC_API_BASE", "http://127.0.0.1:8000")).rstrip("/")
+def _build_embed_html(
+    cid: str, store_name: str, client_key: str, base_url: str = ""
+) -> str:
+    clean_base = (
+        base_url
+        or os.environ.get("PUBLIC_API_BASE", "https://zenixz-ai-1.onrender.com")
+    ).rstrip("/")
     safe_store = store_name.replace('"', "")
     return (
         f'<script\n'
@@ -341,6 +382,43 @@ def _build_embed_html(cid: str, store_name: str, client_key: str, base_url: str 
         f'  data-client-name="{safe_store}"\n'
         f'  defer\n'
         f'></script>'
+    )
+
+
+def _build_premium_apps_script(cid: str, secret_key: str) -> str:
+    return (
+        f"// Zenix AI Premium Stock Auto-Deduct Script for {cid}\n"
+        f"// 1. Open your Google Sheet -> Extensions -> Apps Script\n"
+        f"// 2. Paste this code -> Deploy -> New deployment -> Web app (Execute as: Me, Access: Anyone)\n"
+        f"// 3. Copy the Web App URL and paste it in Zenix AI Dashboard (Premium Stock Web App URL)\n\n"
+        f'const ZENIX_CLIENT_ID = "{cid}";\n'
+        f'const ZENIX_SECRET_KEY = "{secret_key}";\n'
+        f'const STOCK_SHEET_NAME = "Stock"; // Columns: Item | Quantity\n\n'
+        f"function doPost(e) {{\n"
+        f"  try {{\n"
+        f'    const data = JSON.parse((e && e.postData && e.postData.contents) || "{{}}");\n'
+        f"    if (data.client_id && String(data.client_id).toUpperCase() !== ZENIX_CLIENT_ID) {{\n"
+        f'      return ContentService.createTextOutput(JSON.stringify({{ ok: false, error: "Client mismatch" }})).setMimeType(ContentService.MimeType.JSON);\n'
+        f"    }}\n"
+        f'    const itemName = String(data.item || "").trim().toLowerCase();\n'
+        f"    const qty = Math.max(1, parseInt(data.quantity || 1, 10));\n"
+        f"    const ss = SpreadsheetApp.getActiveSpreadsheet();\n"
+        f"    const sheet = ss.getSheetByName(STOCK_SHEET_NAME) || ss.getSheets()[0];\n"
+        f"    const values = sheet.getDataRange().getValues();\n"
+        f"    for (let i = 1; i < values.length; i++) {{\n"
+        f'      const rowItem = String(values[i][0] || "").trim().toLowerCase();\n'
+        f"      if (rowItem && (rowItem === itemName || rowItem.indexOf(itemName) !== -1)) {{\n"
+        f"        const curQty = parseInt(values[i][1] || 0, 10) || 0;\n"
+        f"        const nextQty = Math.max(0, curQty - qty);\n"
+        f"        sheet.getRange(i + 1, 2).setValue(nextQty);\n"
+        f'        return ContentService.createTextOutput(JSON.stringify({{ ok: true, item: values[i][0], remaining: nextQty }})).setMimeType(ContentService.MimeType.JSON);\n'
+        f"      }}\n"
+        f"    }}\n"
+        f'    return ContentService.createTextOutput(JSON.stringify({{ ok: false, error: "Item not found" }})).setMimeType(ContentService.MimeType.JSON);\n'
+        f"  }} catch (err) {{\n"
+        f'    return ContentService.createTextOutput(JSON.stringify({{ ok: false, error: String(err) }})).setMimeType(ContentService.MimeType.JSON);\n'
+        f"  }}\n"
+        f"}}\n"
     )
 
 
@@ -379,6 +457,15 @@ def _resolve_client(
         fs_u = _fs_find_by_username(db, usr)
         if fs_u:
             return str(fs_u["client_id"]).upper(), fs_u
+        local_map = _load_json(CLIENTS_FILE, {})
+        if isinstance(local_map, dict):
+            for k, v in local_map.items():
+                u_match = str((v or {}).get("username") or "").strip().lower()
+                g_match = str((v or {}).get("generated_username") or "").strip().lower()
+                if usr.lower() in (u_match, g_match) and usr.lower():
+                    rec = dict(v)
+                    rec["client_id"] = str(k).upper()
+                    return str(k).upper(), rec
 
     return None, None
 
@@ -430,16 +517,98 @@ def _post_webhook(url: str, payload: Dict[str, Any], timeout: int = 10) -> bool:
         return False
 
 
+def _cleanup_expired_orders(cid_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+    # Orders are retained for 30 days and permanently deleted after 30 days (e.g., on day 31+)
+    cutoff_30d = _utc_now() - timedelta(days=ORDER_RETENTION_DAYS)
+    raw_orders = _load_json(ORDERS_FILE, [])
+    if not isinstance(raw_orders, list):
+        raw_orders = []
+
+    kept: List[Dict[str, Any]] = []
+    expired_ids: List[str] = []
+
+    for o in raw_orders:
+        if not isinstance(o, dict):
+            continue
+        dt = _parse_iso_dt(o.get("created_at"))
+        oid = str(o.get("order_id") or "").strip()
+        if dt and dt < cutoff_30d:
+            if oid:
+                expired_ids.append(oid)
+            continue
+        kept.append(o)
+
+    if len(kept) != len(raw_orders):
+        _save_json(ORDERS_FILE, kept[:5000])
+
+    db = _get_db()
+    if db and expired_ids:
+        for oid in expired_ids[:100]:
+            try:
+                db.collection("orders").document(oid).delete()
+            except Exception:
+                pass
+
+    if cid_filter:
+        c_up = cid_filter.strip().upper()
+        return [
+            o for o in kept if str(o.get("client_id") or "").strip().upper() == c_up
+        ]
+    return kept
+
+
+def _filter_orders_24h_or_30d_search(
+    orders: List[Dict[str, Any]], search_query: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    q = (search_query or "").strip().lower()
+    q_digits = "".join(ch for ch in q if ch.isdigit())
+    cutoff_24h = _utc_now() - timedelta(hours=BOARD_WINDOW_HOURS)
+    cutoff_30d = _utc_now() - timedelta(days=ORDER_RETENTION_DAYS)
+
+    within_30d: List[Dict[str, Any]] = []
+    for o in orders:
+        dt = _parse_iso_dt(o.get("created_at"))
+        if dt and dt < cutoff_30d:
+            continue
+        within_30d.append(o)
+
+    if q:
+        matched: List[Dict[str, Any]] = []
+        for o in within_30d:
+            oid = str(o.get("order_id") or "").lower()
+            cname = str(o.get("customer_name") or "").lower()
+            phone = str(o.get("phone") or "").lower()
+            phone_digits = "".join(ch for ch in phone if ch.isdigit())
+            item = str(o.get("item") or "").lower()
+            if (
+                q in oid
+                or q in cname
+                or q in phone
+                or q in item
+                or (len(q_digits) >= 3 and q_digits in phone_digits)
+            ):
+                matched.append(o)
+        return matched
+
+    # Default board view: only orders within the last 24 hours
+    recent_24h: List[Dict[str, Any]] = []
+    for o in within_30d:
+        dt = _parse_iso_dt(o.get("created_at"))
+        if dt is None or dt >= cutoff_24h:
+            recent_24h.append(o)
+    return recent_24h
+
+
 def _save_client_order(cid: str, order_obj: Dict[str, Any]) -> Dict[str, Any]:
     clean_cid = cid.upper()
     record = dict(order_obj)
     record["client_id"] = clean_cid
-    record.setdefault("order_id", f"ORD-{int(time.time())}-{secrets.randbelow(900) + 100}")
+    record.setdefault(
+        "order_id", f"ORD-{int(time.time())}-{secrets.randbelow(900) + 100}"
+    )
     record.setdefault("created_at", _utc_now_iso())
 
-    orders = _load_json(ORDERS_FILE, [])
-    if not isinstance(orders, list):
-        orders = []
+    orders = _cleanup_expired_orders()
     oid = str(record["order_id"]).strip()
     orders = [o for o in orders if str(o.get("order_id") or "").strip() != oid]
     orders.insert(0, record)
@@ -455,10 +624,48 @@ def _save_client_order(cid: str, order_obj: Dict[str, Any]) -> Dict[str, Any]:
     return record
 
 
-def _deduct_stock_if_present(entry: Dict[str, Any], cid: str, item_name: str, qty: int) -> None:
+def _update_order_status(cid: str, order_id: str, new_status: str) -> Optional[Dict[str, Any]]:
+    clean_cid = cid.strip().upper()
+    clean_oid = order_id.strip()
+    orders = _cleanup_expired_orders()
+    updated_order = None
+
+    for o in orders:
+        if (
+            str(o.get("client_id") or "").strip().upper() == clean_cid
+            and str(o.get("order_id") or "").strip() == clean_oid
+        ):
+            o["status"] = new_status
+            o["updated_at"] = _utc_now_iso()
+            updated_order = dict(o)
+            break
+
+    if not updated_order:
+        return None
+
+    _save_json(ORDERS_FILE, orders[:5000])
+    db = _get_db()
+    if db:
+        try:
+            db.collection("orders").document(clean_oid).set(updated_order, merge=True)
+        except Exception:
+            pass
+
+    return updated_order
+
+
+def _deduct_stock_if_present(
+    entry: Dict[str, Any], cid: str, item_name: str, qty: int
+) -> None:
+    # Auto stock deduction on backend is restricted strictly to Premium plans.
+    plan_name = str(entry.get("plan") or "normal").strip().lower()
+    if "premium" not in plan_name:
+        return
+
     stock_map = entry.get("stock_json")
     if not isinstance(stock_map, dict) or not item_name:
         return
+
     for k in list(stock_map.keys()):
         if k.strip().lower() == item_name.strip().lower():
             try:
@@ -489,7 +696,7 @@ def _call_ai_with_credit_check(
         ).strip()
         return fallback, False
 
-    if not AI_API_KEY or not AI_API_URL or not AI_MODEL:
+    if not AI_API_KEY:
         reply = (
             f"{store_name}: {kb_instruction}"
             if kb_instruction
@@ -502,9 +709,57 @@ def _call_ai_with_credit_check(
 
     system_prompt = (
         f"You are the dedicated AI assistant for '{store_name}'. "
-        f"Follow ONLY this client's instructions and knowledge base:\n"
-        f"{kb_instruction or 'No extra instructions provided.'}"
+        f"Greet politely, explain products clearly using ONLY the client's knowledge base "
+        f"(honoring any specially highlighted items/instructions), and help customers place orders.\n"
+        f"Client Knowledge Base & Instructions:\n"
+        f"{kb_instruction or 'No custom knowledge base provided yet; use general polite store assistant behavior.'}"
     )
+
+    model_id = AI_MODEL or "gemini-2.5-flash"
+
+    # Support Google Gemini native REST API when AI_API_URL is omitted or points to generativelanguage.googleapis.com
+    if not AI_API_URL or "generativelanguage.googleapis.com" in AI_API_URL:
+        gem_url = AI_API_URL.strip()
+        if not gem_url:
+            q_key = urllib.parse.quote(AI_API_KEY)
+            gem_url = (
+                f"https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{urllib.parse.quote(model_id)}:generateContent?key={q_key}"
+            )
+        contents: List[Dict[str, Any]] = []
+        for h in (history or [])[-6:]:
+            role = "model" if h.get("role") == "assistant" else "user"
+            txt = str(h.get("content") or "").strip()
+            if txt:
+                contents.append({"role": role, "parts": [{"text": txt}]})
+        contents.append({"role": "user", "parts": [{"text": message}]})
+
+        gem_payload = {
+            "system_instruction": {"parts": [{"text": system_prompt}]},
+            "contents": contents,
+        }
+        req = urllib.request.Request(
+            gem_url,
+            data=json.dumps(gem_payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                parsed = json.loads(resp.read().decode("utf-8"))
+                cands = parsed.get("candidates") or []
+                if cands:
+                    parts = ((cands[0].get("content") or {}).get("parts")) or []
+                    content = "".join(str(p.get("text") or "") for p in parts).strip()
+                    if content:
+                        entry["ai_credits"] = max(0, remaining_credits - 1)
+                        entry["ai_credits_used"] = quota["ai_credits_used"] + 1
+                        _save_client_record(cid, entry)
+                        return content, True
+        except Exception:
+            pass
+        return "AI service temporarily unavailable.", False
+
     msgs: List[Dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     for h in (history or [])[-6:]:
         role = "assistant" if h.get("role") == "assistant" else "user"
@@ -515,7 +770,7 @@ def _call_ai_with_credit_check(
 
     req = urllib.request.Request(
         AI_API_URL,
-        data=json.dumps({"model": AI_MODEL, "messages": msgs}).encode("utf-8"),
+        data=json.dumps({"model": model_id, "messages": msgs}).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {AI_API_KEY}",
             "Content-Type": "application/json",
@@ -529,7 +784,9 @@ def _call_ai_with_credit_check(
             parsed = json.loads(resp.read().decode("utf-8"))
             choices = parsed.get("choices") or []
             if choices:
-                content = ((choices[0].get("message") or {}).get("content") or "").strip()
+                content = (
+                    (choices[0].get("message") or {}).get("content") or ""
+                ).strip()
                 if content:
                     entry["ai_credits"] = max(0, remaining_credits - 1)
                     entry["ai_credits_used"] = quota["ai_credits_used"] + 1
@@ -572,7 +829,15 @@ class KnowledgeSave(BaseModel):
     client_id: str = Field(..., min_length=1)
     knowledge_base: Optional[str] = ""
     output_webhook_url: Optional[str] = ""
+    stock_csv_url: Optional[str] = ""
+    stock_webapp_url: Optional[str] = ""
     stock_json: Any = Field(default_factory=dict)
+
+
+class OrderStatusUpdateIn(BaseModel):
+    client_id: str = Field(..., min_length=1)
+    order_id: str = Field(..., min_length=1)
+    status: str = Field(..., min_length=1)
 
 
 class ChatIn(BaseModel):
@@ -603,7 +868,7 @@ class OtpVerifyIn(BaseModel):
 
 # --- App ---
 
-app = FastAPI(title="Zenix AI Client Server", version="4.1.0")
+app = FastAPI(title="Zenix AI Client Server", version="4.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -611,6 +876,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/")
+def root():
+    return {"ok": True, "service": "Zenix AI Client Server", "status": "live"}
 
 
 @app.get("/health")
@@ -656,7 +926,7 @@ def admin_update_client(
     if payload.plan_active is not None:
         entry["plan_active"] = bool(payload.plan_active)
     if payload.plan is not None:
-        entry["plan"] = payload.plan.strip()
+        entry["plan"] = payload.plan.strip().lower()
     if payload.expires_at is not None:
         entry["expires_at"] = payload.expires_at
     if payload.conversations_limit is not None:
@@ -690,7 +960,7 @@ def activate_client_plan(
         raise HTTPException(status_code=404, detail="Client not found")
 
     entry = dict(rec)
-    entry["plan"] = payload.plan.strip()
+    entry["plan"] = payload.plan.strip().lower()
     entry["plan_active"] = True
     entry["conversations_limit"] = max(0, int(payload.conversations_limit))
     entry["ai_credits"] = max(0, int(payload.ai_credits))
@@ -751,66 +1021,97 @@ def get_client_embed(
 
 @app.post("/api/otp/send")
 def send_otp(payload: OtpSendIn):
-    em = (payload.email or "").strip().lower()
-    cid = (payload.client_id or "").strip().upper()
-    if not em or "@" not in em:
+    cid_in = (payload.client_id or "").strip().upper()
+    usr_in = (payload.username or "").strip()
+    em_in = (payload.email or "").strip().lower()
+
+    db = _get_db()
+    resolved_cid, existing = _resolve_client(
+        db, client_id=cid_in, email=em_in, username=usr_in
+    )
+
+    if not payload.is_new_account and not existing:
+        raise HTTPException(
+            status_code=404,
+            detail="Account not found for the provided Client ID / Email / Username",
+        )
+
+    target_email = em_in or str((existing or {}).get("email") or "").strip().lower()
+    if not target_email or "@" not in target_email:
         raise HTTPException(status_code=400, detail="Valid email required")
 
+    target_cid = (resolved_cid or cid_in or "NEW-CLIENT").upper()
+
     now = time.time()
-    recent = [t for t in IP_OTP_HISTORY[em] if now - t < 600]
-    IP_OTP_HISTORY[em] = recent
+    recent = [t for t in IP_OTP_HISTORY[target_email] if now - t < 600]
+    IP_OTP_HISTORY[target_email] = recent
     if len(recent) >= 10:
         raise HTTPException(status_code=429, detail="Too many OTP requests")
     recent.append(now)
 
     otp_code = f"{random.randint(100000, 999999)}"
-    key = f"{cid or 'NEW'}:{em}"
-    OTP_STORE[key] = {
+    OTP_STORE[target_email] = {
         "otp": otp_code,
-        "email": em,
-        "client_id": cid,
+        "email": target_email,
+        "client_id": target_cid,
+        "username": usr_in,
         "expires_at": now + OTP_TTL_SECONDS,
     }
 
     try:
-        _send_otp_email(em, otp_code, cid or "NEW-CLIENT")
-        return {"ok": True, "message": "OTP sent"}
+        _send_otp_email(target_email, otp_code, target_cid)
+        return {
+            "ok": True,
+            "message": "OTP sent",
+            "email": target_email,
+            "client_id": target_cid,
+        }
     except Exception as exc:
-        if ALLOW_DEV_CONSOLE_OTP:
-            print(f"[DEV OTP] {em}: {otp_code}", flush=True)
-            return {"ok": True, "message": "OTP printed in console (dev mode)"}
         raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.post("/api/otp/verify")
 def verify_otp(payload: OtpVerifyIn):
-    em = (payload.email or "").strip().lower()
-    cid = (payload.client_id or "").strip().upper()
-    key = f"{cid or 'NEW'}:{em}"
-    rec = OTP_STORE.get(key)
+    cid_in = (payload.client_id or "").strip().upper()
+    usr_in = (payload.username or "").strip()
+    em_in = (payload.email or "").strip().lower()
+
+    db = _get_db()
+    resolved_cid, existing = _resolve_client(
+        db, client_id=cid_in, email=em_in, username=usr_in
+    )
+    target_email = em_in or str((existing or {}).get("email") or "").strip().lower()
+    if not target_email:
+        raise HTTPException(status_code=400, detail="Email or registered account required")
+
+    rec = OTP_STORE.get(target_email)
     if (
         not rec
         or time.time() > float(rec.get("expires_at", 0))
         or str(rec.get("otp")) != payload.otp.strip()
     ):
         raise HTTPException(status_code=401, detail="Invalid or expired OTP")
-    OTP_STORE.pop(key, None)
+    OTP_STORE.pop(target_email, None)
 
-    db = _get_db()
-    resolved_cid, existing = _resolve_client(
-        db, client_id=cid, email=em, username=payload.username or ""
-    )
-    if not resolved_cid:
-        resolved_cid = f"CLT-{random.randint(1000, 9999)}"
+    final_cid = (resolved_cid or cid_in or "").upper()
+    if not final_cid:
+        final_cid = f"CLT-{random.randint(1000, 9999)}"
 
     entry = dict(existing or {})
-    entry["client_id"] = resolved_cid
-    entry["email"] = em
+    entry["client_id"] = final_cid
+    entry["email"] = target_email
     if payload.store_name:
         entry["store_name"] = payload.store_name.strip()
-    if payload.username:
-        entry["username"] = payload.username.strip()
+    elif not existing:
+        entry["store_name"] = f"{final_cid} Store"
+
+    if usr_in:
+        entry["username"] = usr_in
+    elif not entry.get("username"):
+        entry["username"] = final_cid
+
     if payload.is_new_account and not existing:
+        entry.setdefault("plan", "normal")
         entry.setdefault("plan_active", False)
         entry.setdefault("conversations_limit", 0)
         entry.setdefault("conversations_used", 0)
@@ -818,15 +1119,18 @@ def verify_otp(payload: OtpVerifyIn):
         entry.setdefault("ai_credits_used", 0)
 
     pw_hash = _hash_password(payload.password) if payload.password else None
-    _save_client_record(resolved_cid, entry, password_hash=pw_hash)
+    _save_client_record(final_cid, entry, password_hash=pw_hash)
 
-    token = _issue_client_token(resolved_cid, em)
+    token = _issue_client_token(final_cid, target_email)
     return {
         "ok": True,
         "verified": True,
-        "client_id": resolved_cid,
-        "email": em,
+        "client_id": final_cid,
+        "username": entry.get("username") or final_cid,
+        "store_name": entry.get("store_name") or final_cid,
+        "email": target_email,
         "token": token,
+        "plan": entry.get("plan") or "normal",
         "plan_active": bool(entry.get("plan_active", False)),
     }
 
@@ -861,6 +1165,10 @@ def save_knowledge(
     entry = dict(rec)
     entry["knowledge_base"] = (payload.knowledge_base or "").strip()
     entry["output_webhook_url"] = (payload.output_webhook_url or "").strip()
+    if payload.stock_csv_url is not None:
+        entry["stock_csv_url"] = payload.stock_csv_url.strip()
+    if payload.stock_webapp_url is not None:
+        entry["stock_webapp_url"] = payload.stock_webapp_url.strip()
     entry["stock_json"] = stock_obj if isinstance(stock_obj, dict) else {}
     _save_client_record(resolved_cid, entry)
 
@@ -869,6 +1177,8 @@ def save_knowledge(
         "client_id": resolved_cid,
         "knowledge_base": entry["knowledge_base"],
         "output_webhook_url": entry["output_webhook_url"],
+        "stock_csv_url": entry["stock_csv_url"],
+        "stock_webapp_url": entry["stock_webapp_url"],
     }
 
 
@@ -915,7 +1225,10 @@ def widget_status(client_id: str = Query(...)):
         "reason": reason,
         "client_id": resolved_cid,
         "store_name": rec.get("store_name") or resolved_cid,
+        "plan": (rec.get("plan") or "normal").strip().lower(),
         "plan_active": bool(active),
+        "stock_csv_url": (rec.get("stock_csv_url") or "").strip(),
+        "stock_webapp_url": (rec.get("stock_webapp_url") or "").strip(),
         "conversations_used": used,
         "conversations_limit": limit,
         "ai_credits": quota["ai_credits"],
@@ -980,17 +1293,30 @@ def chat_endpoint(payload: ChatIn):
     ):
         qty = max(1, int(payload.order.get("quantity", 1) or 1))
         item_name = str(payload.order.get("item") or "").strip()
+        pay_method = str(payload.order.get("payment_method") or "COD").strip()
+        default_status = (
+            "Confirmed" if "cod" in pay_method.lower() or "cash" in pay_method.lower() else "Pending"
+        )
+        req_status = str(payload.order.get("status") or default_status).strip()
+        if req_status not in ("Pending", "Confirmed", "Close"):
+            req_status = default_status
+
         saved_order = _save_client_order(
             resolved_cid,
             {
+                "order_id": str(payload.order.get("order_id") or "").strip()
+                or f"ORD-{int(time.time())}-{secrets.randbelow(900) + 100}",
                 "customer_name": str(payload.order.get("customer_name") or "").strip(),
                 "phone": str(payload.order.get("phone") or "").strip(),
                 "address": str(payload.order.get("address") or "").strip(),
                 "item": item_name,
                 "quantity": qty,
-                "payment_method": str(payload.order.get("payment_method") or "COD").strip(),
+                "payment_method": pay_method,
                 "payment_proof": str(payload.order.get("payment_proof") or "").strip(),
-                "status": "Pending",
+                "payment_proof_name": str(
+                    payload.order.get("payment_proof_name") or ""
+                ).strip(),
+                "status": req_status,
             },
         )
         _deduct_stock_if_present(entry, resolved_cid, item_name, qty)
@@ -1000,8 +1326,16 @@ def chat_endpoint(payload: ChatIn):
                 out_hook,
                 {
                     "client_id": resolved_cid,
+                    "order_id": saved_order.get("order_id"),
+                    "customer_name": saved_order.get("customer_name"),
+                    "phone": saved_order.get("phone"),
+                    "address": saved_order.get("address"),
+                    "item": saved_order.get("item"),
+                    "quantity": saved_order.get("quantity"),
+                    "payment_method": saved_order.get("payment_method"),
+                    "status": saved_order.get("status"),
+                    "created_at": saved_order.get("created_at"),
                     "order": saved_order,
-                    "timestamp": _utc_now_iso(),
                 },
             )
 
@@ -1049,6 +1383,9 @@ def my_dashboard(
     quota = _get_client_quota(rec)
     store_name = rec.get("store_name") or resolved_cid
     embed_key = str(rec.get("client_key") or "")
+    secret_key = str(rec.get("sheet_secret_key") or "")
+    plan_name = (rec.get("plan") or "normal").strip().lower()
+    is_premium = bool(active and "premium" in plan_name)
 
     return {
         "ok": True,
@@ -1056,8 +1393,9 @@ def my_dashboard(
         "username": rec.get("username") or resolved_cid,
         "store_name": store_name,
         "email": rec.get("email") or "",
-        "plan": rec.get("plan") or "Inactive",
+        "plan": plan_name,
         "plan_active": bool(active),
+        "is_premium": is_premium,
         "reason": reason,
         "expires_at": rec.get("expires_at"),
         "conversations_used": quota["conversations_used"],
@@ -1066,7 +1404,14 @@ def my_dashboard(
         "ai_credits_used": quota["ai_credits_used"],
         "knowledge_base": rec.get("knowledge_base") or "",
         "output_webhook_url": rec.get("output_webhook_url") or "",
-        "embed_html": _build_embed_html(resolved_cid, store_name, embed_key) if active else "",
+        "stock_csv_url": rec.get("stock_csv_url") or "",
+        "stock_webapp_url": rec.get("stock_webapp_url") or "",
+        "premium_apps_script": (
+            _build_premium_apps_script(resolved_cid, secret_key) if is_premium else ""
+        ),
+        "embed_html": (
+            _build_embed_html(resolved_cid, store_name, embed_key) if active else ""
+        ),
         "maintenance": _get_maintenance_state(),
     }
 
@@ -1083,29 +1428,39 @@ def my_orders(
     if not authed_cid or authed_cid != target_cid:
         raise HTTPException(status_code=403, detail="Unauthorized client access")
 
-    all_orders = _load_json(ORDERS_FILE, [])
-    mine = [
-        o
-        for o in (all_orders if isinstance(all_orders, list) else [])
-        if str(o.get("client_id") or "").strip().upper() == target_cid
-    ]
+    mine = _cleanup_expired_orders(cid_filter=target_cid)
+    filtered = _filter_orders_24h_or_30d_search(mine, search_query=search)
 
-    q = (search or "").strip().lower()
-    if q:
-        mine = [
-            o
-            for o in mine
-            if q in str(o.get("order_id") or "").lower()
-            or q in str(o.get("customer_name") or "").lower()
-            or q in str(o.get("phone") or "").lower()
-            or q in str(o.get("item") or "").lower()
-        ]
+    return {
+        "ok": True,
+        "client_id": target_cid,
+        "orders": filtered,
+        "count": len(filtered),
+    }
 
-    return {"ok": True, "client_id": target_cid, "orders": mine, "count": len(mine)}
 
-@app.get("/")
-def root():
-    return {"ok": True, "service": "Zenix AI Client Server", "status": "live"}
+@app.post("/api/my/orders/status")
+def my_order_status(
+    payload: OrderStatusUpdateIn,
+    authorization: Optional[str] = Header(default=None),
+    x_client_token: Optional[str] = Header(default=None),
+):
+    authed_cid = _get_authed_client_id(authorization, x_client_token)
+    target_cid = payload.client_id.strip().upper()
+    if not authed_cid or authed_cid != target_cid:
+        raise HTTPException(status_code=403, detail="Unauthorized client access")
+
+    st = payload.status.strip()
+    if st not in ("Pending", "Confirmed", "Close"):
+        raise HTTPException(
+            status_code=400, detail="Status must be Pending, Confirmed, or Close"
+        )
+
+    updated = _update_order_status(target_cid, payload.order_id, st)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    return {"ok": True, "client_id": target_cid, "order": updated}
 
 
 if __name__ == "__main__":
