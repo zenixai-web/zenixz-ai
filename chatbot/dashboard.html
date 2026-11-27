@@ -120,6 +120,11 @@
       gap: 6px;
     }
 
+    a.btn-link.disabled-link {
+      opacity: 0.45;
+      pointer-events: none;
+    }
+
     select {
       background: var(--panel-2);
       color: var(--text);
@@ -136,8 +141,14 @@
       cursor: pointer;
     }
 
-    .btn:hover {
+    .btn:hover:not(:disabled) {
       opacity: 0.92;
+    }
+
+    .btn:disabled,
+    .btn-ghost:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     .btn-ghost {
@@ -148,12 +159,12 @@
       font-weight: 500;
     }
 
-    .btn-ghost:hover {
+    .btn-ghost:hover:not(:disabled) {
       border-color: var(--accent);
     }
 
     .container {
-      max-width: 1120px;
+      max-width: 1160px;
       margin: 22px auto;
       padding: 0 20px 44px;
     }
@@ -183,8 +194,8 @@
     }
 
     .no-plan-box {
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.38);
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.42);
       color: var(--text);
       border-radius: 14px;
       padding: 18px;
@@ -228,10 +239,10 @@
       font-weight: 600;
     }
 
-    .grid-4 {
+    .grid-5 {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
+      gap: 14px;
       margin-bottom: 22px;
     }
 
@@ -249,7 +260,7 @@
     }
 
     .card-value {
-      font-size: 24px;
+      font-size: 23px;
       font-weight: 700;
       margin-bottom: 6px;
     }
@@ -279,6 +290,24 @@
       background: var(--warn);
     }
 
+    .embed-section {
+      display: none;
+      margin-bottom: 18px;
+    }
+
+    .embed-code-box {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12.5px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin-bottom: 10px;
+    }
+
     .grid-2 {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -305,7 +334,7 @@
     }
 
     .field textarea {
-      min-height: 86px;
+      min-height: 110px;
       resize: vertical;
     }
 
@@ -313,6 +342,13 @@
       margin-top: 10px;
       font-size: 13px;
       color: var(--accent-2);
+      min-height: 18px;
+    }
+
+    .err-msg {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--danger);
       min-height: 18px;
     }
 
@@ -455,22 +491,22 @@
 
   <main class="container">
     <div class="sync-banner" id="syncBanner">
-      <strong>Live Firebase Control:</strong>
-      Account limits (Conversations, File Storage, Vector DB, Table Rows) and plan status are managed directly from <strong>Firebase Firestore</strong> for your Client ID.
+      <strong>Isolated Client Workspace:</strong>
+      Plan එක Activate කළ පසු පමණක් Embed HTML, Knowledge Base, AI Credits, සහ Order Tracking access ලැබේ.
     </div>
 
     <div class="last3-warning-box" id="last3DaysBanner"></div>
 
     <div class="no-plan-box" id="noPlanBox">
-      <strong>Plan / Service Not Active</strong>
-      ඔබ තවම කිසිදු Plan එකක් මිලදී ගෙන හෝ Activate කරගෙන නොමැති බැවින් කිසිදු සේවාවක් (Usage / Orders / Tracking) ක්‍රියාත්මක නොවේ.
-      Plan එකක් ලබා ගැනීමට කරුණාකර සම්බන්ධ වන්න: <strong>+94 71 795 3018</strong>
+      <strong>Plan / Service Not Active — Access Locked</strong>
+      ඔබගේ Plan එක තවම Activate කර නොමැති බැවින් Chatbot Embed Code, Knowledge Base, Usage Limits, සහ Order Tracking තාවකාලිකව අගුළු දමා ඇත.
+      Payment එක කර Plan එක Activate කරගැනීමට සම්බන්ධ වන්න: <strong>+94 71 795 3018</strong>
     </div>
 
     <div class="session-strip" id="sessionStrip">
       <span>Client ID: <strong id="metaClientId">-</strong></span>
       <span>Account / Email: <strong id="metaEmail">-</strong></span>
-      <span>Last IP: <strong id="metaLastIp">-</strong></span>
+      <span>API Endpoint: <strong id="metaApiBase">-</strong></span>
       <span>Session Expires: <strong id="metaExpiry">-</strong></span>
     </div>
 
@@ -479,12 +515,19 @@
       <span id="lastSyncedLabel">Last Synced: -</span>
     </div>
 
-    <section class="grid-4" id="metricsGrid">
+    <section class="grid-5" id="metricsGrid">
       <div class="card">
         <div class="card-label">Conversations / Customers</div>
         <div class="card-value" id="convVal">0 / 0</div>
         <div class="card-sub" id="convRem">Remaining: 0</div>
         <div class="progress-track"><div class="progress-fill" id="convBar"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">AI Credits</div>
+        <div class="card-value" id="creditVal">0</div>
+        <div class="card-sub" id="creditUsedSub">Used: 0</div>
+        <div class="progress-track"><div class="progress-fill" id="creditBar"></div></div>
       </div>
 
       <div class="card">
@@ -509,12 +552,45 @@
       </div>
     </section>
 
+    <!-- Shown ONLY after Plan is Active -->
+    <section class="card embed-section" id="embedSection">
+      <h3 style="margin-bottom: 6px; font-size: 16px;">Your Chatbot Embed HTML (Active Plan)</h3>
+      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 12px;">
+        ඔබගේ Client ID එකට (<strong id="embedClientIdLabel">-</strong>) අදාළ Embed HTML code එක පහත දැක්වේ. මෙය ඔබගේ website එකට paste කරන්න.
+      </div>
+      <div class="embed-code-box" id="embedCodeBox"></div>
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <button class="btn" id="copyEmbedBtn" type="button">Copy Embed HTML</button>
+        <span class="ok-msg" id="copyEmbedStatus" style="margin-top: 0;"></span>
+      </div>
+    </section>
+
+    <section class="card" id="knowledgeSection" style="margin-bottom: 18px;">
+      <h3 style="margin-bottom: 6px; font-size: 16px;">Private Knowledge Base & Order Webhook</h3>
+      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 14px;">
+        මෙහි ඇතුළත් කරන Instructions / Knowledge Base එක ඔබගේ Chatbot එකට පමණක් අදාළ වන අතර වෙනත් කිසිවෙකුට නොපෙනේ.
+      </div>
+      <form id="kbForm">
+        <div class="field">
+          <label for="kbInput">Chatbot Instructions / Knowledge Base (Products, Prices, Delivery Rules)</label>
+          <textarea id="kbInput" placeholder="උදා: අපේ store එකේ delivery දින 2-3 ඇතුළත සිදු වේ. Order එකක් ගන්න customer ගේ name, phone, address, item, quantity ලබා ගන්න..."></textarea>
+        </div>
+        <div class="field">
+          <label for="outputWebhookInput">Optional Output Webhook URL (Order Variables Receiver)</label>
+          <input id="outputWebhookInput" type="url" placeholder="https://your-endpoint.example.com/webhook" />
+        </div>
+        <button class="btn" id="saveKbBtn" type="submit">Save Knowledge Base</button>
+        <div class="ok-msg" id="kbStatus"></div>
+        <div class="err-msg" id="kbError"></div>
+      </form>
+    </section>
+
     <section class="tracking-panel" id="orderTrackingPanel">
       <div class="tracking-head">
         <div>
-          <h3 style="font-size: 16px;" id="trackingHeading">Order Tracking (Today's Orders — Max 5)</h3>
+          <h3 style="font-size: 16px;" id="trackingHeading">Order Tracking (Recent Orders — Max 5)</h3>
           <div style="font-size: 12px; color: var(--muted);" id="trackingHint">
-            ඔබගේ Client Account එකට අදාළ Today's Orders (උපරිම 5) පෙන්වයි. Order ID හෝ Phone Number search කළ විට අදාළ Order එක පමණක් පෙන්වයි.
+            ඔබගේ Client Account එකට අදාළ Orders පෙන්වයි. Order ID හෝ Phone Number search කළ විට අදාළ Order එක පමණක් පෙන්වයි.
           </div>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -563,7 +639,7 @@
         <form id="msgForm">
           <div class="field">
             <label for="msgSub">Subject</label>
-            <input id="msgSub" type="text" placeholder="උදා: Usage / Plan Inquiry" required />
+            <input id="msgSub" type="text" placeholder="උදා: Plan Activation / Usage / Credits Inquiry" required />
           </div>
           <div class="field">
             <label for="msgText">Message</label>
@@ -582,7 +658,7 @@
         </div>
         <div class="contact-item">
           <span>Phone / WhatsApp</span>
-          +94 70 000 0000
+          +94 71 795 3018
         </div>
         <div class="contact-item">
           <span>Email</span>
@@ -620,9 +696,7 @@
     function resolveTrackingPageUrl(clientId, username) {
       const params = new URLSearchParams({ client_id: clientId });
       if (username) params.set("username", username);
-      const isInsideChatbotFolder = /\/chatbot\//i.test(window.location.pathname);
-      const basePath = isInsideChatbotFolder ? "./order-tracking.html" : "./order-tracking.html";
-      return basePath + "?" + params.toString();
+      return "./order-tracking.html?" + params.toString();
     }
 
     const authPassRaw = sessionStorage.getItem("zenix_auth_pass");
@@ -645,6 +719,24 @@
 
     const ACTIVE_CLIENT_ID = String(authPass.client_id || "").trim().toUpperCase();
 
+    function resolveApiBase() {
+      const urlParam = new URLSearchParams(window.location.search).get("api");
+      if (urlParam && urlParam.trim()) return urlParam.trim().replace(/\/+$/, "");
+      if (window.ZENIX_API_BASE && String(window.ZENIX_API_BASE).trim()) {
+        return String(window.ZENIX_API_BASE).trim().replace(/\/+$/, "");
+      }
+      if (authPass.api_base && String(authPass.api_base).trim()) {
+        return String(authPass.api_base).trim().replace(/\/+$/, "");
+      }
+      const host = window.location.hostname;
+      if (host === "127.0.0.1" || host === "localhost") {
+        return "http://127.0.0.1:8000";
+      }
+      return "https://zenixz-ai.onrender.com";
+    }
+
+    const API_BASE = resolveApiBase();
+
     function syncClientLinks() {
       const targetUrl = resolveTrackingPageUrl(
         ACTIVE_CLIENT_ID,
@@ -666,45 +758,17 @@
     document.getElementById("metaClientId").textContent = ACTIVE_CLIENT_ID;
     document.getElementById("metaEmail").textContent =
       authPass.email || authPass.user_email || authPass.client_email || "Verified Session";
-    document.getElementById("metaLastIp").textContent = authPass.last_login_ip || "-";
+    document.getElementById("metaApiBase").textContent = API_BASE;
     document.getElementById("metaExpiry").textContent = authPass.expires_at
       ? new Date(Number(authPass.expires_at)).toLocaleString()
       : "-";
 
-    const FALLBACK_DATA = {
-      sync_meta: {
-        schedule: "Live Firebase Firestore Sync",
-        propagation_note: "Controlled via Firebase Firestore.",
-        last_synced_at: "-"
-      },
-      plans: {
-        credits_50: {
-          conversations_limit: 50,
-          file_storage_limit_mb: 50,
-          vector_db_limit_mb: 50,
-          table_rows_limit: 500
-        },
-        credits_100: {
-          conversations_limit: 100,
-          file_storage_limit_mb: 100,
-          vector_db_limit_mb: 100,
-          table_rows_limit: 1000
-        },
-        credits_10000: {
-          conversations_limit: 10000,
-          file_storage_limit_mb: 10000,
-          vector_db_limit_mb: 10000,
-          table_rows_limit: 10000
-        }
-      },
-      clients: {}
-    };
-
-    let currentDataset = FALLBACK_DATA;
+    let currentDataset = { clients: {} };
     let isPlanActive = false;
     let clientTodayOrders = [];
     let clientAllOrders = [];
     let shownExpiryWarningKey = null;
+    let kbInitialized = false;
 
     const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -712,6 +776,14 @@
     const noPlanBox = document.getElementById("noPlanBox");
     const last3DaysBanner = document.getElementById("last3DaysBanner");
     const planStatusBadge = document.getElementById("planStatusBadge");
+    const embedSection = document.getElementById("embedSection");
+    const embedClientIdLabel = document.getElementById("embedClientIdLabel");
+    const embedCodeBox = document.getElementById("embedCodeBox");
+    const copyEmbedBtn = document.getElementById("copyEmbedBtn");
+    const copyEmbedStatus = document.getElementById("copyEmbedStatus");
+    const orderTrackingBtn = document.getElementById("orderTrackingBtn");
+    const fullOrderTrackingLink = document.getElementById("fullOrderTrackingLink");
+    const panelFullTrackingLink = document.getElementById("panelFullTrackingLink");
     const trackingPanel = document.getElementById("orderTrackingPanel");
     const trackingHeading = document.getElementById("trackingHeading");
     const trackingOrdersBody = document.getElementById("trackingOrdersBody");
@@ -719,15 +791,52 @@
     const orderDetailPanel = document.getElementById("orderDetailPanel");
     const orderDetailGrid = document.getElementById("orderDetailGrid");
     const orderProofContainer = document.getElementById("orderProofContainer");
+    const kbInput = document.getElementById("kbInput");
+    const outputWebhookInput = document.getElementById("outputWebhookInput");
+    const saveKbBtn = document.getElementById("saveKbBtn");
+    const kbStatus = document.getElementById("kbStatus");
+    const kbError = document.getElementById("kbError");
+
+    function buildEmbedSnippet(clientId, storeName) {
+      const safeName = String(storeName || clientId).replace(/"/g, "");
+      return (
+        `<script\n` +
+        `  src="${API_BASE}/../chatbot/app.js"\n` +
+        `  data-api-base="${API_BASE}"\n` +
+        `  data-client-id="${clientId}"\n` +
+        `  data-client-name="${safeName}"\n` +
+        `  defer\n` +
+        `></` + `script>`
+     );
+   }
+
+    function applyPlanAccessLock(active, storeName) {
+      embedSection.style.display = active ? "block" : "none";
+      if (active) {
+        embedClientIdLabel.textContent = ACTIVE_CLIENT_ID;
+        embedCodeBox.textContent = buildEmbedSnippet(ACTIVE_CLIENT_ID, storeName);
+      } else {
+        embedCodeBox.textContent = "";
+        copyEmbedStatus.textContent = "";
+        trackingPanel.style.display = "none";
+        orderDetailPanel.style.display = "none";
+      }
+
+      orderTrackingBtn.disabled = !active;
+      fullOrderTrackingLink.classList.toggle("disabled-link", !active);
+      panelFullTrackingLink.classList.toggle("disabled-link", !active);
+
+      saveKbBtn.disabled = !active;
+      kbInput.disabled = !active;
+      outputWebhookInput.disabled = !active;
+    }
 
     function getExpiryState(expiresAt) {
       if (!expiresAt) return { expired: false, inLast3Days: false, daysLeft: null };
       const targetMs = Date.parse(expiresAt);
       if (Number.isNaN(targetMs)) return { expired: false, inLast3Days: false, daysLeft: null };
       const diffMs = targetMs - Date.now();
-      if (diffMs <= 0) {
-        return { expired: true, inLast3Days: false, daysLeft: 0 };
-      }
+      if (diffMs <= 0) return { expired: true, inLast3Days: false, daysLeft: 0 };
       if (diffMs <= THREE_DAYS_MS) {
         const daysLeft = Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
         return { expired: false, inLast3Days: true, daysLeft };
@@ -746,113 +855,22 @@
         return { todayTop5: [], allClientOrders: [] };
       }
       const rawToday = Array.isArray(clientObj.orders_today) ? clientObj.orders_today : [];
-      const rawAll = Array.isArray(clientObj.orders)
-        ? clientObj.orders
-        : Array.isArray(clientObj.all_orders)
-        ? clientObj.all_orders
-        : rawToday;
+      const rawAll = Array.isArray(clientObj.orders) ? clientObj.orders : rawToday;
 
       const scopedToday = rawToday.filter((o) => {
-        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
-        return explicitCid ? explicitCid === ACTIVE_CLIENT_ID : true;
+        const cid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
+        return cid ? cid === ACTIVE_CLIENT_ID : true;
       });
-
       const scopedAll = rawAll.filter((o) => {
-        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
-        return explicitCid ? explicitCid === ACTIVE_CLIENT_ID : true;
-      });
-
-      const mergedMap = new Map();
-      scopedToday.forEach((o, idx) => {
-        const key = String((o && o.order_id) || "today_" + idx);
-        mergedMap.set(key, o);
-      });
-      scopedAll.forEach((o, idx) => {
-        const key = String((o && o.order_id) || "all_" + idx);
-        if (!mergedMap.has(key)) {
-          mergedMap.set(key, o);
-        }
+        const cid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
+        return cid ? cid === ACTIVE_CLIENT_ID : true;
       });
 
       return {
         todayTop5: scopedToday.slice(0, 5),
-        allClientOrders: Array.from(mergedMap.values())
+        allClientOrders: scopedAll
       };
     }
-
-    function resolveAgentMetrics(clientObj, agentObj) {
-      const plansMap = (currentDataset && currentDataset.plans) || {};
-      const planPreset = (clientObj && clientObj.plan && plansMap[clientObj.plan]) || {};
-
-      return {
-        conversations_used: Number(agentObj.conversations_used || 0),
-        conversations_limit: Number(
-          clientObj.conversations_limit ?? agentObj.conversations_limit ?? planPreset.conversations_limit ?? 0
-        ),
-        file_storage_mb: Number(agentObj.file_storage_mb || 0),
-        file_storage_limit_mb: Number(
-          clientObj.file_storage_limit_mb ?? agentObj.file_storage_limit_mb ?? planPreset.file_storage_limit_mb ?? 0
-        ),
-        vector_db_mb: Number(agentObj.vector_db_mb || 0),
-        vector_db_limit_mb: Number(
-          clientObj.vector_db_limit_mb ?? agentObj.vector_db_limit_mb ?? planPreset.vector_db_limit_mb ?? 0
-        ),
-        table_rows_used: Number(agentObj.table_rows_used || 0),
-        table_rows_limit: Number(
-          clientObj.table_rows_limit ?? agentObj.table_rows_limit ?? planPreset.table_rows_limit ?? 0
-        )
-      };
-    }
-
-    <section class="card" id="knowledgeBaseSection" style="margin-top: 18px;">
-  <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; margin-bottom:14px;">
-    <div>
-      <h3 style="font-size:16px; margin-bottom:4px;">Knowledge Base & Embed Code</h3>
-      <div style="font-size:12px; color:var(--muted);">
-        Text, Links, සහ Files එකතු කර Save/Build කරන්න — එවිට ඔබේ Embed Code එක සෑදේ.
-      </div>
-    </div>
-    <span class="badge" id="kbStatusBadge">KB: Ready</span>
-  </div>
-
-  <div id="kbLockedNotice" style="display:none; padding:12px 14px; border-radius:10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); margin-bottom:14px; font-size:13px;">
-    Active Plan එකක් නොමැති බැවින් Knowledge Base edit කිරීම සහ Embed Code generate කිරීම තාවකාලිකව නවතා ඇත.
-  </div>
-
-  <div id="kbFormBody">
-    <div class="field">
-      <label for="kbTextInput">Knowledge Text (Products, FAQs, Delivery, Return Policy)</label>
-      <textarea id="kbTextInput" placeholder="ඔබගේ business එක ගැන විස්තර, මිල ගණන්, delivery rules, FAQs මෙහි ලියන්න..."></textarea>
-    </div>
-
-    <div class="field">
-      <label for="kbLinkInput">Add Reference Link (URL)</label>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <input id="kbLinkInput" type="url" placeholder="https://example.com/products" style="flex:1; min-width:220px;" />
-        <button class="btn-ghost" id="addKbLinkBtn" type="button">+ Add Link</button>
-      </div>
-      <div id="kbLinksList" style="margin-top:8px; display:flex; flex-direction:column; gap:6px; font-size:13px;"></div>
-    </div>
-
-    <div class="field">
-      <label for="kbFileInput">Upload Knowledge Files (.txt, .md, .csv, .json, .pdf)</label>
-      <input id="kbFileInput" type="file" multiple accept=".txt,.md,.csv,.json,.pdf" />
-      <div id="kbFilesList" style="margin-top:8px; font-size:12.5px; color:var(--muted);"></div>
-    </div>
-
-    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
-      <button class="btn" id="saveAndGenerateEmbedBtn" type="button">Save Knowledge & Generate Embed Code</button>
-      <button class="btn-ghost" id="copyEmbedBtn" type="button">Copy Embed Code</button>
-    </div>
-    <div class="ok-msg" id="kbSaveStatus"></div>
-
-    <div class="field" style="margin-top:14px;">
-      <label for="generatedEmbedCode">Generated Embed Code (Copy & Paste into your Website / WordPress)</label>
-      <textarea id="generatedEmbedCode" readonly style="min-height:92px; font-family:monospace; font-size:12px;"></textarea>
-    </div>
-  </div>
-</section>
-
 
     function setBar(el, used, limit) {
       const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
@@ -860,44 +878,11 @@
       el.classList.toggle("warn", pct >= 80);
     }
 
-    function sumAgents(clientObj) {
-      const agents = (clientObj && clientObj.agents) || {};
-      const entries = Object.values(agents);
-      const totals = entries.reduce(
-        (acc, rawAg) => {
-          const a = resolveAgentMetrics(clientObj, rawAg);
-          acc.conversations_used += a.conversations_used;
-          acc.file_storage_mb += a.file_storage_mb;
-          acc.vector_db_mb += a.vector_db_mb;
-          acc.table_rows_used += a.table_rows_used;
-          return acc;
-        },
-        {
-          conversations_used: 0,
-          file_storage_mb: 0,
-          vector_db_mb: 0,
-          table_rows_used: 0
-        }
-      );
-
-      const plansMap = (currentDataset && currentDataset.plans) || {};
-      const planPreset = (clientObj && clientObj.plan && plansMap[clientObj.plan]) || {};
-
-      return {
-        conversations_used: totals.conversations_used,
-        conversations_limit: Number(clientObj.conversations_limit ?? planPreset.conversations_limit ?? 0),
-        file_storage_mb: totals.file_storage_mb,
-        file_storage_limit_mb: Number(clientObj.file_storage_limit_mb ?? planPreset.file_storage_limit_mb ?? 0),
-        vector_db_mb: totals.vector_db_mb,
-        vector_db_limit_mb: Number(clientObj.vector_db_limit_mb ?? planPreset.vector_db_limit_mb ?? 0),
-        table_rows_used: totals.table_rows_used,
-        table_rows_limit: Number(clientObj.table_rows_limit ?? planPreset.table_rows_limit ?? 0)
-      };
-    }
-
     function renderStats(m, label) {
       const convUsed = Number(m.conversations_used || 0);
       const convLimit = Number(m.conversations_limit || 0);
+      const aiCredits = Number(m.ai_credits || 0);
+      const aiUsed = Number(m.ai_credits_used || 0);
       const fileUsed = Number(m.file_storage_mb || 0);
       const fileLimit = Number(m.file_storage_limit_mb || 0);
       const vecUsed = Number(m.vector_db_mb || 0);
@@ -909,6 +894,11 @@
       document.getElementById("convVal").textContent = convUsed + " / " + convLimit;
       document.getElementById("convRem").textContent = "Remaining: " + Math.max(0, convLimit - convUsed);
       setBar(document.getElementById("convBar"), convUsed, convLimit);
+
+      document.getElementById("creditVal").textContent = String(aiCredits);
+      document.getElementById("creditUsedSub").textContent = "Used: " + aiUsed;
+      const creditTotal = Math.max(1, aiCredits + aiUsed);
+      setBar(document.getElementById("creditBar"), aiUsed, creditTotal);
 
       document.getElementById("fileVal").textContent = fileUsed + " / " + fileLimit + " MB";
       document.getElementById("fileRem").textContent = "Remaining: " + Math.max(0, fileLimit - fileUsed) + " MB";
@@ -946,30 +936,25 @@
       const qDigits = normalizeDigits(rawQuery);
 
       if (!q) {
-        trackingHeading.textContent = "Order Tracking (" + ACTIVE_CLIENT_ID + " — Today's Orders Max 5)";
+        trackingHeading.textContent = "Order Tracking (" + ACTIVE_CLIENT_ID + " — Recent Orders Max 5)";
         return clientTodayOrders.slice(0, 5);
       }
 
       trackingHeading.textContent = "Order Tracking — Search Results (" + ACTIVE_CLIENT_ID + ")";
       return clientAllOrders.filter((o) => {
-        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
-        if (explicitCid && explicitCid !== ACTIVE_CLIENT_ID) return false;
-
+        const cid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
+        if (cid && cid !== ACTIVE_CLIENT_ID) return false;
         const oid = String((o && o.order_id) || "").toLowerCase();
         const phone = String((o && o.phone) || "").toLowerCase();
         const phoneDigits = normalizeDigits((o && o.phone) || "");
-
-        const idMatch = oid.includes(q);
-        const phoneTextMatch = phone.includes(q);
-        const phoneDigitMatch = qDigits.length >= 3 && phoneDigits.includes(qDigits);
-        return idMatch || phoneTextMatch || phoneDigitMatch;
+        return oid.includes(q) || phone.includes(q) || (qDigits.length >= 3 && phoneDigits.includes(qDigits));
       });
     }
 
     function showOrderDetail(order) {
       if (!order || !isPlanActive) return;
-      const explicitCid = String((order.client_id ?? order.clientId) || "").trim().toUpperCase();
-      if (explicitCid && explicitCid !== ACTIVE_CLIENT_ID) return;
+      const cid = String((order.client_id ?? order.clientId) || "").trim().toUpperCase();
+      if (cid && cid !== ACTIVE_CLIENT_ID) return;
 
       document.getElementById("detailTitle").textContent =
         "Customer & Order Details — " + escapeHtml(order.order_id || "-");
@@ -978,32 +963,21 @@
         '<div class="detail-box"><span>Order ID</span><strong>' + escapeHtml(order.order_id || "-") + '</strong></div>' +
         '<div class="detail-box"><span>Customer Name</span><strong>' + escapeHtml(order.customer_name || "-") + '</strong></div>' +
         '<div class="detail-box"><span>Phone Number</span><strong>' + escapeHtml(order.phone || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Address</span><strong>' + escapeHtml(order.address || "-") + '</strong></div>' +
         '<div class="detail-box"><span>Item</span><strong>' + escapeHtml(order.item || "-") + '</strong></div>' +
         '<div class="detail-box"><span>Quantity</span><strong>' + escapeHtml(order.quantity ?? 1) + '</strong></div>' +
         '<div class="detail-box"><span>Payment Method</span><strong>' + escapeHtml(order.payment_method || "-") + '</strong></div>' +
-        '<div class="detail-box"><span>Status</span><strong>' + escapeHtml(order.status || "Pending") + '</strong></div>' +
-        '<div class="detail-box"><span>Created At</span><strong>' + escapeHtml(order.created_at || "-") + '</strong></div>';
+        '<div class="detail-box"><span>Status</span><strong>' + escapeHtml(order.status || "Pending") + '</strong></div>';
 
-      const proof = String(order.payment_proof || order.payment_proof_url || order.payment_proof_name || "").trim();
+      const proof = String(order.payment_proof || "").trim();
       if (!proof) {
-        orderProofContainer.innerHTML =
-          '<div class="detail-box"><span>Payment Proof</span><strong>No proof attached</strong></div>';
-      } else if (
-        proof.startsWith("http://") ||
-        proof.startsWith("https://") ||
-        proof.startsWith("/") ||
-        proof.startsWith("data:image/")
-      ) {
+        orderProofContainer.innerHTML = '<div class="detail-box"><span>Payment Proof</span><strong>No proof attached</strong></div>';
+      } else if (proof.startsWith("http://") || proof.startsWith("https://") || proof.startsWith("data:image/")) {
         const safeProof = escapeHtml(proof);
         orderProofContainer.innerHTML =
-          '<div class="detail-box">' +
-          '<span>Payment Proof</span>' +
-          '<a href="' + safeProof + '" target="_blank" rel="noopener noreferrer" style="font-size:12px;color:var(--accent);display:inline-block;margin-bottom:8px;">Open Full Proof</a><br/>' +
-          '<img src="' + safeProof + '" alt="Payment Proof" style="max-width:280px;max-height:240px;border-radius:8px;border:1px solid var(--border);" />' +
-          '</div>';
+          '<div class="detail-box"><span>Payment Proof</span><img src="' + safeProof + '" alt="Payment Proof" style="max-width:260px;border-radius:8px;" /></div>';
       } else {
-        orderProofContainer.innerHTML =
-          '<div class="detail-box"><span>Payment Proof</span><strong>' + escapeHtml(proof) + '</strong></div>';
+        orderProofContainer.innerHTML = '<div class="detail-box"><span>Payment Proof</span><strong>' + escapeHtml(proof) + '</strong></div>';
       }
 
       orderDetailPanel.style.display = "block";
@@ -1011,15 +985,12 @@
 
     function renderOrdersTable(rows) {
       trackingOrdersBody.innerHTML = "";
-      if (!isPlanActive || !Array.isArray(rows) || rows.length === 0) {
-        return;
-      }
+      if (!isPlanActive || !Array.isArray(rows) || rows.length === 0) return;
       rows.forEach((o) => {
-        const explicitCid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
-        if (explicitCid && explicitCid !== ACTIVE_CLIENT_ID) return;
+        const cid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
+        if (cid && cid !== ACTIVE_CLIENT_ID) return;
 
         const tr = document.createElement("tr");
-
         const tdId = document.createElement("td");
         const btn = document.createElement("button");
         btn.type = "button";
@@ -1041,19 +1012,18 @@
     }
 
     function renderDashboard() {
-      const meta = currentDataset.sync_meta || {};
       document.getElementById("lastSyncedLabel").textContent =
-        "Last Synced: " + (meta.last_synced_at || new Date().toLocaleTimeString()) + " (Firebase Firestore)";
+        "Last Synced: " + new Date().toLocaleTimeString();
 
-      const clientsMap = currentDataset.clients || {};
-      const clientData = clientsMap[ACTIVE_CLIENT_ID] || null;
-
-      if (clientData && clientData.last_login_ip) {
-        document.getElementById("metaLastIp").textContent = clientData.last_login_ip;
-      }
-
+      const clientData = (currentDataset.clients && currentDataset.clients[ACTIVE_CLIENT_ID]) || null;
       const expState = getExpiryState(clientData && clientData.expires_at);
       isPlanActive = isClientPlanActive(clientData);
+
+      const storeTitleText = (clientData && clientData.store_name) || (ACTIVE_CLIENT_ID + " Store");
+      document.getElementById("storeTitle").textContent = storeTitleText;
+      document.getElementById("clientBadge").textContent = "ID: " + ACTIVE_CLIENT_ID;
+
+      applyPlanAccessLock(isPlanActive, storeTitleText);
 
       const scoped = isPlanActive
         ? extractScopedClientOrders(clientData)
@@ -1062,29 +1032,29 @@
       clientTodayOrders = scoped.todayTop5;
       clientAllOrders = scoped.allClientOrders;
 
-      document.getElementById("storeTitle").textContent =
-        (clientData && clientData.store_name) || (ACTIVE_CLIENT_ID + " Store");
-      document.getElementById("clientBadge").textContent = "ID: " + ACTIVE_CLIENT_ID;
+      if (clientData && !kbInitialized) {
+        kbInput.value = clientData.knowledge_base || "";
+        outputWebhookInput.value = clientData.output_webhook_url || "";
+        kbInitialized = true;
+      }
 
       if (!isPlanActive) {
         last3DaysBanner.style.display = "none";
-        orderDetailPanel.style.display = "none";
         planStatusBadge.textContent = expState.expired ? "Plan: Expired" : "Plan: Inactive";
         noPlanBox.style.display = "block";
         agentSelect.innerHTML = '<option value="__none__">No Active Plan</option>';
-        renderStats(
-          {
-            conversations_used: 0,
-            conversations_limit: 0,
-            file_storage_mb: 0,
-            file_storage_limit_mb: 0,
-            vector_db_mb: 0,
-            vector_db_limit_mb: 0,
-            table_rows_used: 0,
-            table_rows_limit: 0
-          },
-          "No Active Plan"
-        );
+        renderStats({
+          conversations_used: 0,
+          conversations_limit: 0,
+          ai_credits: 0,
+          ai_credits_used: 0,
+          file_storage_mb: 0,
+          file_storage_limit_mb: 0,
+          vector_db_mb: 0,
+          vector_db_limit_mb: 0,
+          table_rows_used: 0,
+          table_rows_limit: 0
+        }, "No Active Plan");
         renderOrdersTable([]);
         return;
       }
@@ -1105,143 +1075,140 @@
         last3DaysBanner.style.display = "none";
       }
 
-      const prev = agentSelect.value || "__all__";
-      agentSelect.innerHTML = '<option value="__all__">All Agents (Total)</option>';
-      for (const [key, ag] of Object.entries(clientData.agents || {})) {
-        const opt = document.createElement("option");
-        opt.value = key;
-        opt.textContent = ag.label || key;
-        agentSelect.appendChild(opt);
-      }
-
-      if ([...agentSelect.options].some((o) => o.value === prev)) {
-        agentSelect.value = prev;
-      }
-
-      if (agentSelect.value === "__all__") {
-        renderStats(sumAgents(clientData), "All Agents (Total)");
-      } else {
-        const selectedRaw = clientData.agents && clientData.agents[agentSelect.value];
-        if (selectedRaw) {
-          renderStats(
-            resolveAgentMetrics(clientData, selectedRaw),
-            selectedRaw.label || agentSelect.value
-          );
-        } else {
-          renderStats(sumAgents(clientData), "All Agents (Total)");
-        }
-      }
+      agentSelect.innerHTML = '<option value="bot_1">Main Order Agent</option>';
+      renderStats({
+        conversations_used: clientData.conversations_used || 0,
+        conversations_limit: clientData.conversations_limit || 0,
+        ai_credits: clientData.ai_credits || 0,
+        ai_credits_used: clientData.ai_credits_used || 0,
+        file_storage_mb: clientData.file_storage_mb || 0,
+        file_storage_limit_mb: clientData.file_storage_limit_mb || 0,
+        vector_db_mb: clientData.vector_db_mb || 0,
+        vector_db_limit_mb: clientData.vector_db_limit_mb || 0,
+        table_rows_used: clientData.table_rows_used || 0,
+        table_rows_limit: clientData.table_rows_limit || 0
+      }, "Main Order Agent");
 
       if (trackingPanel.style.display === "block") {
-        const matches = searchClientOrders(trackOrderIdInput.value);
-        renderOrdersTable(matches);
-        if (matches.length === 1 && trackOrderIdInput.value.trim()) {
-          showOrderDetail(matches[0]);
-        }
+        renderOrdersTable(searchClientOrders(trackOrderIdInput.value));
       }
     }
 
     async function loadFirestoreClientData() {
-      const baseDoc = {
-        sync_meta: Object.assign({}, FALLBACK_DATA.sync_meta, {
-          last_synced_at: new Date().toLocaleTimeString()
-        }),
-        plans: Object.assign({}, FALLBACK_DATA.plans),
-        clients: {}
+      const token = String(authPass.token || "").trim();
+      const clientRecord = {
+        client_id: ACTIVE_CLIENT_ID,
+        store_name: authPass.store_name || (ACTIVE_CLIENT_ID + " Store"),
+        plan_active: false,
+        conversations_used: 0,
+        conversations_limit: 0,
+        ai_credits: 0,
+        ai_credits_used: 0,
+        knowledge_base: "",
+        output_webhook_url: "",
+        orders: [],
+        orders_today: []
       };
 
-      const apiBase = String(window.ZENIX_API_BASE || authPass.api_base || "https://zenixz-ai.onrender.com").replace(/\/+$/, "");
-      const token = String(authPass.token || "").trim();
-
-      if (apiBase && token) {
+      if (API_BASE && token) {
         try {
           const headers = { "Authorization": "Bearer " + token };
           const dashRes = await fetch(
-            apiBase + "/api/my/dashboard?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID),
+            API_BASE + "/api/my/dashboard?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID),
             { headers, cache: "no-store" }
           );
           if (dashRes.ok) {
             const dashJson = await dashRes.json();
-            const strictPlanActive =
-              typeof dashJson.plan_active === "boolean"
-                ? dashJson.plan_active === true
-                : false;
-
-            const clientRecord = Object.assign({}, dashJson.client || {}, {
-              client_id: ACTIVE_CLIENT_ID,
-              store_name: dashJson.store_name || (ACTIVE_CLIENT_ID + " Store"),
-              email: dashJson.email || authPass.email || "",
-              last_login_ip: dashJson.last_login_ip || authPass.last_login_ip || "-",
-              plan: dashJson.plan === "No Active Plan" ? null : (dashJson.plan ?? null),
-              plan_active: strictPlanActive,
+            Object.assign(clientRecord, {
+              store_name: dashJson.store_name || clientRecord.store_name,
+              plan_active: dashJson.plan_active === true,
               expires_at: dashJson.expires_at ?? null,
-              conversations_limit: dashJson.conversations_limit ?? (dashJson.client && dashJson.client.conversations_limit) ?? 0,
-              file_storage_limit_mb: dashJson.file_storage_limit_mb ?? (dashJson.client && dashJson.client.file_storage_limit_mb) ?? 0,
-              vector_db_limit_mb: dashJson.vector_db_limit_mb ?? (dashJson.client && dashJson.client.vector_db_limit_mb) ?? 0,
-              table_rows_limit: dashJson.table_rows_limit ?? (dashJson.client && dashJson.client.table_rows_limit) ?? 0,
-              agents: dashJson.agents || {
-                bot_1: {
-                  label: "Main Order Agent",
-                  conversations_used: 0,
-                  file_storage_mb: 0,
-                  vector_db_mb: 0,
-                  table_rows_used: 0
-                }
-              },
-              orders_today: []
+              conversations_used: Number(dashJson.conversations_used || 0),
+              conversations_limit: Number(dashJson.conversations_limit || 0),
+              ai_credits: Number(dashJson.ai_credits || 0),
+              ai_credits_used: Number(dashJson.ai_credits_used || 0),
+              knowledge_base: dashJson.knowledge_base || "",
+              output_webhook_url: dashJson.output_webhook_url || ""
             });
 
-            const ordersRes = await fetch(
-              apiBase + "/api/my/orders?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID),
-              { headers, cache: "no-store" }
-            );
-            if (ordersRes.ok) {
-              const ordersJson = await ordersRes.json();
-              const scopedOrders = Array.isArray(ordersJson.orders)
-                ? ordersJson.orders.filter(
-                    (o) => String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase() === ACTIVE_CLIENT_ID
-                  )
-                : [];
-              clientRecord.orders = scopedOrders;
-              clientRecord.orders_today = scopedOrders.slice(0, 5);
+            if (clientRecord.plan_active) {
+              const ordersRes = await fetch(
+                API_BASE + "/api/my/orders?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID),
+                { headers, cache: "no-store" }
+              );
+              if (ordersRes.ok) {
+                const ordersJson = await ordersRes.json();
+                const scoped = Array.isArray(ordersJson.orders)
+                  ? ordersJson.orders.filter(
+                      (o) => String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase() === ACTIVE_CLIENT_ID
+                    )
+                  : [];
+                clientRecord.orders = scoped;
+                clientRecord.orders_today = scoped.slice(0, 5);
+              }
             }
-
-            baseDoc.clients[ACTIVE_CLIENT_ID] = clientRecord;
           }
         } catch {}
       }
 
-      if (!baseDoc.clients[ACTIVE_CLIENT_ID]) {
-        baseDoc.clients[ACTIVE_CLIENT_ID] = {
-          client_id: ACTIVE_CLIENT_ID,
-          store_name: authPass.store_name || (ACTIVE_CLIENT_ID + " Store"),
-          plan: null,
-          plan_active: false,
-          expires_at: null,
-          agents: {
-            bot_1: {
-              label: "Main Order Agent",
-              conversations_used: 0,
-              file_storage_mb: 0,
-              vector_db_mb: 0,
-              table_rows_used: 0
-            }
-          },
-          orders_today: []
-        };
-      }
-
-      currentDataset = baseDoc;
+      currentDataset = { clients: { [ACTIVE_CLIENT_ID]: clientRecord } };
       renderDashboard();
     }
 
-    document.getElementById("orderTrackingBtn").addEventListener("click", () => {
+    copyEmbedBtn.addEventListener("click", async () => {
+      if (!isPlanActive || !embedCodeBox.textContent) return;
+      try {
+        await navigator.clipboard.writeText(embedCodeBox.textContent);
+        copyEmbedStatus.textContent = "Embed HTML copied!";
+      } catch {
+        copyEmbedStatus.textContent = "Select and copy manually.";
+      }
+    });
+
+    document.getElementById("kbForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      kbStatus.textContent = "";
+      kbError.textContent = "";
+
+      if (!isPlanActive) {
+        kbError.textContent = "Plan එක Active නොමැති බැවින් Knowledge Base save කළ නොහැක.";
+        return;
+      }
+
+      const token = String(authPass.token || "").trim();
+      saveKbBtn.disabled = true;
+      try {
+        const res = await fetch(API_BASE + "/api/client/knowledge", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({
+            client_id: ACTIVE_CLIENT_ID,
+            knowledge_base: kbInput.value.trim(),
+            output_webhook_url: outputWebhookInput.value.trim()
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || "Failed to save knowledge base");
+        }
+        kbStatus.textContent = "Knowledge Base සාර්ථකව save වුණා (" + ACTIVE_CLIENT_ID + ").";
+        await loadFirestoreClientData();
+      } catch (err) {
+        kbError.textContent = err.message || "Error saving knowledge base";
+      } finally {
+        saveKbBtn.disabled = !isPlanActive;
+      }
+    });
+
+    orderTrackingBtn.addEventListener("click", () => {
+      if (!isPlanActive) return;
       const nextOpen = trackingPanel.style.display !== "block";
       trackingPanel.style.display = nextOpen ? "block" : "none";
-      if (!nextOpen) {
-        orderDetailPanel.style.display = "none";
-      }
-      renderOrdersTable(nextOpen && isPlanActive ? searchClientOrders(trackOrderIdInput.value) : []);
+      if (!nextOpen) orderDetailPanel.style.display = "none";
+      renderOrdersTable(nextOpen ? searchClientOrders(trackOrderIdInput.value) : []);
     });
 
     function runOrderSearch() {
@@ -1270,7 +1237,7 @@
     document.getElementById("trackResetBtn").addEventListener("click", () => {
       trackOrderIdInput.value = "";
       orderDetailPanel.style.display = "none";
-      trackingHeading.textContent = "Order Tracking (" + ACTIVE_CLIENT_ID + " — Today's Orders Max 5)";
+      trackingHeading.textContent = "Order Tracking (" + ACTIVE_CLIENT_ID + " — Recent Orders Max 5)";
       renderOrdersTable(isPlanActive ? clientTodayOrders.slice(0, 5) : []);
     });
 
@@ -1278,7 +1245,6 @@
       orderDetailPanel.style.display = "none";
     });
 
-    agentSelect.addEventListener("change", renderDashboard);
     document.getElementById("refreshBtn").addEventListener("click", loadFirestoreClientData);
 
     document.getElementById("logoutBtn").addEventListener("click", () => {

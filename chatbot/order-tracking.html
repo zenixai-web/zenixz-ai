@@ -1,780 +1,675 @@
 <!DOCTYPE html>
-<html lang="si">
+<html lang="si" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Order Tracking — Zenix AI</title>
+  <link rel="icon" type="image/png" href="Logo 3.png">
+  <title>Zenix AI — Order Tracking</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; }
-    body {
+    :root {
+      --bg: #0b1020;
+      --panel: #131b33;
+      --panel-2: #192444;
+      --text: #eef2ff;
+      --muted: #9aa7cc;
+      --accent: #4f7cff;
+      --accent-2: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: rgba(255, 255, 255, 0.1);
+      --font-sans: "Google Sans", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    html[data-theme="light"] {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --panel-2: #eef2f8;
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #2563eb;
+      --accent-2: #16a34a;
+      --warn: #d97706;
+      --danger: #dc2626;
+      --border: rgba(15, 23, 42, 0.12);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
       margin: 0;
-      font-family: "Google Sans", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0b1120;
-      color: #f8fafc;
-      padding: 24px;
+      padding: 0;
+      font-family: var(--font-sans);
     }
-    .wrap {
-      max-width: 1180px;
-      margin: 0 auto;
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      transition: background-color 0.2s ease, color 0.2s ease;
     }
-    .top-bar {
+
+    .topbar {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
       display: flex;
       flex-wrap: wrap;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
       gap: 12px;
-      margin-bottom: 14px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
     }
-    .title-group {
+
+    .brand-group {
       display: flex;
       align-items: center;
       gap: 10px;
       flex-wrap: wrap;
     }
-    h1 {
-      margin: 0;
-      font-size: 20px;
-      color: #f8fafc;
+
+    .page-title {
+      font-size: 18px;
       font-weight: 700;
     }
-    .client-pill {
-      background: rgba(59, 130, 246, 0.16);
-      color: #93c5fd;
-      border: 1px solid rgba(59, 130, 246, 0.35);
+
+    .badge {
+      background: rgba(79, 124, 255, 0.16);
+      color: var(--accent);
+      border: 1px solid rgba(79, 124, 255, 0.35);
       padding: 4px 10px;
       border-radius: 999px;
       font-size: 12px;
       font-weight: 600;
     }
-    .actions-group {
+
+    .controls-group {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 8px;
     }
-    .back-btn {
-      background: #1e293b;
-      color: #f8fafc;
-      border: 1px solid #334155;
-      border-radius: 10px;
-      padding: 8px 13px;
-      font-size: 13px;
-      font-weight: 600;
+
+    input,
+    button,
+    a.btn-link {
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      font-size: 14px;
+      font-family: var(--font-sans);
+    }
+
+    a.btn-link {
       text-decoration: none;
       display: inline-flex;
       align-items: center;
       gap: 6px;
+    }
+
+    .btn {
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      padding: 9px 14px;
+      font-weight: 600;
       cursor: pointer;
     }
-    .back-btn:hover {
-      border-color: #60a5fa;
-      color: #93c5fd;
+
+    .btn:hover {
+      opacity: 0.92;
     }
-    .search-input {
-      background: #111827;
-      color: #f8fafc;
-      border: 1px solid #334155;
-      border-radius: 10px;
-      padding: 9px 13px;
-      min-width: 260px;
-      font-size: 13.5px;
-      outline: none;
+
+    .btn-ghost {
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 500;
     }
-    .search-input:focus {
-      border-color: #3b82f6;
+
+    .btn-ghost:hover {
+      border-color: var(--accent);
     }
-    .retention-note {
-      background: rgba(59, 130, 246, 0.08);
-      border: 1px solid rgba(59, 130, 246, 0.25);
-      color: #cbd5e1;
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-size: 12.5px;
-      margin-bottom: 16px;
+
+    .container {
+      max-width: 1160px;
+      margin: 22px auto;
+      padding: 0 20px 44px;
     }
-    .table-card {
-      background: #111827;
-      border: 1px solid #1f2937;
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
       border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+
+    .info-banner {
+      background: rgba(79, 124, 255, 0.1);
+      border: 1px solid rgba(79, 124, 255, 0.28);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--text);
+      margin-bottom: 16px;
+      line-height: 1.55;
+    }
+
+    .blocked-box {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.38);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      display: none;
+      line-height: 1.6;
+    }
+
+    .blocked-box strong {
+      display: block;
+      color: var(--danger);
+      margin-bottom: 4px;
+    }
+
+    .search-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .search-inputs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .search-inputs input {
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 9px 12px;
+      min-width: 260px;
+      flex: 1;
+      max-width: 420px;
+    }
+
+    .meta-line {
+      font-size: 12.5px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .table-wrap {
       overflow-x: auto;
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 920px;
-    }
-    th, td {
-      padding: 12px 14px;
-      text-align: left;
-      border-bottom: 1px solid #1f2937;
-      font-size: 13.5px;
-      vertical-align: middle;
-    }
-    th {
-      background: #0f172a;
-      color: #93c5fd;
-      font-weight: 600;
-    }
-    tr:hover {
-      background: rgba(59, 130, 246, 0.06);
-    }
-    .empty-row {
-      text-align: center;
-      color: #94a3b8;
-      padding: 24px 14px;
-    }
-    .proof-actions {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .view-proof-btn {
-      background: #2563eb;
-      color: #ffffff;
-      border: none;
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 12.5px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .view-proof-btn:hover {
-      background: #1d4ed8;
-    }
-    .download-proof-btn {
-      background: #1e293b;
-      color: #f8fafc;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      width: 30px;
-      height: 30px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      padding: 0;
-    }
-    .download-proof-btn:hover {
-      background: #334155;
-      border-color: #60a5fa;
-      color: #93c5fd;
+      font-size: 13px;
     }
 
-    .proof-modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(2, 6, 23, 0.78);
-      z-index: 9999;
-      align-items: center;
-      justify-content: center;
+    th,
+    td {
+      text-align: left;
+      padding: 10px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .empty-row {
+      text-align: center;
+      color: var(--muted);
+      padding: 20px 10px;
+    }
+
+    .order-link-btn {
+      background: rgba(79, 124, 255, 0.14);
+      color: var(--accent);
+      border: 1px solid rgba(79, 124, 255, 0.35);
+      border-radius: 7px;
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .order-link-btn:hover {
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .status-pill {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 600;
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--accent-2);
+    }
+
+    .detail-card {
+      margin-top: 16px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
       padding: 16px;
+      display: none;
     }
-    .proof-modal-overlay.open {
-      display: flex;
-    }
-    .proof-modal-box {
-      width: 100%;
-      max-width: 720px;
-      max-height: 88vh;
-      background: #111827;
-      border: 1px solid #334155;
-      border-radius: 14px;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
-    }
-    .proof-modal-header {
+
+    .detail-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 16px;
-      background: #0f172a;
-      border-bottom: 1px solid #1f2937;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
       gap: 12px;
+      font-size: 13px;
     }
-    .proof-modal-title {
+
+    .detail-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .detail-box span {
+      display: block;
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .detail-box strong {
       font-size: 14px;
-      font-weight: 700;
-      color: #f1f5f9;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .proof-close-btn {
-      background: #ef4444;
-      color: #ffffff;
-      border: none;
-      border-radius: 8px;
-      width: 32px;
-      height: 32px;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-    .proof-close-btn:hover {
-      background: #dc2626;
-    }
-    .proof-modal-body {
-      padding: 16px;
-      overflow: auto;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background: #0b1120;
-      min-height: 260px;
-    }
-    .proof-preview-img {
-      max-width: 100%;
-      max-height: 70vh;
-      border-radius: 10px;
-      object-fit: contain;
-      border: 1px solid #1e293b;
-    }
-    .proof-preview-pdf {
-      width: 100%;
-      height: 70vh;
-      border: 1px solid #1e293b;
-      border-radius: 10px;
-      background: #ffffff;
-    }
-    .proof-empty {
-      color: #cbd5e1;
-      font-size: 13.5px;
-      text-align: center;
+      word-break: break-word;
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="top-bar">
-      <div class="title-group">
-        <h1>Orders Tracking</h1>
-        <span class="client-pill" id="activeClientBadge">Client: -</span>
-      </div>
-      <div class="actions-group">
-        <a class="back-btn" id="backToDashboardLink" href="../dashboard.html">← Dashboard</a>
-        <input
-          id="orderSearchInput"
-          class="search-input"
-          type="text"
-          placeholder="Search Order ID or Phone..."
-        />
-      </div>
+  <header class="topbar">
+    <div class="brand-group">
+      <span class="page-title">Order Tracking</span>
+      <span class="badge" id="clientBadge">ID: -</span>
+      <span class="badge" id="countBadge">Orders: 0</span>
     </div>
 
-    <div class="retention-note">
-      <strong>24-Hour Live Record Notice:</strong>
-      මෙහි පෙන්වන්නේ ඔබගේ Client Account එකට අදාළ පසුගිය <strong>පැය 24 (24 Hours)</strong> ඇතුළත ලැබුණු Orders පමණි. පැය 24 ඉක්මවූ orders මෙතැනින් ස්වයංක්‍රීයව ඉවත් වන අතර, සියලුම සම්පූර්ණ වාර්තා Webhook මගින් Google Sheet වෙත යොමු කෙරේ.
+    <div class="controls-group">
+      <a class="btn-link btn-ghost" id="backDashboardLink" href="./dashboard.html">← Dashboard</a>
+      <button class="btn-ghost" id="themeBtn" type="button">☀️ Light</button>
+      <button class="btn-ghost" id="refreshBtn" type="button">↻ Refresh</button>
+      <button class="btn-ghost" id="logoutBtn" type="button">Logout</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="info-banner">
+      <strong>Client-Isolated Order Tracker:</strong>
+      ඔබගේ verified Client ID එකට පමණක් අදාළ orders මෙහි පෙන්වයි. Order ID හෝ Customer Phone Number මඟින් search කර සම්පූර්ණ විස්තර බලන්න.
     </div>
 
-    <div class="table-card">
-      <table>
-        <thead>
-          <tr>
-            <th>Order ID</th>
-            <th>Item</th>
-            <th>Quantity</th>
-            <th>Payment Method</th>
-            <th>Customer Name</th>
-            <th>Address</th>
-            <th>Phone</th>
-            <th>Payment Proof</th>
-          </tr>
-        </thead>
-        <tbody id="ordersTableBody"></tbody>
-      </table>
+    <div class="blocked-box" id="blockedBox">
+      <strong>Service Unavailable / Plan Inactive</strong>
+      ඔබගේ Plan එක Active නොමැති නම් හෝ session එක expire වී ඇත්නම් orders පෙන්වනු නොලැබේ. Dashboard එක හරහා Plan status පරීක්ෂා කරන්න.
     </div>
-  </div>
 
-  <div id="proofModal" class="proof-modal-overlay" role="dialog" aria-modal="true">
-    <div class="proof-modal-box">
-      <div class="proof-modal-header">
-        <div id="proofModalTitle" class="proof-modal-title">Payment Proof</div>
-        <button id="closeProofModalBtn" class="proof-close-btn" type="button" title="Close">✕</button>
+    <section class="card">
+      <div class="search-bar">
+        <div class="search-inputs">
+          <input
+            id="searchInput"
+            type="text"
+            placeholder="Order ID හෝ Phone Number search කරන්න (උදා: ORD-101 / 077...)"
+          />
+          <button class="btn" id="searchBtn" type="button">Search</button>
+          <button class="btn-ghost" id="resetBtn" type="button">Reset</button>
+        </div>
       </div>
-      <div id="proofModalBody" class="proof-modal-body"></div>
-    </div>
-  </div>
+
+      <div class="meta-line">
+        <span id="scopeText">Client Scope: -</span>
+        <span id="syncText">Last Updated: -</span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer Name</th>
+              <th>Phone</th>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Payment</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTbody">
+            <tr><td colspan="8" class="empty-row">Loading orders...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="detail-card" id="detailCard">
+        <div class="detail-header">
+          <h3 style="font-size: 15px;" id="detailTitle">Order Details</h3>
+          <button class="btn-ghost" id="closeDetailBtn" type="button">✕ Close</button>
+        </div>
+        <div class="detail-grid" id="detailGrid"></div>
+        <div id="proofBox" style="margin-top: 12px;"></div>
+      </div>
+    </section>
+  </main>
 
   <script>
-    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+    const THEME_KEY = "zenix_dashboard_theme";
+    const themeBtn = document.getElementById("themeBtn");
 
-    let parsedAuthSession = null;
+    function applyTheme(theme) {
+      const next = theme === "light" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem(THEME_KEY, next);
+      themeBtn.textContent = next === "light" ? "🌙 Dark" : "☀️ Light";
+    }
+
+    applyTheme(localStorage.getItem(THEME_KEY) || "dark");
+    themeBtn.addEventListener("click", () => {
+      const cur = document.documentElement.getAttribute("data-theme");
+      applyTheme(cur === "dark" ? "light" : "dark");
+    });
+
+    function resolveLoginUrl() {
+      return "./login.html";
+    }
+
+    const authRaw = sessionStorage.getItem("zenix_auth_pass");
+    if (!authRaw) {
+      window.location.replace(resolveLoginUrl());
+    }
+
+    let authPass = null;
     try {
-      const authRaw = sessionStorage.getItem("zenix_auth_pass");
-      if (authRaw) {
-        const p = JSON.parse(authRaw);
-        if (p && p.client_id && Date.now() <= Number(p.expires_at || 0)) {
-          parsedAuthSession = p;
-        }
+      authPass = JSON.parse(authRaw);
+    } catch {
+      sessionStorage.removeItem("zenix_auth_pass");
+      window.location.replace(resolveLoginUrl());
+    }
+
+    if (!authPass || !authPass.client_id || Date.now() > Number(authPass.expires_at || 0)) {
+      sessionStorage.removeItem("zenix_auth_pass");
+      window.location.replace(resolveLoginUrl());
+    }
+
+    const ACTIVE_CLIENT_ID = String(authPass.client_id || "").trim().toUpperCase();
+    const TOKEN = String(authPass.token || "").trim();
+
+    function resolveApiBase() {
+      const urlApi = new URLSearchParams(window.location.search).get("api");
+      if (urlApi && urlApi.trim()) return urlApi.trim().replace(/\/+$/, "");
+      if (window.ZENIX_API_BASE && String(window.ZENIX_API_BASE).trim()) {
+        return String(window.ZENIX_API_BASE).trim().replace(/\/+$/, "");
       }
-    } catch (_) {}
-
-    function resolveActiveClientId() {
-      const urlParams = new URLSearchParams(window.location.search || "");
-      const fromUrl = (urlParams.get("client_id") || "").trim().toUpperCase();
-      if (fromUrl) return fromUrl;
-
-      if (parsedAuthSession && parsedAuthSession.client_id) {
-        return String(parsedAuthSession.client_id).trim().toUpperCase();
+      if (authPass.api_base && String(authPass.api_base).trim()) {
+        return String(authPass.api_base).trim().replace(/\/+$/, "");
       }
-      return "";
-    }
-
-    const ACTIVE_CLIENT_ID = resolveActiveClientId();
-    document.getElementById("activeClientBadge").textContent =
-      ACTIVE_CLIENT_ID ? "Client: " + ACTIVE_CLIENT_ID : "Client: Unauthenticated";
-
-    const backLinkEl = document.getElementById("backToDashboardLink");
-    if (ACTIVE_CLIENT_ID && backLinkEl) {
-      backLinkEl.setAttribute("href", "../dashboard.html?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID));
-    }
-
-    if (!ACTIVE_CLIENT_ID) {
-      window.location.replace("../login.html");
-    }
-
-    const ordersTableBody = document.getElementById("ordersTableBody");
-    const orderSearchInput = document.getElementById("orderSearchInput");
-    const proofModal = document.getElementById("proofModal");
-    const proofModalTitle = document.getElementById("proofModalTitle");
-    const proofModalBody = document.getElementById("proofModalBody");
-    const closeProofModalBtn = document.getElementById("closeProofModalBtn");
-
-    let activePopupBlobUrl = null;
-
-    function isWithin24Hours(order) {
-      if (!order || typeof order !== "object") return false;
-      const rawTime = order.created_at || order.createdAt || order.timestamp || "";
-      if (!rawTime) return true;
-      const parsedMs = typeof rawTime === "number" ? rawTime : Date.parse(String(rawTime));
-      if (Number.isNaN(parsedMs)) return true;
-      return (Date.now() - parsedMs) <= TWENTY_FOUR_HOURS_MS;
-    }
-
-    function belongsToActiveClient(order) {
-      if (!order || typeof order !== "object" || !ACTIVE_CLIENT_ID) return false;
-      const cid = String(order.client_id ?? order.clientId ?? "").trim().toUpperCase();
-      return cid === ACTIVE_CLIENT_ID;
-    }
-
-    function getProofUrl(order) {
-      return (
-        order.payment_proof_data_url ||
-        order.paymentProofDataUrl ||
-        order.payment_proof_url ||
-        order.paymentProofUrl ||
-        order.attachment_url ||
-        order.attachmentUrl ||
-        order.payment_proof ||
-        order.paymentProof ||
-        order.proof_url ||
-        order.proofUrl ||
-        ""
-      );
-    }
-
-    function getProofFileName(order) {
-      return (
-        order.payment_proof_name ||
-        order.paymentProofName ||
-        order.slip_file ||
-        order.slipFile ||
-        ""
-      );
-    }
-
-    function isPdfProof(url, fileName) {
-      const u = String(url || "").toLowerCase();
-      const n = String(fileName || "").toLowerCase();
-      return (
-        u.startsWith("data:application/pdf") ||
-        u.endsWith(".pdf") ||
-        n.endsWith(".pdf")
-      );
-    }
-
-    function getProofExtension(url, fileName) {
-      const u = String(url || "").toLowerCase();
-      const n = String(fileName || "").toLowerCase();
-      if (
-        u.startsWith("data:application/pdf") ||
-        u.endsWith(".pdf") ||
-        n.endsWith(".pdf")
-      ) {
-        return ".pdf";
+      const host = window.location.hostname;
+      if (host === "127.0.0.1" || host === "localhost") {
+        return "http://127.0.0.1:8000";
       }
-      if (
-        u.startsWith("data:image/jpeg") ||
-        u.startsWith("data:image/jpg") ||
-        u.endsWith(".jpg") ||
-        u.endsWith(".jpeg") ||
-        n.endsWith(".jpg") ||
-        n.endsWith(".jpeg")
-      ) {
-        return ".jpg";
-      }
-      if (
-        u.startsWith("data:image/png") ||
-        u.endsWith(".png") ||
-        n.endsWith(".png")
-      ) {
-        return ".png";
-      }
-      const extMatch =
-        n.match(/\.(pdf|jpg|jpeg|png)$/i) ||
-        u.match(/\.(pdf|jpg|jpeg|png)(?:$|\?)/i);
-      if (extMatch) {
-        return "." + extMatch[1].toLowerCase();
-      }
-      return ".png";
+      return "https://zenixz-ai.onrender.com";
     }
 
-    function buildOrderIdDownloadName(order, proofUrl, fileName) {
-      const rawId = String(order.order_id || order.orderId || "ORDER").trim();
-      const safeOrderId = rawId.replace(/[^a-zA-Z0-9_-]/g, "_") || "ORDER";
-      const ext = getProofExtension(proofUrl, fileName);
-      return `${safeOrderId}${ext}`;
+    const API_BASE = resolveApiBase();
+
+    document.getElementById("clientBadge").textContent = "ID: " + ACTIVE_CLIENT_ID;
+    document.getElementById("scopeText").textContent =
+      "Client Scope: " + ACTIVE_CLIENT_ID + " (Strict Isolation Enabled)";
+    document.getElementById("backDashboardLink").setAttribute(
+      "href",
+      "./dashboard.html?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID)
+    );
+
+    const ordersTbody = document.getElementById("ordersTbody");
+    const countBadge = document.getElementById("countBadge");
+    const syncText = document.getElementById("syncText");
+    const blockedBox = document.getElementById("blockedBox");
+    const searchInput = document.getElementById("searchInput");
+    const detailCard = document.getElementById("detailCard");
+    const detailGrid = document.getElementById("detailGrid");
+    const proofBox = document.getElementById("proofBox");
+
+    let allOrders = [];
+
+    function escapeHtml(val) {
+      const amp = String.fromCharCode(38);
+      const lt = String.fromCharCode(60);
+      const gt = String.fromCharCode(62);
+      const dq = String.fromCharCode(34);
+      let out = String(val === undefined || val === null ? "" : val);
+      out = out.split(amp).join(amp + "#38;");
+      out = out.split(lt).join(amp + "#60;");
+      out = out.split(gt).join(amp + "#62;");
+      out = out.split(dq).join(amp + "#34;");
+      return out;
     }
 
-    function dataUrlToBlob(dataUrl) {
-      const parts = String(dataUrl || "").split(",");
-      const mimeMatch = parts[0].match(/data:([^;]+);base64/i);
-      const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
-      const byteString = atob(parts[1] || "");
-      const ab = new ArrayBuffer(byteString.length);
-      const ia = new Uint8Array(ab);
-      for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
-      }
-      return new Blob([ab], { type: mimeType });
+    function normalizeDigits(v) {
+      return String(v ?? "").replace(/[^0-9]/g, "");
     }
 
-    function downloadPaymentProofByOrderId(order) {
-      const proofUrl = getProofUrl(order);
-      const fileName = getProofFileName(order);
-      if (!proofUrl) return;
+    function openDetail(order) {
+      if (!order) return;
+      const cid = String(order.client_id || "").trim().toUpperCase();
+      if (cid && cid !== ACTIVE_CLIENT_ID) return;
 
-      const downloadName = buildOrderIdDownloadName(order, proofUrl, fileName);
+      document.getElementById("detailTitle").textContent =
+        "Order Details — " + escapeHtml(order.order_id || "-");
 
-      if (proofUrl.startsWith("data:")) {
-        try {
-          const blob = dataUrlToBlob(proofUrl);
-          const blobUrl = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = blobUrl;
-          link.download = downloadName;
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
-          return;
-        } catch (_) {}
-      }
+      detailGrid.innerHTML =
+        '<div class="detail-box"><span>Order ID</span><strong>' + escapeHtml(order.order_id || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Customer Name</span><strong>' + escapeHtml(order.customer_name || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Phone</span><strong>' + escapeHtml(order.phone || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Address</span><strong>' + escapeHtml(order.address || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Item</span><strong>' + escapeHtml(order.item || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Quantity</span><strong>' + escapeHtml(order.quantity ?? 1) + '</strong></div>' +
+        '<div class="detail-box"><span>Payment Method</span><strong>' + escapeHtml(order.payment_method || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Status</span><strong>' + escapeHtml(order.status || "Pending") + '</strong></div>' +
+        '<div class="detail-box"><span>Created At</span><strong>' + escapeHtml(order.created_at || "-") + '</strong></div>';
 
-      const link = document.createElement("a");
-      link.href = proofUrl;
-      link.download = downloadName;
-      link.target = "_blank";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    }
-
-    function createDownloadIconSvg() {
-      const svgNS = "http://www.w3.org/2000/svg";
-      const svg = document.createElementNS(svgNS, "svg");
-      svg.setAttribute("width", "15");
-      svg.setAttribute("height", "15");
-      svg.setAttribute("viewBox", "0 0 24 24");
-      svg.setAttribute("fill", "none");
-      svg.setAttribute("stroke", "currentColor");
-      svg.setAttribute("stroke-width", "2.2");
-      svg.setAttribute("stroke-linecap", "round");
-      svg.setAttribute("stroke-linejoin", "round");
-
-      const path1 = document.createElementNS(svgNS, "path");
-      path1.setAttribute("d", "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4");
-      const polyline = document.createElementNS(svgNS, "polyline");
-      polyline.setAttribute("points", "7 10 12 15 17 10");
-      const line = document.createElementNS(svgNS, "line");
-      line.setAttribute("x1", "12");
-      line.setAttribute("y1", "15");
-      line.setAttribute("x2", "12");
-      line.setAttribute("y2", "3");
-
-      svg.appendChild(path1);
-      svg.appendChild(polyline);
-      svg.appendChild(line);
-      return svg;
-    }
-
-    function openPaymentProofPopup(order) {
-      if (activePopupBlobUrl) {
-        URL.revokeObjectURL(activePopupBlobUrl);
-        activePopupBlobUrl = null;
-      }
-
-      const proofUrl = getProofUrl(order);
-      const fileName = getProofFileName(order);
-      proofModalTitle.textContent = `Payment Proof — ${order.order_id}${fileName ? ` (${fileName})` : ""}`;
-      proofModalBody.innerHTML = "";
-
-      if (!proofUrl) {
-        const p = document.createElement("div");
-        p.className = "proof-empty";
-        p.textContent = fileName
-          ? `File attached: ${fileName} (Preview URL not available)`
-          : "No payment proof attached for this order.";
-        proofModalBody.appendChild(p);
-      } else if (isPdfProof(proofUrl, fileName)) {
-        const iframe = document.createElement("iframe");
-        iframe.className = "proof-preview-pdf";
-        if (proofUrl.startsWith("data:")) {
-          try {
-            const blob = dataUrlToBlob(proofUrl);
-            activePopupBlobUrl = URL.createObjectURL(blob);
-            iframe.src = activePopupBlobUrl;
-          } catch (_) {
-            iframe.src = proofUrl;
-          }
-        } else {
-          iframe.src = proofUrl;
-        }
-        proofModalBody.appendChild(iframe);
+      const proof = String(order.payment_proof || "").trim();
+      if (!proof) {
+        proofBox.innerHTML = '<div class="detail-box"><span>Payment Proof</span><strong>No proof attached</strong></div>';
+      } else if (proof.startsWith("http://") || proof.startsWith("https://") || proof.startsWith("data:image/")) {
+        const safe = escapeHtml(proof);
+        proofBox.innerHTML =
+          '<div class="detail-box"><span>Payment Proof</span><img src="' + safe + '" alt="Payment Proof" style="max-width:260px;border-radius:8px;margin-top:6px;" /></div>';
       } else {
-        const img = document.createElement("img");
-        img.className = "proof-preview-img";
-        img.src = proofUrl;
-        img.alt = "Payment Proof";
-        proofModalBody.appendChild(img);
+        proofBox.innerHTML = '<div class="detail-box"><span>Payment Proof</span><strong>' + escapeHtml(proof) + '</strong></div>';
       }
 
-      proofModal.classList.add("open");
+      detailCard.style.display = "block";
     }
 
-    function closePaymentProofPopup() {
-      proofModal.classList.remove("open");
-      proofModalBody.innerHTML = "";
-      if (activePopupBlobUrl) {
-        URL.revokeObjectURL(activePopupBlobUrl);
-        activePopupBlobUrl = null;
-      }
-    }
+    function renderRows(rows) {
+      ordersTbody.innerHTML = "";
+      const scoped = (rows || []).filter((o) => {
+        const cid = String((o && o.client_id) || "").trim().toUpperCase();
+        return cid === ACTIVE_CLIENT_ID;
+      });
 
-    closeProofModalBtn.addEventListener("click", closePaymentProofPopup);
-    proofModal.addEventListener("click", (e) => {
-      if (e.target === proofModal) closePaymentProofPopup();
-    });
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && proofModal.classList.contains("open")) {
-        closePaymentProofPopup();
-      }
-    });
+      countBadge.textContent = "Orders: " + scoped.length;
 
-    function renderOrdersTable(orders) {
-      ordersTableBody.innerHTML = "";
-      if (!Array.isArray(orders) || orders.length === 0) {
-        const tr = document.createElement("tr");
-        const td = document.createElement("td");
-        td.colSpan = 8;
-        td.className = "empty-row";
-        td.textContent = "පසුගිය පැය 24 ඇතුළත මෙම Client Account එකට ලැබුණු Orders නොමැත.";
-        tr.appendChild(td);
-        ordersTableBody.appendChild(tr);
+      if (scoped.length === 0) {
+        ordersTbody.innerHTML = '<tr><td colspan="8" class="empty-row">No orders found for ' + escapeHtml(ACTIVE_CLIENT_ID) + '.</td></tr>';
         return;
       }
 
-      orders.forEach((order) => {
-        if (!belongsToActiveClient(order) || !isWithin24Hours(order)) return;
-
+      scoped.forEach((o) => {
         const tr = document.createElement("tr");
 
-        const cells = [
-          order.order_id || "-",
-          order.item || "-",
-          String(order.quantity ?? 1),
-          order.payment_method || "-",
-          order.customer_name || "-",
-          order.address || "-",
-          order.phone || "-"
-        ];
+        const tdId = document.createElement("td");
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "order-link-btn";
+        btn.textContent = String(o.order_id || "-");
+        btn.addEventListener("click", () => openDetail(o));
+        tdId.appendChild(btn);
 
-        cells.forEach((val) => {
-          const td = document.createElement("td");
-          td.textContent = val;
-          tr.appendChild(td);
-        });
+        const dateDisp = o.created_at
+          ? new Date(o.created_at).toLocaleString()
+          : "-";
 
-        const proofTd = document.createElement("td");
-        const proofUrl = getProofUrl(order);
-        const fileName = getProofFileName(order);
-        const methodUpper = String(order.payment_method || "").toUpperCase();
-        const isBankTransfer = methodUpper.includes("BANK") || methodUpper.includes("TRANSFER") || methodUpper.includes("SLIP");
-        const hasProof = Boolean(proofUrl || fileName);
+        tr.appendChild(tdId);
+        tr.innerHTML +=
+          "<td>" + escapeHtml(o.customer_name || "-") + "</td>" +
+          "<td>" + escapeHtml(o.phone || "-") + "</td>" +
+          "<td>" + escapeHtml(o.item || "-") + "</td>" +
+          "<td>" + escapeHtml(o.quantity ?? 1) + "</td>" +
+          "<td>" + escapeHtml(o.payment_method || "-") + "</td>" +
+          '<td><span class="status-pill">' + escapeHtml(o.status || "Pending") + "</span></td>" +
+          "<td>" + escapeHtml(dateDisp) + "</td>";
 
-        if (hasProof) {
-          const actionsWrap = document.createElement("div");
-          actionsWrap.className = "proof-actions";
-
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "view-proof-btn";
-          btn.textContent = "View";
-          btn.addEventListener("click", () => openPaymentProofPopup(order));
-          actionsWrap.appendChild(btn);
-
-          if (isBankTransfer && proofUrl) {
-            const dlBtn = document.createElement("button");
-            dlBtn.type = "button";
-            dlBtn.className = "download-proof-btn";
-            dlBtn.title = `Download ${buildOrderIdDownloadName(order, proofUrl, fileName)}`;
-            dlBtn.setAttribute("aria-label", "Download Payment Proof");
-            dlBtn.appendChild(createDownloadIconSvg());
-            dlBtn.addEventListener("click", () => downloadPaymentProofByOrderId(order));
-            actionsWrap.appendChild(dlBtn);
-          }
-
-          proofTd.appendChild(actionsWrap);
-        } else {
-          proofTd.textContent = "-";
-        }
-        tr.appendChild(proofTd);
-
-        ordersTableBody.appendChild(tr);
+        ordersTbody.appendChild(tr);
       });
     }
 
-    function collectScoped24hOrders() {
-      const mergedById = new Map();
+    function applyFilter() {
+      const q = String(searchInput.value || "").trim().toLowerCase();
+      const qDigits = normalizeDigits(searchInput.value);
 
-      function ingestList(arr) {
-        if (!Array.isArray(arr)) return;
-        arr.forEach((ord, idx) => {
-          if (!ord || typeof ord !== "object") return;
-          if (!belongsToActiveClient(ord)) return;
-          if (!isWithin24Hours(ord)) return;
-
-          const key = String(ord.order_id || ord.orderId || `ord_${idx}`).trim();
-          const prev = mergedById.get(key) || {};
-          mergedById.set(key, Object.assign({}, prev, ord));
-        });
-      }
-
-      try {
-        const legacyRaw = localStorage.getItem("store_orders_dashboard");
-        if (legacyRaw) ingestList(JSON.parse(legacyRaw));
-      } catch (_) {}
-
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith("zenix_client_orders_v1_")) {
-            const raw = localStorage.getItem(k);
-            if (raw) ingestList(JSON.parse(raw));
-          }
-        }
-      } catch (_) {}
-
-      return Array.from(mergedById.values()).sort((a, b) => {
-        const ta = Date.parse(a.created_at || a.createdAt || 0) || 0;
-        const tb = Date.parse(b.created_at || b.createdAt || 0) || 0;
-        return tb - ta;
-      });
-    }
-
-    async function fetchServerOrdersForClient() {
-      try {
-        const apiBase = String(
-          window.ZENIX_API_BASE ||
-          (parsedAuthSession && parsedAuthSession.api_base) ||
-          "https://zenixz-ai.onrender.com"
-        ).replace(/\/+$/, "");
-
-        const token = parsedAuthSession && parsedAuthSession.token ? String(parsedAuthSession.token).trim() : "";
-        const headers = token ? { "Authorization": "Bearer " + token } : {};
-
-        const url = `${apiBase}/api/my/orders?client_id=${encodeURIComponent(ACTIVE_CLIENT_ID)}`;
-        const res = await fetch(url, { headers, cache: "no-store" });
-        if (!res.ok) return;
-        const data = await res.json();
-        const serverOrders = Array.isArray(data && data.orders) ? data.orders : [];
-        const current = collectScoped24hOrders();
-        const map = new Map();
-        current.forEach((o, i) => map.set(String(o.order_id || i), o));
-        serverOrders.forEach((o, i) => {
-          if (belongsToActiveClient(o) && isWithin24Hours(o)) {
-            const id = String(o.order_id || `srv_${i}`);
-            map.set(id, Object.assign({}, map.get(id) || {}, o));
-          }
-        });
-        allOrders = Array.from(map.values()).sort((a, b) => {
-          const ta = Date.parse(a.created_at || a.createdAt || 0) || 0;
-          const tb = Date.parse(b.created_at || b.createdAt || 0) || 0;
-          return tb - ta;
-        });
-        applySearchAndRender();
-      } catch (_) {}
-    }
-
-    let allOrders = collectScoped24hOrders();
-
-    function applySearchAndRender() {
-      const q = orderSearchInput.value.trim().toLowerCase();
       if (!q) {
-        renderOrdersTable(allOrders);
+        renderRows(allOrders);
         return;
       }
-      const filtered = allOrders.filter(
-        (o) =>
-          String(o.order_id || "").toLowerCase().includes(q) ||
-          String(o.phone || "").toLowerCase().includes(q)
-      );
-      renderOrdersTable(filtered);
+
+      const matches = allOrders.filter((o) => {
+        const cid = String((o && o.client_id) || "").trim().toUpperCase();
+        if (cid !== ACTIVE_CLIENT_ID) return false;
+        const oid = String((o && o.order_id) || "").toLowerCase();
+        const phone = String((o && o.phone) || "").toLowerCase();
+        const phoneDigits = normalizeDigits((o && o.phone) || "");
+        return oid.includes(q) || phone.includes(q) || (qDigits.length >= 3 && phoneDigits.includes(qDigits));
+      });
+
+      renderRows(matches);
+      if (matches.length === 1) {
+        openDetail(matches[0]);
+      } else if (matches.length === 0) {
+        detailCard.style.display = "none";
+      }
     }
 
-    function refreshOrdersView() {
-      allOrders = collectScoped24hOrders();
-      applySearchAndRender();
-      fetchServerOrdersForClient();
+    async function fetchOrders() {
+      syncText.textContent = "Last Updated: " + new Date().toLocaleTimeString();
+      if (!TOKEN) {
+        blockedBox.style.display = "block";
+        renderRows([]);
+        return;
+      }
+
+      try {
+        const dashRes = await fetch(
+          API_BASE + "/api/my/dashboard?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID),
+          {
+            headers: { "Authorization": "Bearer " + TOKEN },
+            cache: "no-store"
+          }
+        );
+
+        if (!dashRes.ok) {
+          blockedBox.style.display = "block";
+          renderRows([]);
+          return;
+        }
+
+        const dashData = await dashRes.json();
+        if (dashData.plan_active !== true) {
+          blockedBox.style.display = "block";
+          allOrders = [];
+          renderRows([]);
+          return;
+        }
+
+        blockedBox.style.display = "none";
+
+        const ordRes = await fetch(
+          API_BASE + "/api/my/orders?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID),
+          {
+            headers: { "Authorization": "Bearer " + TOKEN },
+            cache: "no-store"
+          }
+        );
+
+        if (!ordRes.ok) {
+          renderRows([]);
+          return;
+        }
+
+        const ordData = await ordRes.json();
+        allOrders = Array.isArray(ordData.orders)
+          ? ordData.orders.filter(
+              (o) => String((o && o.client_id) || "").trim().toUpperCase() === ACTIVE_CLIENT_ID
+            )
+          : [];
+
+        applyFilter();
+      } catch {
+        renderRows([]);
+      }
     }
 
-    refreshOrdersView();
-
-    orderSearchInput.addEventListener("input", applySearchAndRender);
-
-    window.addEventListener("storage", () => {
-      refreshOrdersView();
+    document.getElementById("searchBtn").addEventListener("click", applyFilter);
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        applyFilter();
+      }
     });
 
-    window.addEventListener("store:order-created", refreshOrdersView);
-    window.addEventListener("zenix:order-created", refreshOrdersView);
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      searchInput.value = "";
+      detailCard.style.display = "none";
+      renderRows(allOrders);
+    });
 
-    if (typeof BroadcastChannel !== "undefined") {
-      const ch1 = new BroadcastChannel("store_orders_dashboard_channel");
-      ch1.addEventListener("message", (ev) => {
-        if (ev && ev.data && ev.data.type === "ORDER_CREATED") {
-          refreshOrdersView();
-        }
-      });
+    document.getElementById("closeDetailBtn").addEventListener("click", () => {
+      detailCard.style.display = "none";
+    });
 
-      const ch2 = new BroadcastChannel(`zenix_orders_channel_${ACTIVE_CLIENT_ID}`);
-      ch2.addEventListener("message", (ev) => {
-        if (ev && ev.data && ev.data.type === "ORDER_CREATED") {
-          refreshOrdersView();
-        }
-      });
-    }
+    document.getElementById("refreshBtn").addEventListener("click", fetchOrders);
 
-    setInterval(() => {
-      refreshOrdersView();
-    }, 60 * 1000);
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      sessionStorage.removeItem("zenix_auth_pass");
+      window.location.replace(resolveLoginUrl());
+    });
+
+    fetchOrders();
   </script>
 </body>
 </html>
