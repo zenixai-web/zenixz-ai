@@ -1103,6 +1103,10 @@ def my_orders(
 
     return {"ok": True, "client_id": target_cid, "orders": mine, "count": len(mine)}
 
+@app.get("/")
+def root():
+    return {"ok": True, "service": "Zenix AI Client Server", "status": "live"}
+
 
 if __name__ == "__main__":
     import uvicorn
