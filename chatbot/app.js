@@ -209,17 +209,18 @@
   }
 
   function persistOrderLocally(record) {
-    const scopedRecord = Object.assign({}, record, {
+    const lightRecord = Object.assign({}, record, {
+      payment_proof: "",
       client_id: ACTIVE_CLIENT_ID,
       created_at: record.created_at || new Date().toISOString()
     });
     const current = loadLocalOrders();
     const filtered = current.filter(
-      (o) => String(o.order_id || "").trim() !== String(scopedRecord.order_id || "").trim()
+      (o) => String(o.order_id || "").trim() !== String(lightRecord.order_id || "").trim()
     );
-    const updated = [scopedRecord, ...filtered];
+    const updated = [lightRecord, ...filtered];
     saveLocalOrders(updated);
-    broadcastOrderUpdate(scopedRecord);
+    broadcastOrderUpdate(lightRecord);
     return updated;
   }
 
@@ -570,7 +571,6 @@
   }
 
   function renderBankDetailsCard() {
-    // Rendered dynamically in chat UI rather than exposed as a static global variable
     const details = [
       ["Bank", "Commercial Bank of Ceylon"],
       ["Account Name", ACTIVE_CLIENT_NAME || "Zenix AI Store"],
@@ -796,8 +796,7 @@
   }
 
   async function sendChatToServer(messageText, orderPayload) {
-    const stillActive = await verifyPlanStatus();
-    if (!stillActive) {
+    if (!ACTIVE_CLIENT_ID || !PLAN_IS_ACTIVE) {
       destroyWidgetIfInactive();
       return;
     }

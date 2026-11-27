@@ -32,7 +32,7 @@ SYSTEM_STATE_FILE = DATA_DIR / "system_state.json"
 # Secrets/API Keys are read strictly from environment variables (never hardcoded).
 AI_API_KEY = os.environ.get("AI_API_KEY", "").strip()
 AI_API_URL = os.environ.get("AI_API_URL", "").strip()
-AI_MODEL = os.environ.get("AI_MODEL", "gemini-2.5-flash").strip()
+AI_MODEL = os.environ.get("AI_MODEL", "gemini-4-hydrogen").strip()
 
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "").strip()
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "").strip()
@@ -290,6 +290,12 @@ def _get_client_quota(entry: Dict[str, Any]) -> Dict[str, int]:
         "conversations_used": _safe_int(entry.get("conversations_used"), 0),
         "ai_credits": _safe_int(entry.get("ai_credits"), 0),
         "ai_credits_used": _safe_int(entry.get("ai_credits_used"), 0),
+        "file_storage_mb": _safe_int(entry.get("file_storage_mb"), 0),
+        "file_storage_limit_mb": _safe_int(entry.get("file_storage_limit_mb"), 0),
+        "vector_db_mb": _safe_int(entry.get("vector_db_mb"), 0),
+        "vector_db_limit_mb": _safe_int(entry.get("vector_db_limit_mb"), 0),
+        "table_rows_used": _safe_int(entry.get("table_rows_used"), 0),
+        "table_rows_limit": _safe_int(entry.get("table_rows_limit"), 0),
     }
 
 
@@ -347,6 +353,12 @@ def _save_client_record(
         "conversations_used": quota["conversations_used"],
         "ai_credits": quota["ai_credits"],
         "ai_credits_used": quota["ai_credits_used"],
+        "file_storage_mb": quota["file_storage_mb"],
+        "file_storage_limit_mb": quota["file_storage_limit_mb"],
+        "vector_db_mb": quota["vector_db_mb"],
+        "vector_db_limit_mb": quota["vector_db_limit_mb"],
+        "table_rows_used": quota["table_rows_used"],
+        "table_rows_limit": quota["table_rows_limit"],
         "updated_at": _utc_now_iso(),
     }
     if password_hash:
@@ -375,7 +387,7 @@ def _build_embed_html(
     safe_store = store_name.replace('"', "")
     return (
         f'<script\n'
-        f'  src="{clean_base}/../chatbot/app.js"\n'
+        f'  src="{clean_base}/chatbot/app.js"\n'
         f'  data-api-base="{clean_base}"\n'
         f'  data-client-id="{cid}"\n'
         f'  data-client-key="{client_key}"\n'
@@ -518,7 +530,6 @@ def _post_webhook(url: str, payload: Dict[str, Any], timeout: int = 10) -> bool:
 
 
 def _cleanup_expired_orders(cid_filter: Optional[str] = None) -> List[Dict[str, Any]]:
-    # Orders are retained for 30 days and permanently deleted after 30 days (e.g., on day 31+)
     cutoff_30d = _utc_now() - timedelta(days=ORDER_RETENTION_DAYS)
     raw_orders = _load_json(ORDERS_FILE, [])
     if not isinstance(raw_orders, list):
@@ -590,7 +601,6 @@ def _filter_orders_24h_or_30d_search(
                 matched.append(o)
         return matched
 
-    # Default board view: only orders within the last 24 hours
     recent_24h: List[Dict[str, Any]] = []
     for o in within_30d:
         dt = _parse_iso_dt(o.get("created_at"))
@@ -657,7 +667,6 @@ def _update_order_status(cid: str, order_id: str, new_status: str) -> Optional[D
 def _deduct_stock_if_present(
     entry: Dict[str, Any], cid: str, item_name: str, qty: int
 ) -> None:
-    # Auto stock deduction on backend is restricted strictly to Premium plans.
     plan_name = str(entry.get("plan") or "normal").strip().lower()
     if "premium" not in plan_name:
         return
@@ -683,7 +692,7 @@ def _call_ai_with_credit_check(
     history: List[Dict[str, Any]],
     entry: Dict[str, Any],
     cid: str,
-) -> tuple[str, bool]:
+) -> tuple[str, bool, str]:
     quota = _get_client_quota(entry)
     remaining_credits = quota["ai_credits"]
     kb_instruction = str(entry.get("knowledge_base") or "").strip()
@@ -694,7 +703,7 @@ def _call_ai_with_credit_check(
             f"AI credits අවසන් වී ඇත. "
             + (f"({store_name} Knowledge Base: {kb_instruction})" if kb_instruction else "")
         ).strip()
-        return fallback, False
+        return fallback, False, "no_ai_credits"
 
     if not AI_API_KEY:
         reply = (
@@ -705,7 +714,7 @@ def _call_ai_with_credit_check(
         entry["ai_credits"] = max(0, remaining_credits - 1)
         entry["ai_credits_used"] = quota["ai_credits_used"] + 1
         _save_client_record(cid, entry)
-        return reply, True
+        return reply, True, ""
 
     system_prompt = (
         f"You are the dedicated AI assistant for '{store_name}'. "
@@ -715,13 +724,14 @@ def _call_ai_with_credit_check(
         f"{kb_instruction or 'No custom knowledge base provided yet; use general polite store assistant behavior.'}"
     )
 
-    model_id = AI_MODEL or "gemini-2.5-flash"
+    model_id = os.environ.get("AI_MODEL", AI_MODEL).strip() or "gemini-4-hydrogen"
+    api_url_env = os.environ.get("AI_API_URL", AI_API_URL).strip()
+    api_key_env = os.environ.get("AI_API_KEY", AI_API_KEY).strip()
 
-    # Support Google Gemini native REST API when AI_API_URL is omitted or points to generativelanguage.googleapis.com
-    if not AI_API_URL or "generativelanguage.googleapis.com" in AI_API_URL:
-        gem_url = AI_API_URL.strip()
+    if not api_url_env or "generativelanguage.googleapis.com" in api_url_env:
+        gem_url = api_url_env
         if not gem_url:
-            q_key = urllib.parse.quote(AI_API_KEY)
+            q_key = urllib.parse.quote(api_key_env)
             gem_url = (
                 f"https://generativelanguage.googleapis.com/v1beta/models/"
                 f"{urllib.parse.quote(model_id)}:generateContent?key={q_key}"
@@ -755,10 +765,21 @@ def _call_ai_with_credit_check(
                         entry["ai_credits"] = max(0, remaining_credits - 1)
                         entry["ai_credits_used"] = quota["ai_credits_used"] + 1
                         _save_client_record(cid, entry)
-                        return content, True
-        except Exception:
-            pass
-        return "AI service temporarily unavailable.", False
+                        return content, True, ""
+                return "AI service temporarily unavailable.", False, "empty_candidates"
+        except urllib.error.HTTPError as exc:
+            body_txt = ""
+            try:
+                body_txt = exc.read().decode("utf-8", errors="replace")[:300]
+            except Exception:
+                pass
+            return (
+                "AI service temporarily unavailable.",
+                False,
+                f"HTTP {exc.code} ({model_id}): {body_txt}",
+            )
+        except Exception as exc:
+            return "AI service temporarily unavailable.", False, f"AI error: {exc}"
 
     msgs: List[Dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     for h in (history or [])[-6:]:
@@ -769,10 +790,10 @@ def _call_ai_with_credit_check(
     msgs.append({"role": "user", "content": message})
 
     req = urllib.request.Request(
-        AI_API_URL,
+        api_url_env,
         data=json.dumps({"model": model_id, "messages": msgs}).encode("utf-8"),
         headers={
-            "Authorization": f"Bearer {AI_API_KEY}",
+            "Authorization": f"Bearer {api_key_env}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         },
@@ -791,11 +812,21 @@ def _call_ai_with_credit_check(
                     entry["ai_credits"] = max(0, remaining_credits - 1)
                     entry["ai_credits_used"] = quota["ai_credits_used"] + 1
                     _save_client_record(cid, entry)
-                    return content, True
-    except Exception:
-        pass
-
-    return "AI service temporarily unavailable.", False
+                    return content, True, ""
+            return "AI service temporarily unavailable.", False, "empty_choices"
+    except urllib.error.HTTPError as exc:
+        body_txt = ""
+        try:
+            body_txt = exc.read().decode("utf-8", errors="replace")[:300]
+        except Exception:
+            pass
+        return (
+            "AI service temporarily unavailable.",
+            False,
+            f"HTTP {exc.code} ({model_id}): {body_txt}",
+        )
+    except Exception as exc:
+        return "AI service temporarily unavailable.", False, f"AI error: {exc}"
 
 
 # --- Request Models ---
@@ -814,6 +845,22 @@ class ClientLimitUpdate(BaseModel):
     conversations_limit: Optional[int] = None
     conversations_used: Optional[int] = None
     ai_credits: Optional[int] = None
+    file_storage_mb: Optional[int] = None
+    file_storage_limit_mb: Optional[int] = None
+    vector_db_mb: Optional[int] = None
+    vector_db_limit_mb: Optional[int] = None
+    table_rows_used: Optional[int] = None
+    table_rows_limit: Optional[int] = None
+
+
+class ClientQuotasUpdate(BaseModel):
+    client_id: str = Field(..., min_length=1)
+    file_storage_limit_mb: Optional[int] = Field(default=None, ge=0)
+    file_storage_mb: Optional[int] = Field(default=None, ge=0)
+    vector_db_limit_mb: Optional[int] = Field(default=None, ge=0)
+    vector_db_mb: Optional[int] = Field(default=None, ge=0)
+    table_rows_limit: Optional[int] = Field(default=None, ge=0)
+    table_rows_used: Optional[int] = Field(default=None, ge=0)
 
 
 class PlanActivateIn(BaseModel):
@@ -821,8 +868,16 @@ class PlanActivateIn(BaseModel):
     plan: str = Field(..., min_length=1)
     conversations_limit: int = Field(default=100, ge=0)
     ai_credits: int = Field(default=100, ge=0)
+    file_storage_limit_mb: int = Field(default=100, ge=0)
+    vector_db_limit_mb: int = Field(default=100, ge=0)
+    table_rows_limit: int = Field(default=1000, ge=0)
     expires_at: Optional[str] = None
     payment_reference: Optional[str] = None
+
+
+class ClientSettingsUpdate(BaseModel):
+    client_id: str = Field(..., min_length=1)
+    store_name: str = Field(..., min_length=1, max_length=120)
 
 
 class KnowledgeSave(BaseModel):
@@ -868,7 +923,7 @@ class OtpVerifyIn(BaseModel):
 
 # --- App ---
 
-app = FastAPI(title="Zenix AI Client Server", version="4.2.0")
+app = FastAPI(title="Zenix AI Client Server", version="4.4.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -935,9 +990,60 @@ def admin_update_client(
         entry["conversations_used"] = max(0, int(payload.conversations_used))
     if payload.ai_credits is not None:
         entry["ai_credits"] = max(0, int(payload.ai_credits))
+    if payload.file_storage_mb is not None:
+        entry["file_storage_mb"] = max(0, int(payload.file_storage_mb))
+    if payload.file_storage_limit_mb is not None:
+        entry["file_storage_limit_mb"] = max(0, int(payload.file_storage_limit_mb))
+    if payload.vector_db_mb is not None:
+        entry["vector_db_mb"] = max(0, int(payload.vector_db_mb))
+    if payload.vector_db_limit_mb is not None:
+        entry["vector_db_limit_mb"] = max(0, int(payload.vector_db_limit_mb))
+    if payload.table_rows_used is not None:
+        entry["table_rows_used"] = max(0, int(payload.table_rows_used))
+    if payload.table_rows_limit is not None:
+        entry["table_rows_limit"] = max(0, int(payload.table_rows_limit))
 
     _save_client_record(resolved_cid, entry)
     return {"ok": True, "client_id": resolved_cid, "client": entry}
+
+
+@app.post("/api/client/quotas")
+def update_client_quotas(
+    payload: ClientQuotasUpdate,
+    authorization: Optional[str] = Header(default=None),
+    x_client_token: Optional[str] = Header(default=None),
+):
+    authed_cid = _get_authed_client_id(authorization, x_client_token)
+    target_cid = payload.client_id.strip().upper()
+    if not authed_cid or authed_cid != target_cid:
+        raise HTTPException(status_code=403, detail="Unauthorized client access")
+
+    db = _get_db()
+    resolved_cid, rec = _resolve_client(db, client_id=target_cid)
+    if not resolved_cid or not rec:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    active, reason, _ = _is_client_active(rec)
+    if not active:
+        raise HTTPException(status_code=403, detail=f"Plan is {reason}")
+
+    entry = dict(rec)
+    if payload.file_storage_limit_mb is not None:
+        entry["file_storage_limit_mb"] = max(0, int(payload.file_storage_limit_mb))
+    if payload.file_storage_mb is not None:
+        entry["file_storage_mb"] = max(0, int(payload.file_storage_mb))
+    if payload.vector_db_limit_mb is not None:
+        entry["vector_db_limit_mb"] = max(0, int(payload.vector_db_limit_mb))
+    if payload.vector_db_mb is not None:
+        entry["vector_db_mb"] = max(0, int(payload.vector_db_mb))
+    if payload.table_rows_limit is not None:
+        entry["table_rows_limit"] = max(0, int(payload.table_rows_limit))
+    if payload.table_rows_used is not None:
+        entry["table_rows_used"] = max(0, int(payload.table_rows_used))
+
+    _save_client_record(resolved_cid, entry)
+    q = _get_client_quota(entry)
+    return {"ok": True, "client_id": resolved_cid, **q}
 
 
 @app.post("/api/client/plan/activate")
@@ -964,6 +1070,9 @@ def activate_client_plan(
     entry["plan_active"] = True
     entry["conversations_limit"] = max(0, int(payload.conversations_limit))
     entry["ai_credits"] = max(0, int(payload.ai_credits))
+    entry["file_storage_limit_mb"] = max(0, int(payload.file_storage_limit_mb))
+    entry["vector_db_limit_mb"] = max(0, int(payload.vector_db_limit_mb))
+    entry["table_rows_limit"] = max(0, int(payload.table_rows_limit))
     if payload.expires_at is not None:
         entry["expires_at"] = payload.expires_at
     if payload.payment_reference:
@@ -979,6 +1088,37 @@ def activate_client_plan(
         "plan_active": True,
         "plan": entry["plan"],
         "embed_html": _build_embed_html(resolved_cid, store_name, embed_key),
+    }
+
+
+@app.post("/api/client/settings")
+def update_client_settings(
+    payload: ClientSettingsUpdate,
+    authorization: Optional[str] = Header(default=None),
+    x_client_token: Optional[str] = Header(default=None),
+):
+    authed_cid = _get_authed_client_id(authorization, x_client_token)
+    target_cid = payload.client_id.strip().upper()
+    if not authed_cid or authed_cid != target_cid:
+        raise HTTPException(status_code=403, detail="Unauthorized client access")
+
+    db = _get_db()
+    resolved_cid, rec = _resolve_client(db, client_id=target_cid)
+    if not resolved_cid or not rec:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    clean_name = payload.store_name.strip()
+    if not clean_name:
+        raise HTTPException(status_code=400, detail="Store name cannot be empty")
+
+    entry = dict(rec)
+    entry["store_name"] = clean_name
+    _save_client_record(resolved_cid, entry)
+
+    return {
+        "ok": True,
+        "client_id": resolved_cid,
+        "store_name": clean_name,
     }
 
 
@@ -1117,6 +1257,12 @@ def verify_otp(payload: OtpVerifyIn):
         entry.setdefault("conversations_used", 0)
         entry.setdefault("ai_credits", 0)
         entry.setdefault("ai_credits_used", 0)
+        entry.setdefault("file_storage_mb", 0)
+        entry.setdefault("file_storage_limit_mb", 0)
+        entry.setdefault("vector_db_mb", 0)
+        entry.setdefault("vector_db_limit_mb", 0)
+        entry.setdefault("table_rows_used", 0)
+        entry.setdefault("table_rows_limit", 0)
 
     pw_hash = _hash_password(payload.password) if payload.password else None
     _save_client_record(final_cid, entry, password_hash=pw_hash)
@@ -1339,7 +1485,7 @@ def chat_endpoint(payload: ChatIn):
                 },
             )
 
-    reply_text, credit_used = _call_ai_with_credit_check(
+    reply_text, credit_used, ai_err = _call_ai_with_credit_check(
         message=msg_text or f"Order {saved_order['order_id']} captured",
         history=payload.history,
         entry=entry,
@@ -1351,6 +1497,7 @@ def chat_endpoint(payload: ChatIn):
         "ok": True,
         "client_id": resolved_cid,
         "reply": reply_text,
+        "ai_error": ai_err,
         "order": saved_order,
         "credit_used": credit_used,
         "conversations_used": updated_quota["conversations_used"],
@@ -1390,6 +1537,7 @@ def my_dashboard(
     return {
         "ok": True,
         "client_id": resolved_cid,
+        "client_key": embed_key,
         "username": rec.get("username") or resolved_cid,
         "store_name": store_name,
         "email": rec.get("email") or "",
@@ -1402,6 +1550,12 @@ def my_dashboard(
         "conversations_limit": quota["conversations_limit"],
         "ai_credits": quota["ai_credits"],
         "ai_credits_used": quota["ai_credits_used"],
+        "file_storage_mb": quota["file_storage_mb"],
+        "file_storage_limit_mb": quota["file_storage_limit_mb"],
+        "vector_db_mb": quota["vector_db_mb"],
+        "vector_db_limit_mb": quota["vector_db_limit_mb"],
+        "table_rows_used": quota["table_rows_used"],
+        "table_rows_limit": quota["table_rows_limit"],
         "knowledge_base": rec.get("knowledge_base") or "",
         "output_webhook_url": rec.get("output_webhook_url") or "",
         "stock_csv_url": rec.get("stock_csv_url") or "",

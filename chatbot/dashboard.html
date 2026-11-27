@@ -249,7 +249,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
       gap: 14px;
-      margin-bottom: 22px;
+      margin-bottom: 18px;
     }
 
     .card {
@@ -294,6 +294,12 @@
 
     .progress-fill.warn {
       background: var(--warn);
+    }
+
+    .quota-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
     }
 
     .embed-section {
@@ -350,6 +356,18 @@
     .field textarea {
       min-height: 110px;
       resize: vertical;
+    }
+
+    .inline-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .inline-row input {
+      flex: 1;
+      min-width: 220px;
     }
 
     .ok-msg {
@@ -518,7 +536,7 @@
   <main class="container">
     <div class="sync-banner" id="syncBanner">
       <strong>Isolated Client Workspace:</strong>
-      Plan එක Activate කළ පසු පමණක් Embed HTML, Knowledge Base, AI Credits, Stock Sync, සහ Order Tracking access ලැබේ.
+      Plan එක Activate කළ පසු පමණක් Embed HTML, Knowledge Base, AI Credits, Storage/Rows Limits, Stock Sync, සහ Order Tracking access ලැබේ.
     </div>
 
     <div class="last3-warning-box" id="last3DaysBanner"></div>
@@ -578,10 +596,50 @@
       </div>
     </section>
 
+    <section class="card" id="quotaEditorSection" style="margin-bottom: 18px;">
+      <h3 style="margin-bottom: 6px; font-size: 16px;">Storage & Table Rows Limits Editor</h3>
+      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 14px;">
+        File Storage Limit (MB), Vector DB Limit (MB), සහ Table Rows Limit මෙතැනින් වෙනස් කර save කළ හැක.
+      </div>
+      <form id="quotaForm">
+        <div class="quota-grid-3">
+          <div class="field">
+            <label for="fileStorageLimitInput">File Storage Limit (MB)</label>
+            <input id="fileStorageLimitInput" type="number" min="0" step="1" value="0" />
+          </div>
+          <div class="field">
+            <label for="vectorDbLimitInput">Vector DB Storage Limit (MB)</label>
+            <input id="vectorDbLimitInput" type="number" min="0" step="1" value="0" />
+          </div>
+          <div class="field">
+            <label for="tableRowsLimitInput">Table Rows Limit</label>
+            <input id="tableRowsLimitInput" type="number" min="0" step="1" value="0" />
+          </div>
+        </div>
+        <button class="btn" id="saveQuotasBtn" type="submit">Save Storage & Rows Limits</button>
+        <div class="ok-msg" id="quotaStatus"></div>
+        <div class="err-msg" id="quotaError"></div>
+      </form>
+    </section>
+
     <section class="card embed-section" id="embedSection">
-      <h3 style="margin-bottom: 6px; font-size: 16px;">Your Chatbot Embed HTML (Active Plan)</h3>
+      <h3 style="margin-bottom: 6px; font-size: 16px;">Chatbot Name & Embed HTML (Active Plan)</h3>
       <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 12px;">
-        ඔබගේ Client ID එකට (<strong id="embedClientIdLabel">-</strong>) අදාළ Embed HTML code එක පහත දැක්වේ. මෙය ඔබගේ website එකට paste කරන්න.
+        ඔබගේ Chatbot / Store නම වෙනස් කළ විට (උදා: <code>cloth A</code> → <code>cloth B</code>) Embed HTML එකත් ස්වයංක්‍රීයව update වේ.
+      </div>
+
+      <div class="field">
+        <label for="botNameInput">Chatbot / Brand Name</label>
+        <div class="inline-row">
+          <input id="botNameInput" type="text" placeholder="උදා: cloth B" />
+          <button class="btn" id="saveBotNameBtn" type="button">Save Name</button>
+        </div>
+        <div class="ok-msg" id="botNameStatus"></div>
+        <div class="err-msg" id="botNameError"></div>
+      </div>
+
+      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 8px;">
+        Client ID: <strong id="embedClientIdLabel">-</strong> — පහත Embed HTML code එක ඔබගේ website එකට paste කරන්න:
       </div>
       <div class="embed-code-box" id="embedCodeBox"></div>
       <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -815,10 +873,12 @@
     let currentDataset = { clients: {} };
     let isPlanActive = false;
     let isPremiumPlan = false;
+    let activeClientKey = "";
     let clientTodayOrders = [];
     let clientAllOrders = [];
     let shownExpiryWarningKey = null;
     let kbInitialized = false;
+    let quotaInitialized = false;
 
     const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -828,6 +888,10 @@
     const planStatusBadge = document.getElementById("planStatusBadge");
     const planTierBadge = document.getElementById("planTierBadge");
     const embedSection = document.getElementById("embedSection");
+    const botNameInput = document.getElementById("botNameInput");
+    const saveBotNameBtn = document.getElementById("saveBotNameBtn");
+    const botNameStatus = document.getElementById("botNameStatus");
+    const botNameError = document.getElementById("botNameError");
     const embedClientIdLabel = document.getElementById("embedClientIdLabel");
     const embedCodeBox = document.getElementById("embedCodeBox");
     const copyEmbedBtn = document.getElementById("copyEmbedBtn");
@@ -842,6 +906,12 @@
     const orderDetailPanel = document.getElementById("orderDetailPanel");
     const orderDetailGrid = document.getElementById("orderDetailGrid");
     const orderProofContainer = document.getElementById("orderProofContainer");
+    const fileStorageLimitInput = document.getElementById("fileStorageLimitInput");
+    const vectorDbLimitInput = document.getElementById("vectorDbLimitInput");
+    const tableRowsLimitInput = document.getElementById("tableRowsLimitInput");
+    const saveQuotasBtn = document.getElementById("saveQuotasBtn");
+    const quotaStatus = document.getElementById("quotaStatus");
+    const quotaError = document.getElementById("quotaError");
     const kbInput = document.getElementById("kbInput");
     const stockCsvInput = document.getElementById("stockCsvInput");
     const stockWebappInput = document.getElementById("stockWebappInput");
@@ -856,24 +926,29 @@
     const kbStatus = document.getElementById("kbStatus");
     const kbError = document.getElementById("kbError");
 
-    function buildEmbedSnippet(clientId, storeName) {
+    function buildEmbedSnippet(clientId, storeName, clientKey) {
       const safeName = String(storeName || clientId).replace(/"/g, "");
+      const keyLine = clientKey ? `  data-client-key="${String(clientKey).replace(/"/g, "")}"\n` : "";
       return (
         `<script\n` +
-        `  src="${API_BASE}/../chatbot/app.js"\n` +
+        `  src="${API_BASE}/chatbot/app.js"\n` +
         `  data-api-base="${API_BASE}"\n` +
         `  data-client-id="${clientId}"\n` +
+        keyLine +
         `  data-client-name="${safeName}"\n` +
         `  defer\n` +
         `></` + `script>`
       );
     }
 
-    function applyPlanAccessLock(active, storeName, premium, scriptCode) {
+    function applyPlanAccessLock(active, storeName, premium, scriptCode, clientKey) {
       embedSection.style.display = active ? "block" : "none";
       if (active) {
         embedClientIdLabel.textContent = ACTIVE_CLIENT_ID;
-        embedCodeBox.textContent = buildEmbedSnippet(ACTIVE_CLIENT_ID, storeName);
+        embedCodeBox.textContent = buildEmbedSnippet(ACTIVE_CLIENT_ID, storeName, clientKey);
+        if (document.activeElement !== botNameInput) {
+          botNameInput.value = storeName || "";
+        }
       } else {
         embedCodeBox.textContent = "";
         copyEmbedStatus.textContent = "";
@@ -896,6 +971,12 @@
         premiumScriptBox.textContent = "";
       }
 
+      saveBotNameBtn.disabled = !active;
+      botNameInput.disabled = !active;
+      saveQuotasBtn.disabled = !active;
+      fileStorageLimitInput.disabled = !active;
+      vectorDbLimitInput.disabled = !active;
+      tableRowsLimitInput.disabled = !active;
       orderTrackingBtn.disabled = !active;
       fullOrderTrackingLink.classList.toggle("disabled-link", !active);
       panelFullTrackingLink.classList.toggle("disabled-link", !active);
@@ -1130,6 +1211,7 @@
       const clientData = (currentDataset.clients && currentDataset.clients[ACTIVE_CLIENT_ID]) || null;
       const expState = getExpiryState(clientData && clientData.expires_at);
       isPlanActive = isClientPlanActive(clientData);
+      activeClientKey = (clientData && clientData.client_key) || authPass.client_key || "";
 
       const storeTitleText = (clientData && clientData.store_name) || (ACTIVE_CLIENT_ID + " Store");
       document.getElementById("storeTitle").textContent = storeTitleText;
@@ -1139,7 +1221,8 @@
         isPlanActive,
         storeTitleText,
         Boolean(clientData && clientData.is_premium),
-        (clientData && clientData.premium_apps_script) || ""
+        (clientData && clientData.premium_apps_script) || "",
+        activeClientKey
       );
 
       const scoped = isPlanActive
@@ -1148,6 +1231,19 @@
 
       clientTodayOrders = scoped.todayTop5;
       clientAllOrders = scoped.allClientOrders;
+
+      if (clientData && !quotaInitialized) {
+        if (document.activeElement !== fileStorageLimitInput) {
+          fileStorageLimitInput.value = String(Number(clientData.file_storage_limit_mb || 0));
+        }
+        if (document.activeElement !== vectorDbLimitInput) {
+          vectorDbLimitInput.value = String(Number(clientData.vector_db_limit_mb || 0));
+        }
+        if (document.activeElement !== tableRowsLimitInput) {
+          tableRowsLimitInput.value = String(Number(clientData.table_rows_limit || 0));
+        }
+        quotaInitialized = true;
+      }
 
       if (clientData && !kbInitialized) {
         kbInput.value = clientData.knowledge_base || "";
@@ -1217,6 +1313,7 @@
       const token = String(authPass.token || "").trim();
       const clientRecord = {
         client_id: ACTIVE_CLIENT_ID,
+        client_key: authPass.client_key || "",
         store_name: authPass.store_name || (ACTIVE_CLIENT_ID + " Store"),
         plan_active: false,
         is_premium: false,
@@ -1224,6 +1321,12 @@
         conversations_limit: 0,
         ai_credits: 0,
         ai_credits_used: 0,
+        file_storage_mb: 0,
+        file_storage_limit_mb: 0,
+        vector_db_mb: 0,
+        vector_db_limit_mb: 0,
+        table_rows_used: 0,
+        table_rows_limit: 0,
         knowledge_base: "",
         stock_csv_url: "",
         stock_webapp_url: "",
@@ -1243,6 +1346,7 @@
           if (dashRes.ok) {
             const dashJson = await dashRes.json();
             Object.assign(clientRecord, {
+              client_key: dashJson.client_key || clientRecord.client_key,
               store_name: dashJson.store_name || clientRecord.store_name,
               plan_active: dashJson.plan_active === true,
               is_premium: dashJson.is_premium === true,
@@ -1251,6 +1355,12 @@
               conversations_limit: Number(dashJson.conversations_limit || 0),
               ai_credits: Number(dashJson.ai_credits || 0),
               ai_credits_used: Number(dashJson.ai_credits_used || 0),
+              file_storage_mb: Number(dashJson.file_storage_mb || 0),
+              file_storage_limit_mb: Number(dashJson.file_storage_limit_mb || 0),
+              vector_db_mb: Number(dashJson.vector_db_mb || 0),
+              vector_db_limit_mb: Number(dashJson.vector_db_limit_mb || 0),
+              table_rows_used: Number(dashJson.table_rows_used || 0),
+              table_rows_limit: Number(dashJson.table_rows_limit || 0),
               knowledge_base: dashJson.knowledge_base || "",
               stock_csv_url: dashJson.stock_csv_url || "",
               stock_webapp_url: dashJson.stock_webapp_url || "",
@@ -1281,6 +1391,96 @@
       currentDataset = { clients: { [ACTIVE_CLIENT_ID]: clientRecord } };
       renderDashboard();
     }
+
+    document.getElementById("quotaForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      quotaStatus.textContent = "";
+      quotaError.textContent = "";
+
+      if (!isPlanActive) {
+        quotaError.textContent = "Plan එක Active නොමැති බැවින් Limits update කළ නොහැක.";
+        return;
+      }
+
+      const fileLim = Math.max(0, parseInt(fileStorageLimitInput.value || "0", 10) || 0);
+      const vecLim = Math.max(0, parseInt(vectorDbLimitInput.value || "0", 10) || 0);
+      const rowLim = Math.max(0, parseInt(tableRowsLimitInput.value || "0", 10) || 0);
+
+      const token = String(authPass.token || "").trim();
+      saveQuotasBtn.disabled = true;
+      try {
+        const res = await fetch(API_BASE + "/api/client/quotas", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({
+            client_id: ACTIVE_CLIENT_ID,
+            file_storage_limit_mb: fileLim,
+            vector_db_limit_mb: vecLim,
+            table_rows_limit: rowLim
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.detail || "Failed to save storage & rows limits");
+        }
+        quotaInitialized = false;
+        quotaStatus.textContent = "File Storage, Vector DB, සහ Table Rows limits update වුණා!";
+        await loadFirestoreClientData();
+      } catch (err) {
+        quotaError.textContent = err.message || "Error updating limits";
+      } finally {
+        saveQuotasBtn.disabled = !isPlanActive;
+      }
+    });
+
+    saveBotNameBtn.addEventListener("click", async () => {
+      botNameStatus.textContent = "";
+      botNameError.textContent = "";
+      const nextName = String(botNameInput.value || "").trim();
+      if (!isPlanActive) {
+        botNameError.textContent = "Plan එක Active නොමැති බැවින් නම වෙනස් කළ නොහැක.";
+        return;
+      }
+      if (!nextName) {
+        botNameError.textContent = "කරුණාකර Chatbot / Store නමක් ඇතුළත් කරන්න.";
+        return;
+      }
+
+      const token = String(authPass.token || "").trim();
+      saveBotNameBtn.disabled = true;
+      try {
+        if (API_BASE && token) {
+          const res = await fetch(API_BASE + "/api/client/settings", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + token
+            },
+            body: JSON.stringify({
+              client_id: ACTIVE_CLIENT_ID,
+              store_name: nextName
+            })
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || "Backend settings endpoint not ready");
+          }
+        }
+        if (currentDataset.clients && currentDataset.clients[ACTIVE_CLIENT_ID]) {
+          currentDataset.clients[ACTIVE_CLIENT_ID].store_name = nextName;
+        }
+        document.getElementById("storeTitle").textContent = nextName;
+        embedCodeBox.textContent = buildEmbedSnippet(ACTIVE_CLIENT_ID, nextName, activeClientKey);
+        botNameStatus.textContent = 'Chatbot name "' + nextName + '" ලෙස update වුණා!';
+      } catch (err) {
+        botNameError.textContent = err.message || "Error updating chatbot name";
+      } finally {
+        saveBotNameBtn.disabled = !isPlanActive;
+      }
+    });
 
     copyEmbedBtn.addEventListener("click", async () => {
       if (!isPlanActive || !embedCodeBox.textContent) return;

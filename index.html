@@ -232,7 +232,7 @@
             transform: translateX(3px);
         }
 
-        /* Stacked Login Icon + Tiny "Login" Label */
+        /* Anonymous Icon + "Login" Label Underneath */
         .nav-login-btn {
             display: inline-flex !important;
             flex-direction: column;
@@ -669,6 +669,11 @@
             color: var(--accent-cyan);
         }
 
+        .reveal-on-scroll,
+        .fade-in {
+            opacity: 1 !important;
+        }
+
         /* Tablet & Small Desktop Responsive Optimization */
         @media (max-width: 1024px) {
             .grid-3 {
@@ -842,15 +847,13 @@
                 <a href="pricing.html">Pricing</a>
                 <a href="contact.html">Contact</a>
 
-                <!-- Client Login Button (Icon + Small "Login" Label Underneath) -->
-                <a href="login.html" class="nav-login-btn" aria-label="Client Login">
-                    <i class="fa-solid fa-user-lock"></i>
+                <!-- Anonymous Icon + "Login" Label Underneath -->
+                <a href="https://zenixai.online/chatbot/login.html" class="nav-login-btn" aria-label="Client Login">
+                    <i class="fa-solid fa-user-secret"></i>
                     <span>Login</span>
                 </a>
             </nav>
         </div>
-        
-      
     </header>
 
     <!-- Hero Section -->
@@ -1121,11 +1124,11 @@
             }
         });
     </script>
-    <script src="script.js"></script>
-    <script
+<script
   src="https://zenixai.online/chatbot/app.js"
-  data-client-id="client_006"
   data-api-base="https://zenixz-ai-1.onrender.com"
+  data-client-id="CLT-106"
+  data-client-name="adada"
   defer
 ></script>
 </body> 
