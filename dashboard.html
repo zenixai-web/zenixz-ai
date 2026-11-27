@@ -446,7 +446,7 @@
       <label for="agentSelect" style="font-size: 13px; color: var(--muted);">Agent:</label>
       <select id="agentSelect"></select>
       <button class="btn-ghost" id="orderTrackingBtn" type="button">Order Tracking</button>
-      <a class="btn-link btn-ghost" id="fullOrderTrackingLink" href="./chatbot/order-tracking.html">Full Tracking Page</a>
+      <a class="btn-link btn-ghost" id="fullOrderTrackingLink" href="./order-tracking.html">Full Tracking Page</a>
       <button class="btn-ghost" id="themeBtn" type="button" title="Toggle Dark / Light Theme">☀️ Light</button>
       <button class="btn-ghost" id="refreshBtn" type="button">↻ Sync Now</button>
       <button class="btn-ghost" id="logoutBtn" type="button">Logout</button>
@@ -455,8 +455,8 @@
 
   <main class="container">
     <div class="sync-banner" id="syncBanner">
-      <strong>Update Schedule & Server Delay Notice:</strong>
-      Usage data is updated daily before <strong>12:00 AM</strong>. After publishing changes, server/CDN propagation may take approximately <strong>30–60 minutes</strong> to appear.
+      <strong>Live Firebase Control:</strong>
+      Account limits (Conversations, File Storage, Vector DB, Table Rows) and plan status are managed directly from <strong>Firebase Firestore</strong> for your Client ID.
     </div>
 
     <div class="last3-warning-box" id="last3DaysBanner"></div>
@@ -470,6 +470,7 @@
     <div class="session-strip" id="sessionStrip">
       <span>Client ID: <strong id="metaClientId">-</strong></span>
       <span>Account / Email: <strong id="metaEmail">-</strong></span>
+      <span>Last IP: <strong id="metaLastIp">-</strong></span>
       <span>Session Expires: <strong id="metaExpiry">-</strong></span>
     </div>
 
@@ -525,7 +526,7 @@
           />
           <button class="btn" id="trackSearchBtn" type="button">Search</button>
           <button class="btn-ghost" id="trackResetBtn" type="button">Reset</button>
-          <a class="btn-link btn-ghost" id="panelFullTrackingLink" href="./chatbot/order-tracking.html">Open Full Tracking Page</a>
+          <a class="btn-link btn-ghost" id="panelFullTrackingLink" href="./order-tracking.html">Open Full Tracking Page</a>
         </div>
       </div>
 
@@ -612,9 +613,21 @@
       applyTheme(current === "dark" ? "light" : "dark");
     });
 
+    function resolveLoginPageUrl() {
+      return "./login.html";
+    }
+
+    function resolveTrackingPageUrl(clientId, username) {
+      const params = new URLSearchParams({ client_id: clientId });
+      if (username) params.set("username", username);
+      const isInsideChatbotFolder = /\/chatbot\//i.test(window.location.pathname);
+      const basePath = isInsideChatbotFolder ? "./order-tracking.html" : "./order-tracking.html";
+      return basePath + "?" + params.toString();
+    }
+
     const authPassRaw = sessionStorage.getItem("zenix_auth_pass");
     if (!authPassRaw) {
-      window.location.replace("./login.html");
+      window.location.replace(resolveLoginPageUrl());
     }
 
     let authPass = null;
@@ -622,37 +635,47 @@
       authPass = JSON.parse(authPassRaw);
     } catch {
       sessionStorage.removeItem("zenix_auth_pass");
-      window.location.replace("./login.html");
+      window.location.replace(resolveLoginPageUrl());
     }
 
     if (!authPass || !authPass.client_id || Date.now() > Number(authPass.expires_at || 0)) {
       sessionStorage.removeItem("zenix_auth_pass");
-      window.location.replace("./login.html");
+      window.location.replace(resolveLoginPageUrl());
     }
 
     const ACTIVE_CLIENT_ID = String(authPass.client_id || "").trim().toUpperCase();
 
-    function syncFullTrackingLinks() {
-      const targetUrl = "./chatbot/order-tracking.html?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID);
+    function syncClientLinks() {
+      const targetUrl = resolveTrackingPageUrl(
+        ACTIVE_CLIENT_ID,
+        String(authPass.username || authPass.generated_username || "")
+      );
       const topLink = document.getElementById("fullOrderTrackingLink");
       const panelLink = document.getElementById("panelFullTrackingLink");
       if (topLink) topLink.setAttribute("href", targetUrl);
       if (panelLink) panelLink.setAttribute("href", targetUrl);
+
+      try {
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set("client_id", ACTIVE_CLIENT_ID);
+        window.history.replaceState({}, "", currentUrl.toString());
+      } catch {}
     }
-    syncFullTrackingLinks();
+    syncClientLinks();
 
     document.getElementById("metaClientId").textContent = ACTIVE_CLIENT_ID;
     document.getElementById("metaEmail").textContent =
       authPass.email || authPass.user_email || authPass.client_email || "Verified Session";
+    document.getElementById("metaLastIp").textContent = authPass.last_login_ip || "-";
     document.getElementById("metaExpiry").textContent = authPass.expires_at
       ? new Date(Number(authPass.expires_at)).toLocaleString()
       : "-";
 
     const FALLBACK_DATA = {
       sync_meta: {
-        schedule: "Daily before 12:00 AM (+05:30)",
-        propagation_note: "Server/CDN updates may take 30–60 minutes to reflect.",
-        last_synced_at: "Before 12:00 AM Daily Sync"
+        schedule: "Live Firebase Firestore Sync",
+        propagation_note: "Controlled via Firebase Firestore.",
+        last_synced_at: "-"
       },
       plans: {
         credits_50: {
@@ -666,6 +689,12 @@
           file_storage_limit_mb: 100,
           vector_db_limit_mb: 100,
           table_rows_limit: 1000
+        },
+        credits_10000: {
+          conversations_limit: 10000,
+          file_storage_limit_mb: 10000,
+          vector_db_limit_mb: 10000,
+          table_rows_limit: 10000
         }
       },
       clients: {}
@@ -706,7 +735,6 @@
       return { expired: false, inLast3Days: false, daysLeft: null };
     }
 
-    // Strictly true only when plan_active is explicitly boolean true and not expired
     function isClientPlanActive(clientObj) {
       if (!clientObj || typeof clientObj !== "object") return false;
       if (getExpiryState(clientObj.expires_at).expired) return false;
@@ -758,13 +786,21 @@
 
       return {
         conversations_used: Number(agentObj.conversations_used || 0),
-        conversations_limit: Number(agentObj.conversations_limit ?? planPreset.conversations_limit ?? 0),
+        conversations_limit: Number(
+          clientObj.conversations_limit ?? agentObj.conversations_limit ?? planPreset.conversations_limit ?? 0
+        ),
         file_storage_mb: Number(agentObj.file_storage_mb || 0),
-        file_storage_limit_mb: Number(agentObj.file_storage_limit_mb ?? planPreset.file_storage_limit_mb ?? 0),
+        file_storage_limit_mb: Number(
+          clientObj.file_storage_limit_mb ?? agentObj.file_storage_limit_mb ?? planPreset.file_storage_limit_mb ?? 0
+        ),
         vector_db_mb: Number(agentObj.vector_db_mb || 0),
-        vector_db_limit_mb: Number(agentObj.vector_db_limit_mb ?? planPreset.vector_db_limit_mb ?? 0),
+        vector_db_limit_mb: Number(
+          clientObj.vector_db_limit_mb ?? agentObj.vector_db_limit_mb ?? planPreset.vector_db_limit_mb ?? 0
+        ),
         table_rows_used: Number(agentObj.table_rows_used || 0),
-        table_rows_limit: Number(agentObj.table_rows_limit ?? planPreset.table_rows_limit ?? 0)
+        table_rows_limit: Number(
+          clientObj.table_rows_limit ?? agentObj.table_rows_limit ?? planPreset.table_rows_limit ?? 0
+        )
       };
     }
 
@@ -776,30 +812,37 @@
 
     function sumAgents(clientObj) {
       const agents = (clientObj && clientObj.agents) || {};
-      return Object.values(agents).reduce(
+      const entries = Object.values(agents);
+      const totals = entries.reduce(
         (acc, rawAg) => {
           const a = resolveAgentMetrics(clientObj, rawAg);
           acc.conversations_used += a.conversations_used;
-          acc.conversations_limit += a.conversations_limit;
           acc.file_storage_mb += a.file_storage_mb;
-          acc.file_storage_limit_mb += a.file_storage_limit_mb;
           acc.vector_db_mb += a.vector_db_mb;
-          acc.vector_db_limit_mb += a.vector_db_limit_mb;
           acc.table_rows_used += a.table_rows_used;
-          acc.table_rows_limit += a.table_rows_limit;
           return acc;
         },
         {
           conversations_used: 0,
-          conversations_limit: 0,
           file_storage_mb: 0,
-          file_storage_limit_mb: 0,
           vector_db_mb: 0,
-          vector_db_limit_mb: 0,
-          table_rows_used: 0,
-          table_rows_limit: 0
+          table_rows_used: 0
         }
       );
+
+      const plansMap = (currentDataset && currentDataset.plans) || {};
+      const planPreset = (clientObj && clientObj.plan && plansMap[clientObj.plan]) || {};
+
+      return {
+        conversations_used: totals.conversations_used,
+        conversations_limit: Number(clientObj.conversations_limit ?? planPreset.conversations_limit ?? 0),
+        file_storage_mb: totals.file_storage_mb,
+        file_storage_limit_mb: Number(clientObj.file_storage_limit_mb ?? planPreset.file_storage_limit_mb ?? 0),
+        vector_db_mb: totals.vector_db_mb,
+        vector_db_limit_mb: Number(clientObj.vector_db_limit_mb ?? planPreset.vector_db_limit_mb ?? 0),
+        table_rows_used: totals.table_rows_used,
+        table_rows_limit: Number(clientObj.table_rows_limit ?? planPreset.table_rows_limit ?? 0)
+      };
     }
 
     function renderStats(m, label) {
@@ -812,7 +855,7 @@
       const rowUsed = Number(m.table_rows_used || 0);
       const rowLimit = Number(m.table_rows_limit || 0);
 
-      document.getElementById("scopeLabel").textContent = "View: " + label;
+      document.getElementById("scopeLabel").textContent = "View: " + label + " (" + ACTIVE_CLIENT_ID + ")";
       document.getElementById("convVal").textContent = convUsed + " / " + convLimit;
       document.getElementById("convRem").textContent = "Remaining: " + Math.max(0, convLimit - convUsed);
       setBar(document.getElementById("convBar"), convUsed, convLimit);
@@ -853,7 +896,7 @@
       const qDigits = normalizeDigits(rawQuery);
 
       if (!q) {
-        trackingHeading.textContent = "Order Tracking (Today's Orders — Max 5)";
+        trackingHeading.textContent = "Order Tracking (" + ACTIVE_CLIENT_ID + " — Today's Orders Max 5)";
         return clientTodayOrders.slice(0, 5);
       }
 
@@ -950,13 +993,14 @@
     function renderDashboard() {
       const meta = currentDataset.sync_meta || {};
       document.getElementById("lastSyncedLabel").textContent =
-        "Last Synced: " + (meta.last_synced_at || "-") + " (" + (meta.schedule || "Daily before 12:00 AM") + ")";
+        "Last Synced: " + (meta.last_synced_at || new Date().toLocaleTimeString()) + " (Firebase Firestore)";
 
       const clientsMap = currentDataset.clients || {};
-      const clientData =
-        clientsMap[ACTIVE_CLIENT_ID] ||
-        Object.entries(clientsMap).find(([k]) => String(k).toUpperCase() === ACTIVE_CLIENT_ID)?.[1] ||
-        null;
+      const clientData = clientsMap[ACTIVE_CLIENT_ID] || null;
+
+      if (clientData && clientData.last_login_ip) {
+        document.getElementById("metaLastIp").textContent = clientData.last_login_ip;
+      }
 
       const expState = getExpiryState(clientData && clientData.expires_at);
       isPlanActive = isClientPlanActive(clientData);
@@ -1047,21 +1091,16 @@
       }
     }
 
-    async function loadUsageJson() {
-      let fileData = null;
-      try {
-        const res = await fetch("data/usage.json?t=" + Date.now(), { cache: "no-store" });
-        if (res.ok) {
-          fileData = await res.json();
-        }
-      } catch {
-        // Fallback when offline or static
-      }
+    async function loadFirestoreClientData() {
+      const baseDoc = {
+        sync_meta: Object.assign({}, FALLBACK_DATA.sync_meta, {
+          last_synced_at: new Date().toLocaleTimeString()
+        }),
+        plans: Object.assign({}, FALLBACK_DATA.plans),
+        clients: {}
+      };
 
-      const baseDoc = fileData || FALLBACK_DATA;
-      baseDoc.clients = baseDoc.clients || {};
-
-      const apiBase = String(window.ZENIX_API_BASE || authPass.api_base || "").replace(/\/+$/, "");
+      const apiBase = String(window.ZENIX_API_BASE || authPass.api_base || "https://zenixz-ai.onrender.com").replace(/\/+$/, "");
       const token = String(authPass.token || "").trim();
 
       if (apiBase && token) {
@@ -1073,12 +1112,24 @@
           );
           if (dashRes.ok) {
             const dashJson = await dashRes.json();
-            const existingClient = baseDoc.clients[ACTIVE_CLIENT_ID] || {
-              store_name: ACTIVE_CLIENT_ID + " Store",
-              plan: null,
-              plan_active: false,
-              expires_at: null,
-              agents: {
+            const strictPlanActive =
+              typeof dashJson.plan_active === "boolean"
+                ? dashJson.plan_active === true
+                : false;
+
+            const clientRecord = Object.assign({}, dashJson.client || {}, {
+              client_id: ACTIVE_CLIENT_ID,
+              store_name: dashJson.store_name || (ACTIVE_CLIENT_ID + " Store"),
+              email: dashJson.email || authPass.email || "",
+              last_login_ip: dashJson.last_login_ip || authPass.last_login_ip || "-",
+              plan: dashJson.plan === "No Active Plan" ? null : (dashJson.plan ?? null),
+              plan_active: strictPlanActive,
+              expires_at: dashJson.expires_at ?? null,
+              conversations_limit: dashJson.conversations_limit ?? (dashJson.client && dashJson.client.conversations_limit) ?? 0,
+              file_storage_limit_mb: dashJson.file_storage_limit_mb ?? (dashJson.client && dashJson.client.file_storage_limit_mb) ?? 0,
+              vector_db_limit_mb: dashJson.vector_db_limit_mb ?? (dashJson.client && dashJson.client.vector_db_limit_mb) ?? 0,
+              table_rows_limit: dashJson.table_rows_limit ?? (dashJson.client && dashJson.client.table_rows_limit) ?? 0,
+              agents: dashJson.agents || {
                 bot_1: {
                   label: "Main Order Agent",
                   conversations_used: 0,
@@ -1088,19 +1139,6 @@
                 }
               },
               orders_today: []
-            };
-
-            const strictPlanActive =
-              typeof dashJson.plan_active === "boolean"
-                ? dashJson.plan_active === true
-                : existingClient.plan_active === true;
-
-            const mergedClient = Object.assign({}, existingClient, dashJson.client || {}, {
-              store_name: dashJson.store_name || existingClient.store_name,
-              plan: dashJson.plan === "No Active Plan" ? null : (dashJson.plan ?? existingClient.plan),
-              plan_active: strictPlanActive,
-              expires_at: dashJson.expires_at ?? existingClient.expires_at,
-              agents: dashJson.agents || existingClient.agents
             });
 
             const ordersRes = await fetch(
@@ -1114,15 +1152,33 @@
                     (o) => String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase() === ACTIVE_CLIENT_ID
                   )
                 : [];
-              mergedClient.orders = scopedOrders;
-              mergedClient.orders_today = scopedOrders.slice(0, 5);
+              clientRecord.orders = scopedOrders;
+              clientRecord.orders_today = scopedOrders.slice(0, 5);
             }
 
-            baseDoc.clients[ACTIVE_CLIENT_ID] = mergedClient;
+            baseDoc.clients[ACTIVE_CLIENT_ID] = clientRecord;
           }
-        } catch {
-          // Keep fileData fallback if API request fails
-        }
+        } catch {}
+      }
+
+      if (!baseDoc.clients[ACTIVE_CLIENT_ID]) {
+        baseDoc.clients[ACTIVE_CLIENT_ID] = {
+          client_id: ACTIVE_CLIENT_ID,
+          store_name: authPass.store_name || (ACTIVE_CLIENT_ID + " Store"),
+          plan: null,
+          plan_active: false,
+          expires_at: null,
+          agents: {
+            bot_1: {
+              label: "Main Order Agent",
+              conversations_used: 0,
+              file_storage_mb: 0,
+              vector_db_mb: 0,
+              table_rows_used: 0
+            }
+          },
+          orders_today: []
+        };
       }
 
       currentDataset = baseDoc;
@@ -1164,7 +1220,7 @@
     document.getElementById("trackResetBtn").addEventListener("click", () => {
       trackOrderIdInput.value = "";
       orderDetailPanel.style.display = "none";
-      trackingHeading.textContent = "Order Tracking (Today's Orders — Max 5)";
+      trackingHeading.textContent = "Order Tracking (" + ACTIVE_CLIENT_ID + " — Today's Orders Max 5)";
       renderOrdersTable(isPlanActive ? clientTodayOrders.slice(0, 5) : []);
     });
 
@@ -1173,11 +1229,11 @@
     });
 
     agentSelect.addEventListener("change", renderDashboard);
-    document.getElementById("refreshBtn").addEventListener("click", loadUsageJson);
+    document.getElementById("refreshBtn").addEventListener("click", loadFirestoreClientData);
 
     document.getElementById("logoutBtn").addEventListener("click", () => {
       sessionStorage.removeItem("zenix_auth_pass");
-      window.location.replace("./login.html");
+      window.location.replace(resolveLoginPageUrl());
     });
 
     document.getElementById("msgForm").addEventListener("submit", (e) => {
@@ -1190,7 +1246,7 @@
       e.target.reset();
     });
 
-    loadUsageJson();
+    loadFirestoreClientData();
   </script>
 </body>
 </html>

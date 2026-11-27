@@ -163,7 +163,6 @@
       color: #93c5fd;
     }
 
-    /* Popup Modal */
     .proof-modal-overlay {
       display: none;
       position: fixed;
@@ -259,7 +258,7 @@
         <span class="client-pill" id="activeClientBadge">Client: -</span>
       </div>
       <div class="actions-group">
-        <a class="back-btn" href="../dashboard.html">← Dashboard</a>
+        <a class="back-btn" id="backToDashboardLink" href="../dashboard.html">← Dashboard</a>
         <input
           id="orderSearchInput"
           class="search-input"
@@ -293,7 +292,6 @@
     </div>
   </div>
 
-  <!-- Popup Screen for PNG / JPG / PDF -->
   <div id="proofModal" class="proof-modal-overlay" role="dialog" aria-modal="true">
     <div class="proof-modal-box">
       <div class="proof-modal-header">
@@ -307,27 +305,36 @@
   <script>
     const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
+    let parsedAuthSession = null;
+    try {
+      const authRaw = sessionStorage.getItem("zenix_auth_pass");
+      if (authRaw) {
+        const p = JSON.parse(authRaw);
+        if (p && p.client_id && Date.now() <= Number(p.expires_at || 0)) {
+          parsedAuthSession = p;
+        }
+      }
+    } catch (_) {}
+
     function resolveActiveClientId() {
       const urlParams = new URLSearchParams(window.location.search || "");
-      const fromUrl = (urlParams.get("client_id") || "").trim();
+      const fromUrl = (urlParams.get("client_id") || "").trim().toUpperCase();
       if (fromUrl) return fromUrl;
 
-      try {
-        const authRaw = sessionStorage.getItem("zenix_auth_pass");
-        if (authRaw) {
-          const parsed = JSON.parse(authRaw);
-          if (parsed && parsed.client_id && Date.now() <= Number(parsed.expires_at || 0)) {
-            return String(parsed.client_id).trim();
-          }
-        }
-      } catch (_) {}
-
+      if (parsedAuthSession && parsedAuthSession.client_id) {
+        return String(parsedAuthSession.client_id).trim().toUpperCase();
+      }
       return "";
     }
 
     const ACTIVE_CLIENT_ID = resolveActiveClientId();
     document.getElementById("activeClientBadge").textContent =
       ACTIVE_CLIENT_ID ? "Client: " + ACTIVE_CLIENT_ID : "Client: Unauthenticated";
+
+    const backLinkEl = document.getElementById("backToDashboardLink");
+    if (ACTIVE_CLIENT_ID && backLinkEl) {
+      backLinkEl.setAttribute("href", "../dashboard.html?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID));
+    }
 
     if (!ACTIVE_CLIENT_ID) {
       window.location.replace("../login.html");
@@ -353,7 +360,7 @@
 
     function belongsToActiveClient(order) {
       if (!order || typeof order !== "object" || !ACTIVE_CLIENT_ID) return false;
-      const cid = String(order.client_id ?? order.clientId ?? "").trim();
+      const cid = String(order.client_id ?? order.clientId ?? "").trim().toUpperCase();
       return cid === ACTIVE_CLIENT_ID;
     }
 
@@ -684,31 +691,35 @@
 
     async function fetchServerOrdersForClient() {
       try {
-        const base = window.location.origin && window.location.origin !== "null"
-          ? window.location.origin
-          : "https://zenixz-ai-1.onrender.com/";
-        const url = `${base.replace(/\/+$/, "")}/api/orders?client_id=${encodeURIComponent(ACTIVE_CLIENT_ID)}&limit=100`;
-        const res = await fetch(url, { cache: "no-store" });
+        const apiBase = String(
+          window.ZENIX_API_BASE ||
+          (parsedAuthSession && parsedAuthSession.api_base) ||
+          "https://zenixz-ai.onrender.com"
+        ).replace(/\/+$/, "");
+
+        const token = parsedAuthSession && parsedAuthSession.token ? String(parsedAuthSession.token).trim() : "";
+        const headers = token ? { "Authorization": "Bearer " + token } : {};
+
+        const url = `${apiBase}/api/my/orders?client_id=${encodeURIComponent(ACTIVE_CLIENT_ID)}`;
+        const res = await fetch(url, { headers, cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
         const serverOrders = Array.isArray(data && data.orders) ? data.orders : [];
-        if (serverOrders.length > 0) {
-          const current = collectScoped24hOrders();
-          const map = new Map();
-          current.forEach((o, i) => map.set(String(o.order_id || i), o));
-          serverOrders.forEach((o, i) => {
-            if (belongsToActiveClient(o) && isWithin24Hours(o)) {
-              const id = String(o.order_id || `srv_${i}`);
-              map.set(id, Object.assign({}, map.get(id) || {}, o));
-            }
-          });
-          allOrders = Array.from(map.values()).sort((a, b) => {
-            const ta = Date.parse(a.created_at || a.createdAt || 0) || 0;
-            const tb = Date.parse(b.created_at || b.createdAt || 0) || 0;
-            return tb - ta;
-          });
-          applySearchAndRender();
-        }
+        const current = collectScoped24hOrders();
+        const map = new Map();
+        current.forEach((o, i) => map.set(String(o.order_id || i), o));
+        serverOrders.forEach((o, i) => {
+          if (belongsToActiveClient(o) && isWithin24Hours(o)) {
+            const id = String(o.order_id || `srv_${i}`);
+            map.set(id, Object.assign({}, map.get(id) || {}, o));
+          }
+        });
+        allOrders = Array.from(map.values()).sort((a, b) => {
+          const ta = Date.parse(a.created_at || a.createdAt || 0) || 0;
+          const tb = Date.parse(b.created_at || b.createdAt || 0) || 0;
+          return tb - ta;
+        });
+        applySearchAndRender();
       } catch (_) {}
     }
 

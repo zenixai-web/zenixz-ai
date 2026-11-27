@@ -2,7 +2,6 @@
   if (window.__ZENIX_WIDGET_LOADED__) return;
   window.__ZENIX_WIDGET_LOADED__ = true;
 
-  // පරණ Store Assistant / Legacy elements තිබේ නම් සම්පූර්ණයෙන්ම ඉවත් කරන්න
   function removeLegacyStoreAssistant() {
     const legacySelectors = [
       "[data-zenix-legacy]",
@@ -49,13 +48,13 @@
   const scriptEl =
     document.currentScript ||
     Array.from(document.querySelectorAll("script")).find((s) =>
-      (s.src || "").includes("app.js")
+      (s.src || "").includes("app")
     );
 
   const API_BASE =
     (scriptEl && scriptEl.getAttribute("data-api-base")) ||
     window.ZENIX_API_BASE ||
-    "https://zenixz-ai-1.onrender.com";
+    "https://zenixz-ai.onrender.com";
 
   const BOTPRESS_WEBHOOK_URL =
     (scriptEl && scriptEl.getAttribute("data-botpress-webhook")) ||
@@ -121,7 +120,7 @@
 
   function saveLocalOrders(list) {
     try {
-      localStorage.setItem(ORDERS_LOCAL_KEY, JSON.stringify(list.slice(0, 200)));
+      localStorage.setItem(ORDERS_LOCAL_KEY, JSON.stringify(list.slice(0, 100)));
     } catch (_) {}
   }
 
@@ -180,7 +179,6 @@
     }
   }
 
-  // භාෂා 3න්ම කෙටි Welcome Message එක
   const TRILINGUAL_WELCOME =
     "Hello! I'm your AI Assistant. How can I help you?\n" +
     "ආයුබෝවන්! මම ඔබේ AI සහායකයා. ඔබට කොහොමද උදව් කරන්න පුළුවන්?\n" +
@@ -202,7 +200,7 @@
     showPoweredBy: false,
     quickReplies: ["Pricing", "Place Order", "Bank Transfer", "Contact Info"],
     currency: "LKR",
-    language: "en", // Default English automatically
+    language: "en",
     businessType: "general",
     businessName: ACTIVE_CLIENT_NAME || "",
     bankDetails: "",
@@ -258,7 +256,6 @@
 
   const processedStockOrderIds = new Set();
 
-  // PNG, JPG, JPEG, PDF පමණක් validate කිරීම
   function isAllowedAttachmentFile(file) {
     if (!file) return false;
     const name = String(file.name || "").toLowerCase();
@@ -290,8 +287,9 @@
       orderAskName: "Please enter your full name.",
       orderAskPhone: "Please enter your phone number.",
       orderAskAddress: "Please enter your delivery address.",
-      orderAskPayment: (summaryText) =>
-        `${summaryText}\n\nChoose payment method:\n1. Bank Transfer (attach PNG, JPG, or PDF slip)\n2. Cash on Delivery (COD)\n\nType "Bank Transfer" or "COD".`,
+      orderAskPayment: (summaryText, bankInfo) =>
+        `${summaryText}${bankInfo ? `\n\n🏦 **Bank Details:**\n${bankInfo}` : ""}\n\nChoose payment method:\n1. Bank Transfer (click "Upload Proof" to attach PNG/JPG/PDF slip)\n2. Cash on Delivery (COD)\n\nType "Bank Transfer" or "COD".`,
+      orderWaitProof: "Bank Transfer selected. Please click 'Upload Proof' to attach your slip (PNG/JPG/PDF) or type 'COD' to switch.",
       orderConfirmed: (ord) =>
         `✅ **Order Confirmed!**\n\n• **Order ID:** ${ord.order_id}\n• **Item:** ${ord.item}\n• **Quantity:** ${ord.quantity}\n• **Total:** ${Number(ord.total || 0).toLocaleString()} ${ord.currency || "LKR"}\n• **Name:** ${ord.customer_name}\n• **Phone:** ${ord.phone}\n• **Address:** ${ord.address}\n• **Payment:** ${ord.payment_method}${ord.payment_proof_name ? `\n• **Proof:** ${ord.payment_proof_name}` : ""}\n\nOur team will contact you shortly.`,
       orderCancelled: "Order cancelled. How else can I help you?",
@@ -321,8 +319,9 @@
       orderAskName: "ඔබේ සම්පූර්ණ නම (Full Name) ඇතුළත් කරන්න.",
       orderAskPhone: "ඔබේ දුරකථන අංකය (Phone Number) ඇතුළත් කරන්න.",
       orderAskAddress: "Delivery කරන්න ඕනෑ ලිපිනය (Delivery Address) ඇතුළත් කරන්න.",
-      orderAskPayment: (summaryText) =>
-        `${summaryText}\n\nPayment ක්‍රමය තෝරන්න:\n1. Bank Transfer / Slip Upload\n2. Cash on Delivery (COD)\n\n"Bank Transfer" හෝ "COD" ලෙස type කරන්න (Bank transfer නම් PNG/JPG/PDF slip එක attach කරන්න).`,
+      orderAskPayment: (summaryText, bankInfo) =>
+        `${summaryText}${bankInfo ? `\n\n🏦 **Bank Details:**\n${bankInfo}` : ""}\n\nPayment ක්‍රමය තෝරන්න:\n1. Bank Transfer ("Upload Proof" ඔබා PNG/JPG/PDF slip එක attach කරන්න)\n2. Cash on Delivery (COD)\n\n"Bank Transfer" හෝ "COD" ලෙස type කරන්න.`,
+      orderWaitProof: "Bank Transfer තෝරා ඇත. කරුණාකර 'Upload Proof' ඔබා PNG/JPG/PDF slip එක attach කරන්න (හෝ 'COD' ලෙස type කරන්න).",
       orderConfirmed: (ord) =>
         `✅ **Order එක සාර්ථකව තහවුරු වුණා!**\n\n• **Order ID:** ${ord.order_id}\n• **Item:** ${ord.item}\n• **Quantity:** ${ord.quantity}\n• **Total:** ${Number(ord.total || 0).toLocaleString()} ${ord.currency || "LKR"}\n• **Name:** ${ord.customer_name}\n• **Phone:** ${ord.phone}\n• **Address:** ${ord.address}\n• **Payment:** ${ord.payment_method}${ord.payment_proof_name ? `\n• **Proof:** ${ord.payment_proof_name}` : ""}\n\nඉක්මනින් අපේ team එක ඔබව සම්බන්ධ කරගනී.`,
       orderCancelled: "Order එක cancel කරන ලදී. වෙනත් උදව්වක් අවශ්‍යද?",
@@ -352,8 +351,9 @@
       orderAskName: "உங்கள் முழுப் பெயரை உள்ளிடவும்.",
       orderAskPhone: "உங்கள் தொலைபேசி எண்ணை உள்ளிடவும்.",
       orderAskAddress: "டெலிவரி முகவரியை உள்ளிடவும்.",
-      orderAskPayment: (summaryText) =>
-        `${summaryText}\n\nபணம் செலுத்தும் முறையைத் தேர்ந்தெடுக்கவும்:\n1. Bank Transfer (PNG/JPG/PDF ரசீது இணைக்கவும்)\n2. Cash on Delivery (COD)`,
+      orderAskPayment: (summaryText, bankInfo) =>
+        `${summaryText}${bankInfo ? `\n\n🏦 **Bank Details:**\n${bankInfo}` : ""}\n\nபணம் செலுத்தும் முறையைத் தேர்ந்தெடுக்கவும்:\n1. Bank Transfer (PNG/JPG/PDF ரசீது இணைக்கவும்)\n2. Cash on Delivery (COD)`,
+      orderWaitProof: "Bank Transfer தேர்ந்தெடுக்கப்பட்டது. தயவுசெய்து 'Upload Proof' மூலம் ரசீதை இணைக்கவும் அல்லது 'COD' என தட்டச்சு செய்யவும்.",
       orderConfirmed: (ord) =>
         `✅ **ஆர்டர் உறுதி செய்யப்பட்டது!**\n\n• **Order ID:** ${ord.order_id}\n• **Item:** ${ord.item}\n• **Quantity:** ${ord.quantity}\n• **Total:** ${Number(ord.total || 0).toLocaleString()} ${ord.currency || "LKR"}\n• **Name:** ${ord.customer_name}\n• **Phone:** ${ord.phone}\n• **Address:** ${ord.address}\n• **Payment:** ${ord.payment_method}`,
       orderCancelled: "ஆர்டர் ரத்து செய்யப்பட்டது. வேறு உதவி தேவையா?",
@@ -438,6 +438,11 @@
       parseFloat(ord.total ?? ord.totalPrice ?? 0) ||
       (unitPrice > 0 ? unitPrice * qty : 0);
 
+    const proofName = ord.payment_proof_name || ord.paymentProofName || "";
+    const proofDataUrl = ord.payment_proof_data_url || ord.paymentProofDataUrl || "";
+    const safeProofDataUrl =
+      proofDataUrl && proofDataUrl.length < 1800000 ? proofDataUrl : "";
+
     return {
       order_id: ord.order_id || ord.orderId || generateOrderId(),
       client_id: ACTIVE_CLIENT_ID || CLIENT_ID_FROM_SCRIPT || ord.client_id || "",
@@ -457,13 +462,13 @@
         (ord.payment_method || ord.paymentMethod || "").toLowerCase().includes("bank") ||
         (ord.payment_method || ord.paymentMethod || "").toLowerCase().includes("transfer") ||
         (ord.payment_method || ord.paymentMethod || "").toLowerCase().includes("slip")
-          ? ord.payment_proof_name || ord.paymentProofName
+          ? proofName
             ? "Proof Submitted (Pending Verification)"
             : "Pending Bank Transfer"
           : "Cash on Delivery",
-      payment_proof_name: ord.payment_proof_name || ord.paymentProofName || "",
+      payment_proof_name: proofName,
       payment_proof_url: ord.payment_proof_url || ord.paymentProofUrl || "",
-      payment_proof_data_url: ord.payment_proof_data_url || ord.paymentProofDataUrl || "",
+      payment_proof_data_url: safeProofDataUrl,
       status: "Pending",
       created_at: ord.created_at || new Date().toISOString()
     };
@@ -617,7 +622,7 @@
               cfg.allow_file_upload !== undefined ? Boolean(cfg.allow_file_upload) : config.allowFileUpload,
             showPoweredBy:
               cfg.show_powered_by !== undefined ? Boolean(cfg.show_powered_by) : config.showPoweredBy,
-            currency: cfg.currency || config.currency,
+            currency: cfg.currency || cfg.currency,
             language: "en",
             businessType: cfg.business_type || cfg.businessType || config.businessType,
             businessName: cfg.business_name || cfg.businessName || config.businessName,
@@ -1085,7 +1090,6 @@
     orderBtn.textContent = `🛒 ${s.newOrderBtn}`;
     orderBtn.addEventListener("click", () => startOrderFlow(""));
 
-    // Bank Transfer proof button: Bank transfer තෝරද්දී පමණක් පෙනේ
     const proofBtn = document.createElement("button");
     proofBtn.type = "button";
     proofBtn.className = "zenix-tool-btn zenix-proof-btn-hidden";
@@ -1128,7 +1132,6 @@
     const inputRow = document.createElement("div");
     inputRow.className = "zenix-input-row";
 
-    // High-quality crisp SVG paperclip attachment icon (PNG, JPG, JPEG, PDF only)
     const attachIconBtn = document.createElement("button");
     attachIconBtn.type = "button";
     attachIconBtn.className = "zenix-attach-icon-btn";
@@ -1412,7 +1415,7 @@
         domRefs.attachmentLabel.textContent = `🧾 ${s.proofAttached}: ${file.name}`;
         domRefs.attachmentBar.classList.add("active");
       }
-      if (orderDraft.active && orderDraft.step === "payment") {
+      if (orderDraft.active && (orderDraft.step === "payment" || orderDraft.step === "awaiting_proof")) {
         await completeOrderFromDraft("Bank Transfer");
       }
     } catch (_) {}
@@ -1515,6 +1518,10 @@
     const total = unitPrice > 0 ? unitPrice * qty : 0;
     const method = chosenPaymentMethod || orderDraft.paymentMethod || "COD";
 
+    const proofName = pendingPaymentProofName || pendingImageName || orderDraft.paymentProofName || "";
+    const proofDataUrl =
+      pendingPaymentProofDataUrl || pendingImageDataUrl || orderDraft.paymentProofDataUrl || "";
+
     const created = await finalizeAndSaveOrderInstant({
       order_id: generateOrderId(),
       item: orderDraft.item || "Item",
@@ -1526,10 +1533,9 @@
       phone: orderDraft.phone || "",
       address: orderDraft.address || "",
       payment_method: method,
-      payment_proof_name: pendingPaymentProofName || orderDraft.paymentProofName || "",
+      payment_proof_name: proofName,
       payment_proof_url: orderDraft.paymentProofUrl || "",
-      payment_proof_data_url:
-        pendingPaymentProofDataUrl || orderDraft.paymentProofDataUrl || ""
+      payment_proof_data_url: proofDataUrl
     });
 
     resetOrderDraft();
@@ -1539,7 +1545,7 @@
     return created;
   }
 
-  async function handleOrderStepInput(text) {
+  async function handleOrderStepInput(text, imgB64, imgName, imgDataUrl) {
     const s = getLangStrings();
     const trimmed = String(text || "").trim();
     const lower = trimmed.toLowerCase();
@@ -1552,8 +1558,8 @@
     }
 
     if (orderDraft.step === "item") {
-      orderDraft.item = trimmed;
-      orderDraft.unitPrice = findProductPrice(trimmed);
+      orderDraft.item = trimmed || "Item";
+      orderDraft.unitPrice = findProductPrice(orderDraft.item);
       orderDraft.step = "quantity";
       appendBotMessage(s.orderAskQty(orderDraft.item, orderDraft.unitPrice));
       return true;
@@ -1592,28 +1598,43 @@
           ? `${Number(orderDraft.totalPrice).toLocaleString()} ${config.currency || "LKR"}`
           : "To be confirmed";
       const summary = `📋 **Order Summary**\n• Item: ${orderDraft.item}\n• Qty: ${orderDraft.quantity}\n• Total: ${totalDisplay}\n• Name: ${orderDraft.customerName}\n• Phone: ${orderDraft.phone}\n• Address: ${orderDraft.address}`;
-      appendBotMessage(s.orderAskPayment(summary));
+      appendBotMessage(s.orderAskPayment(summary, config.bankDetails || ""));
       return true;
     }
 
-    if (orderDraft.step === "payment") {
-      let method = "COD";
+    if (orderDraft.step === "payment" || orderDraft.step === "awaiting_proof") {
+      const hasAttachment = Boolean(pendingPaymentProofDataUrl || imgDataUrl || imgB64 || imgName);
+      if (hasAttachment && !pendingPaymentProofDataUrl && imgDataUrl) {
+        pendingPaymentProofDataUrl = imgDataUrl;
+        pendingPaymentProofName = imgName || "payment_proof.png";
+      }
+
+      if (lower.includes("cod") || lower.includes("cash") || lower === "2") {
+        orderDraft.paymentMethod = "Cash on Delivery";
+        setBankTransferProofVisible(false);
+        await completeOrderFromDraft("Cash on Delivery");
+        return true;
+      }
+
       if (
         lower.includes("bank") ||
         lower.includes("transfer") ||
         lower.includes("slip") ||
-        lower.includes("1")
+        lower === "1" ||
+        orderDraft.step === "awaiting_proof"
       ) {
-        method = "Bank Transfer";
+        orderDraft.paymentMethod = "Bank Transfer";
         setBankTransferProofVisible(true);
-      } else if (lower.includes("cod") || lower.includes("cash") || lower.includes("2")) {
-        method = "Cash on Delivery";
-        setBankTransferProofVisible(false);
-      } else {
-        method = trimmed || "COD";
+        if (pendingPaymentProofDataUrl || pendingPaymentProofName) {
+          await completeOrderFromDraft("Bank Transfer");
+        } else {
+          orderDraft.step = "awaiting_proof";
+          appendBotMessage(s.orderWaitProof);
+        }
+        return true;
       }
-      orderDraft.paymentMethod = method;
-      await completeOrderFromDraft(method);
+
+      await completeOrderFromDraft(trimmed || "COD");
       return true;
     }
 
@@ -1709,6 +1730,7 @@
     const cleanText = String(text || "").trim();
     const imgB64 = pendingImageBase64;
     const imgName = pendingImageName;
+    const activeImgUrl = imgDataUrl || pendingImageDataUrl || null;
 
     if (!cleanText && !imgB64) return;
 
@@ -1717,7 +1739,7 @@
     }
 
     isSending = true;
-    appendUserMessage(cleanText, imgDataUrl || pendingImageDataUrl || null);
+    appendUserMessage(cleanText, activeImgUrl);
     if (cleanText) {
       conversationHistory.push({ role: "user", content: cleanText });
     }
@@ -1725,7 +1747,7 @@
 
     try {
       if (orderDraft.active) {
-        await handleOrderStepInput(cleanText);
+        await handleOrderStepInput(cleanText, imgB64, imgName, activeImgUrl);
         return;
       }
 

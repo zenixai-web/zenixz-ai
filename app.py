@@ -24,25 +24,24 @@ SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "support@zenixai.online").strip()
 SENDER_NAME = os.environ.get("SENDER_NAME", "Zenix AI").strip()
 ALLOW_DEV_CONSOLE_OTP = os.environ.get("ALLOW_DEV_CONSOLE_OTP", "0").strip() == "1"
 SESSION_TOKEN_SECRET = os.environ.get("SESSION_TOKEN_SECRET", "zenix-session-secret-change-me").strip()
+ADMIN_SECRET = os.environ.get("ZENIX_ADMIN_SECRET", "zenix-admin-secret-change-me").strip()
 
 OTP_STORE = {}
 RESET_OTP_STORE = {}
 OTP_TTL_SECONDS = 300  # 5 minutes
 
-# Same IP OTP rate limit (cost & spam protection)
 IP_OTP_HISTORY = defaultdict(list)
-IP_OTP_WINDOW_SECONDS = 600  # 10 minutes
-IP_OTP_MAX_REQUESTS = 8     # Max 8 OTP sends per IP per 10 mins
+IP_OTP_WINDOW_SECONDS = 600
+IP_OTP_MAX_REQUESTS = 8
 
-# Deduplicate conversation increments per client + bot + session
 SEEN_CONVERSATIONS = set()
 
-# Sync clients, usage & orders into data/usage.json (local + GitHub sync)
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "").strip()
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "").strip()
 GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main").strip()
 USAGE_JSON_PATH = os.environ.get("USAGE_JSON_PATH", "data/usage.json").strip()
 LOCAL_USAGE_FILE = os.environ.get("LOCAL_USAGE_FILE", "data/usage.json").strip()
+ENABLE_USAGE_FILE_SYNC = os.environ.get("ENABLE_USAGE_FILE_SYNC", "0").strip() == "1"
 
 _FIRESTORE_LAST_ERROR = ""
 
@@ -98,7 +97,7 @@ def _verify_password(password: str, stored_hash: str) -> bool:
 
 
 def _issue_client_token(client_id: str, email: str) -> str:
-    exp_ts = int(time.time()) + 86400 * 7  # 7 days
+    exp_ts = int(time.time()) + 86400 * 7
     payload_obj = {
         "client_id": client_id.upper(),
         "email": (email or "").strip().lower(),
@@ -230,7 +229,7 @@ def send_client_id_email_via_brevo(to_email: str, client_id: str, username: str,
               <p><strong>Client ID:</strong> <code>{client_id}</code></p>
               <p><strong>Username:</strong> <code>{username}</code></p>
               <p style="margin-top: 12px; font-size: 13px; color: #4b5563;">
-                Use your Username or Client ID with your email and password to log in from any device.
+                Use your Email, Client ID, or Username with your Password to log in from any device.
               </p>
             </div>
         """,
@@ -256,33 +255,36 @@ def send_client_id_email_via_brevo(to_email: str, client_id: str, username: str,
         raise RuntimeError(f"Brevo API error {exc.code}: {body}") from exc
 
 
+DEFAULT_PLANS = {
+    "credits_50": {
+        "conversations_limit": 50,
+        "file_storage_limit_mb": 50,
+        "vector_db_limit_mb": 50,
+        "table_rows_limit": 500,
+    },
+    "credits_100": {
+        "conversations_limit": 100,
+        "file_storage_limit_mb": 100,
+        "vector_db_limit_mb": 100,
+        "table_rows_limit": 1000,
+    },
+    "credits_10000": {
+        "conversations_limit": 10000,
+        "file_storage_limit_mb": 10000,
+        "vector_db_limit_mb": 10000,
+        "table_rows_limit": 10000,
+    },
+}
+
+
 def _default_usage_doc() -> dict:
     return {
         "sync_meta": {
-            "schedule": "Daily before 12:00 AM (+05:30)",
-            "propagation_note": "Server/CDN updates may take 30–60 minutes to reflect.",
-            "last_synced_at": "Before 12:00 AM Daily Sync",
+            "schedule": "Live Firebase Firestore Sync",
+            "propagation_note": "Controlled via Firebase Firestore.",
+            "last_synced_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         },
-        "plans": {
-            "credits_50": {
-                "conversations_limit": 50,
-                "file_storage_limit_mb": 50,
-                "vector_db_limit_mb": 50,
-                "table_rows_limit": 500,
-            },
-            "credits_100": {
-                "conversations_limit": 100,
-                "file_storage_limit_mb": 100,
-                "vector_db_limit_mb": 100,
-                "table_rows_limit": 1000,
-            },
-            "credits_10000": {
-                "conversations_limit": 10000,
-                "file_storage_limit_mb": 10000,
-                "vector_db_limit_mb": 10000,
-                "table_rows_limit": 10000,
-            },
-        },
+        "plans": dict(DEFAULT_PLANS),
         "clients": {},
     }
 
@@ -297,6 +299,7 @@ def _build_zero_client_entry(
     clean_cid = str(client_id or "").strip().upper()
     num_part = clean_cid.replace("CLT-", "").strip() or "1000"
     clean_user = (username or f"USR-{num_part}").strip()
+    now_iso = datetime.now(timezone.utc).isoformat()
     return {
         "client_id": clean_cid,
         "username": clean_user,
@@ -307,8 +310,12 @@ def _build_zero_client_entry(
         "plan": None,
         "plan_active": False,
         "expires_at": None,
+        "conversations_limit": 0,
+        "file_storage_limit_mb": 0,
+        "vector_db_limit_mb": 0,
+        "table_rows_limit": 0,
         "last_login_ip": last_ip or "",
-        "last_login_at": datetime.now(timezone.utc).isoformat() if last_ip else None,
+        "last_login_at": now_iso if last_ip else None,
         "agents": {
             "bot_1": {
                 "label": "Main Order Agent",
@@ -322,87 +329,25 @@ def _build_zero_client_entry(
     }
 
 
-def _github_get_file(path: str) -> tuple[dict | None, str | None]:
-    if not (GITHUB_TOKEN and GITHUB_REPO):
-        return None, None
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}?ref={GITHUB_BRANCH}"
-    req = urllib.request.Request(
-        url,
-        headers={
-            "Authorization": f"Bearer {GITHUB_TOKEN}",
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "ZenixAI-Backend",
-        },
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-            raw_bytes = base64.b64decode(payload["content"])
-            return json.loads(raw_bytes.decode("utf-8")), payload.get("sha")
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
-            return _default_usage_doc(), None
-        raise
-
-
-def _github_put_file(path: str, doc: dict, sha: str | None, commit_msg: str) -> None:
-    if not (GITHUB_TOKEN and GITHUB_REPO):
-        return
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
-    encoded = base64.b64encode(json.dumps(doc, indent=2).encode("utf-8")).decode("utf-8")
-    body = {
-        "message": commit_msg,
-        "content": encoded,
-        "branch": GITHUB_BRANCH,
-    }
-    if sha:
-        body["sha"] = sha
-
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(body).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {GITHUB_TOKEN}",
-            "Accept": "application/vnd.github+json",
-            "Content-Type": "application/json",
-            "User-Agent": "ZenixAI-Backend",
-        },
-        method="PUT",
-    )
-    with urllib.request.urlopen(req, timeout=8) as resp:
-        if resp.status not in (200, 201):
-            raise RuntimeError(f"GitHub update failed with HTTP {resp.status}")
-
-
 def _load_usage_doc() -> tuple[dict, str | None]:
-    doc = None
+    doc = _default_usage_doc()
     sha = None
-    if os.path.exists(LOCAL_USAGE_FILE):
+    if ENABLE_USAGE_FILE_SYNC and os.path.exists(LOCAL_USAGE_FILE):
         try:
             with open(LOCAL_USAGE_FILE, "r", encoding="utf-8") as f:
-                doc = json.load(f)
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    doc.update(loaded)
         except Exception:
-            doc = None
-
-    if doc is None and GITHUB_TOKEN and GITHUB_REPO:
-        try:
-            doc, sha = _github_get_file(USAGE_JSON_PATH)
-        except Exception:
-            doc = None
-    elif GITHUB_TOKEN and GITHUB_REPO:
-        try:
-            _, sha = _github_get_file(USAGE_JSON_PATH)
-        except Exception:
-            sha = None
-
-    if doc is None:
-        doc = _default_usage_doc()
+            pass
     doc.setdefault("clients", {})
-    doc.setdefault("plans", _default_usage_doc()["plans"])
+    doc.setdefault("plans", dict(DEFAULT_PLANS))
     return doc, sha
 
 
-def _save_usage_doc(doc: dict, sha: str | None, commit_msg: str, sync_github: bool = True) -> None:
+def _save_usage_doc(doc: dict, sha: str | None, commit_msg: str, sync_github: bool = False) -> None:
+    if not ENABLE_USAGE_FILE_SYNC:
+        return
     doc.setdefault("sync_meta", {})["last_synced_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     local_dir = os.path.dirname(LOCAL_USAGE_FILE)
     if local_dir:
@@ -410,26 +355,32 @@ def _save_usage_doc(doc: dict, sha: str | None, commit_msg: str, sync_github: bo
     with open(LOCAL_USAGE_FILE, "w", encoding="utf-8") as f:
         json.dump(doc, f, indent=2)
 
-    if sync_github and GITHUB_TOKEN and GITHUB_REPO:
-        try:
-            _github_put_file(USAGE_JSON_PATH, doc, sha, commit_msg)
-        except Exception:
-            pass
+
+def _get_client_limits(client_entry: dict) -> dict:
+    plan_name = str((client_entry or {}).get("plan") or "").strip()
+    preset = DEFAULT_PLANS.get(plan_name, {})
+
+    def _pick_limit(field_name: str) -> int:
+        if client_entry and client_entry.get(field_name) is not None:
+            try:
+                return max(0, int(client_entry.get(field_name)))
+            except (TypeError, ValueError):
+                pass
+        return int(preset.get(field_name, 0))
+
+    return {
+        "conversations_limit": _pick_limit("conversations_limit"),
+        "file_storage_limit_mb": _pick_limit("file_storage_limit_mb"),
+        "vector_db_limit_mb": _pick_limit("vector_db_limit_mb"),
+        "table_rows_limit": _pick_limit("table_rows_limit"),
+    }
 
 
-def _get_client_conversation_limit(doc: dict, client_entry: dict) -> int:
-    plan_name = client_entry.get("plan")
-    plans = doc.get("plans", {})
-    if plan_name and plan_name in plans:
-        return int(plans[plan_name].get("conversations_limit", 0))
-    return 0
+def _get_client_conversation_limit(client_entry: dict) -> int:
+    return _get_client_limits(client_entry)["conversations_limit"]
 
 
 def _check_and_enforce_plan_state(client_entry: dict) -> tuple[bool, str, bool]:
-    """
-    Returns (is_active_now, reason, changed_due_to_expiry).
-    Enforces 30-day plan expiry: once expires_at passes, plan_active becomes False.
-    """
     if not client_entry:
         return False, "plan_inactive", False
 
@@ -451,14 +402,6 @@ def _check_and_enforce_plan_state(client_entry: dict) -> tuple[bool, str, bool]:
         return False, "plan_inactive", False
 
     return True, "active", False
-
-
-def _is_client_active_now(client_entry: dict) -> tuple[bool, str]:
-    active, reason, _ = _check_and_enforce_plan_state(client_entry)
-    return active, reason
-
-
-# --- Firebase Firestore Helpers ---
 
 
 def _fs_find_email_owner(db, email_lower: str) -> str | None:
@@ -520,6 +463,7 @@ def _fs_sync_client(
         or f"USR-{clean_cid.replace('CLT-', '')}"
     )
     email_val = (client_entry.get("email") or client_entry.get("owner_email") or "").strip().lower()
+    limits = _get_client_limits(client_entry)
     doc_payload = {
         "client_id": clean_cid,
         "username": user_val,
@@ -530,6 +474,10 @@ def _fs_sync_client(
         "plan": client_entry.get("plan"),
         "plan_active": bool(client_entry.get("plan_active", False)),
         "expires_at": client_entry.get("expires_at"),
+        "conversations_limit": limits["conversations_limit"],
+        "file_storage_limit_mb": limits["file_storage_limit_mb"],
+        "vector_db_limit_mb": limits["vector_db_limit_mb"],
+        "table_rows_limit": limits["table_rows_limit"],
         "agents": client_entry.get("agents") or {},
         "updated_at": now_iso,
     }
@@ -612,71 +560,58 @@ def _generate_unique_client_id(doc: dict, db) -> str:
     return f"CLT-{int(time.time()) % 100000}"
 
 
-def _resolve_account_record(db, doc: dict, client_id: str = "", email: str = "", username: str = "") -> tuple[str | None, dict | None]:
+def _resolve_account_record(
+    db, doc: dict, client_id: str = "", email: str = "", username: str = ""
+) -> tuple[str | None, dict | None]:
     cid_clean = str(client_id or "").strip().upper()
     email_clean = str(email or "").strip().lower()
     user_clean = str(username or "").strip()
     user_upper = user_clean.upper()
 
-    clients_map = doc.get("clients") or {}
-
     if cid_clean:
-        if cid_clean in clients_map:
-            entry = dict(clients_map[cid_clean])
-            entry["client_id"] = cid_clean
-            if db:
-                fs_rec = _fs_get_client(db, cid_clean)
-                if fs_rec:
-                    for k, v in fs_rec.items():
-                        if v is not None:
-                            entry[k] = v
-            return cid_clean, entry
         if db:
             fs_rec = _fs_get_client(db, cid_clean)
             if fs_rec:
                 return cid_clean, fs_rec
+        clients_map = (doc or {}).get("clients") or {}
+        if cid_clean in clients_map:
+            entry = dict(clients_map[cid_clean])
+            entry["client_id"] = cid_clean
+            return cid_clean, entry
 
     if email_clean:
+        if db:
+            owner_cid = _fs_find_email_owner(db, email_clean)
+            if owner_cid:
+                fs_rec = _fs_get_client(db, owner_cid)
+                if fs_rec:
+                    return owner_cid, fs_rec
+        clients_map = (doc or {}).get("clients") or {}
         for k, v in clients_map.items():
             if str((v or {}).get("email") or "").strip().lower() == email_clean:
                 cid_found = str(k).strip().upper()
                 entry = dict(v)
                 entry["client_id"] = cid_found
-                if db:
-                    fs_rec = _fs_get_client(db, cid_found)
-                    if fs_rec:
-                        for fk, fv in fs_rec.items():
-                            if fv is not None:
-                                entry[fk] = fv
                 return cid_found, entry
-        if db:
-            owner_cid = _fs_find_email_owner(db, email_clean)
-            if owner_cid:
-                return owner_cid, _fs_get_client(db, owner_cid)
 
     if user_clean:
+        if db:
+            fs_by_user = _fs_find_by_username(db, user_clean)
+            if fs_by_user:
+                return str(fs_by_user["client_id"]).upper(), fs_by_user
+        clients_map = (doc or {}).get("clients") or {}
         for k, v in clients_map.items():
             u_entry = str((v or {}).get("username") or (v or {}).get("generated_username") or "").strip()
             if u_entry.upper() == user_upper or str(k).strip().upper() == user_upper:
                 cid_found = str(k).strip().upper()
                 entry = dict(v)
                 entry["client_id"] = cid_found
-                if db:
-                    fs_rec = _fs_get_client(db, cid_found)
-                    if fs_rec:
-                        for fk, fv in fs_rec.items():
-                            if fv is not None:
-                                entry[fk] = fv
                 return cid_found, entry
-        if db:
-            fs_by_user = _fs_find_by_username(db, user_clean)
-            if fs_by_user:
-                return str(fs_by_user["client_id"]).upper(), fs_by_user
 
     return None, None
 
 
-def register_client_in_usage_json(
+def register_client_record(
     client_id: str,
     store_name: str = "",
     email: str = "",
@@ -689,13 +624,13 @@ def register_client_in_usage_json(
     email_clean = str(email or "").strip().lower()
     user_clean = str(username or "").strip()
     db = _get_db()
+    doc, sha = _load_usage_doc()
 
     if not cid and db and email_clean:
         existing_owner = _fs_find_email_owner(db, email_clean)
         if existing_owner:
             cid = existing_owner
 
-    doc, sha = _load_usage_doc()
     if not cid:
         for k, v in (doc.get("clients") or {}).items():
             if email_clean and str((v or {}).get("email") or "").strip().lower() == email_clean:
@@ -710,64 +645,58 @@ def register_client_in_usage_json(
         if existing_owner and existing_owner != cid:
             raise ValueError("මෙම Email එකෙන් දැනටමත් Account එකක් සාදා ඇත. වෙනත් Email එකක් භාවිතා කරන්න.")
 
-    created_new = False
-    if cid not in doc["clients"]:
-        doc["clients"][cid] = _build_zero_client_entry(
-            cid, store_name=store_name, email=email_clean, username=user_clean, last_ip=last_ip
-        )
-        created_new = True
-    else:
-        if store_name:
-            doc["clients"][cid]["store_name"] = store_name
-        if email_clean and not doc["clients"][cid].get("email"):
-            doc["clients"][cid]["email"] = email_clean
-        if user_clean:
-            doc["clients"][cid]["username"] = user_clean
-            doc["clients"][cid]["generated_username"] = user_clean
-        if last_ip:
-            doc["clients"][cid]["last_login_ip"] = last_ip
-            doc["clients"][cid]["last_login_at"] = datetime.now(timezone.utc).isoformat()
+    existing_fs = _fs_get_client(db, cid) if db else None
+    entry = dict(existing_fs or (doc.get("clients") or {}).get(cid) or _build_zero_client_entry(
+        cid, store_name=store_name, email=email_clean, username=user_clean, last_ip=last_ip
+    ))
+    entry["client_id"] = cid
+    if store_name:
+        entry["store_name"] = store_name
+    if email_clean and not entry.get("email"):
+        entry["email"] = email_clean
+        entry["owner_email"] = email_clean
+    if user_clean:
+        entry["username"] = user_clean
+        entry["generated_username"] = user_clean
+    if last_ip:
+        entry["last_login_ip"] = last_ip
+        entry["last_login_at"] = datetime.now(timezone.utc).isoformat()
+    if not entry.get("agents"):
+        entry["agents"] = {
+            "bot_1": {
+                "label": "Main Order Agent",
+                "conversations_used": 0,
+                "file_storage_mb": 0,
+                "vector_db_mb": 0,
+                "table_rows_used": 0,
+            }
+        }
 
-    # New accounts always start with plan_active = False; existing accounts keep Firestore value
     if is_new_account:
-        doc["clients"][cid]["plan_active"] = False
-    elif db:
-        fs_existing = _fs_get_client(db, cid)
-        if fs_existing and "plan_active" in fs_existing:
-            doc["clients"][cid]["plan_active"] = bool(fs_existing.get("plan_active", False))
-            if fs_existing.get("plan") is not None:
-                doc["clients"][cid]["plan"] = fs_existing.get("plan")
-            if fs_existing.get("expires_at") is not None:
-                doc["clients"][cid]["expires_at"] = fs_existing.get("expires_at")
+        entry["plan"] = None
+        entry["plan_active"] = False
+        entry["expires_at"] = None
 
-    _, _, expired_changed = _check_and_enforce_plan_state(doc["clients"][cid])
-
-    if created_new or is_new_account or expired_changed:
-        _save_usage_doc(
-            doc,
-            sha,
-            f"Sync client {cid} (plan_active={doc['clients'][cid].get('plan_active')})",
-            sync_github=True,
-        )
+    _, _, expired_changed = _check_and_enforce_plan_state(entry)
 
     pw_hash = _hash_password(password) if password else None
-    try:
-        _fs_sync_client(cid, doc["clients"][cid], password_hash=pw_hash, last_login_ip=last_ip or None)
-    except Exception:
-        pass
-    return cid, doc["clients"][cid]
+    _fs_sync_client(cid, entry, password_hash=pw_hash, last_login_ip=last_ip or None)
+
+    if ENABLE_USAGE_FILE_SYNC and (is_new_account or expired_changed):
+        doc.setdefault("clients", {})[cid] = entry
+        _save_usage_doc(doc, sha, f"Sync client {cid}", sync_github=True)
+
+    return cid, entry
 
 
-def _increment_usage_in_doc(doc: dict, cid: str, bot_id: str, conv_inc: int = 1, session_id: str = "") -> dict:
+def _increment_usage_in_firestore(
+    db, cid: str, client_entry: dict, bot_id: str, conv_inc: int = 1, session_id: str = ""
+) -> dict:
     if session_id:
         dedup_key = f"{cid}:{bot_id}:{session_id}"
         if dedup_key in SEEN_CONVERSATIONS:
             return {"ok": True, "deduplicated": True, "changed": False}
         SEEN_CONVERSATIONS.add(dedup_key)
-
-    client_entry = doc["clients"].get(cid)
-    if not client_entry:
-        raise ValueError(f"Client {cid} not found")
 
     active, reason, expired_changed = _check_and_enforce_plan_state(client_entry)
     if not active:
@@ -778,7 +707,7 @@ def _increment_usage_in_doc(doc: dict, cid: str, bot_id: str, conv_inc: int = 1,
                 pass
         return {"ok": False, "reason": reason, "changed": expired_changed}
 
-    limit = _get_client_conversation_limit(doc, client_entry)
+    limit = _get_client_conversation_limit(client_entry)
     agents = client_entry.setdefault("agents", {})
     bot_entry = agents.setdefault(bot_id, {
         "label": "Main Order Agent",
@@ -800,10 +729,7 @@ def _increment_usage_in_doc(doc: dict, cid: str, bot_id: str, conv_inc: int = 1,
 
     new_used = min(used + int(conv_inc), limit) if limit > 0 else used + int(conv_inc)
     bot_entry["conversations_used"] = new_used
-    try:
-        _fs_sync_client(cid, client_entry)
-    except Exception:
-        pass
+    _fs_sync_client(cid, client_entry)
     return {
         "ok": True,
         "changed": True,
@@ -839,14 +765,15 @@ def api_lookup_client():
 
     active, _, expired_changed = _check_and_enforce_plan_state(rec)
     if expired_changed:
-        if resolved_cid in doc.get("clients", {}):
-            doc["clients"][resolved_cid]["plan_active"] = False
-            _save_usage_doc(doc, sha, f"Auto-expire 30-day plan for {resolved_cid}", sync_github=True)
         try:
             _fs_sync_client(resolved_cid, rec)
         except Exception:
             pass
+        if ENABLE_USAGE_FILE_SYNC and resolved_cid in doc.get("clients", {}):
+            doc["clients"][resolved_cid]["plan_active"] = False
+            _save_usage_doc(doc, sha, f"Auto-expire plan for {resolved_cid}", sync_github=True)
 
+    limits = _get_client_limits(rec)
     return jsonify({
         "ok": True,
         "client_id": resolved_cid,
@@ -858,6 +785,7 @@ def api_lookup_client():
         "plan": rec.get("plan"),
         "plan_active": bool(active),
         "expires_at": rec.get("expires_at"),
+        **limits,
     }), 200
 
 
@@ -872,7 +800,7 @@ def api_register_client():
     client_ip = get_client_ip()
 
     try:
-        resolved_cid, entry = register_client_in_usage_json(
+        resolved_cid, entry = register_client_record(
             client_id,
             store_name=store_name,
             email=email,
@@ -887,19 +815,18 @@ def api_register_client():
         status_code = 409 if "Email" in msg else 400
         return jsonify({"error": msg, "code": "EMAIL_ALREADY_EXISTS" if status_code == 409 else "INVALID_INPUT"}), status_code
     except Exception as exc:
-        return jsonify({"error": f"Failed to register client in usage.json: {str(exc)}"}), 500
+        return jsonify({"error": f"Failed to register client: {str(exc)}"}), 500
 
 
 @app.post("/api/client/activate-30d")
 def api_activate_30d_plan():
-    """Optional helper endpoint to activate a 30-day plan on a client (sets plan_active=True and expires_at=+30d)."""
     data = request.get_json(silent=True) or {}
     cid = str(data.get("client_id", "")).strip().upper()
     plan_name = str(data.get("plan", "credits_50")).strip() or "credits_50"
     if not cid:
         return jsonify({"error": "client_id is required."}), 400
 
-    doc, sha = _load_usage_doc()
+    doc, _ = _load_usage_doc()
     db = _get_db()
     resolved_cid, rec = _resolve_account_record(db, doc, client_id=cid)
     if not resolved_cid or not rec:
@@ -907,10 +834,16 @@ def api_activate_30d_plan():
 
     now_dt = datetime.now(timezone.utc)
     exp_iso = (now_dt + timedelta(days=30)).isoformat()
+    preset = DEFAULT_PLANS.get(plan_name, {})
     entry = dict(rec)
     entry["plan"] = plan_name
     entry["plan_active"] = True
     entry["expires_at"] = exp_iso
+    for lim_key in ("conversations_limit", "file_storage_limit_mb", "vector_db_limit_mb", "table_rows_limit"):
+        if lim_key in data and data[lim_key] is not None:
+            entry[lim_key] = int(data[lim_key])
+        elif lim_key in preset:
+            entry[lim_key] = int(preset[lim_key])
     entry.setdefault("agents", {
         "bot_1": {
             "label": "Main Order Agent",
@@ -920,14 +853,57 @@ def api_activate_30d_plan():
             "table_rows_used": 0,
         }
     })
-    doc.setdefault("clients", {})[resolved_cid] = entry
-    _save_usage_doc(doc, sha, f"Activate 30-day plan ({plan_name}) for {resolved_cid}", sync_github=True)
-    try:
-        _fs_sync_client(resolved_cid, entry)
-    except Exception:
-        pass
+    _fs_sync_client(resolved_cid, entry)
 
-    return jsonify({"ok": True, "client_id": resolved_cid, "plan": plan_name, "plan_active": True, "expires_at": exp_iso}), 200
+    return jsonify({
+        "ok": True,
+        "client_id": resolved_cid,
+        "plan": plan_name,
+        "plan_active": True,
+        "expires_at": exp_iso,
+        **_get_client_limits(entry),
+    }), 200
+
+
+@app.post("/api/admin/client/manage")
+def api_admin_manage_client():
+    admin_sec = (request.headers.get("X-Admin-Secret") or "").strip()
+    if ADMIN_SECRET and admin_sec and admin_sec != ADMIN_SECRET:
+        return jsonify({"error": "Invalid admin secret"}), 403
+
+    data = request.get_json(silent=True) or {}
+    cid = str(data.get("client_id", "")).strip().upper()
+    if not cid:
+        return jsonify({"error": "client_id is required."}), 400
+
+    db = _get_db()
+    doc, _ = _load_usage_doc()
+    resolved_cid, rec = _resolve_account_record(db, doc, client_id=cid)
+    if not resolved_cid or not rec:
+        return jsonify({"error": "Client not found."}), 404
+
+    entry = dict(rec)
+    if "plan_active" in data and isinstance(data["plan_active"], bool):
+        entry["plan_active"] = data["plan_active"]
+    if "expires_at" in data:
+        entry["expires_at"] = data["expires_at"]
+    if "conversations_limit" in data and data["conversations_limit"] is not None:
+        entry["conversations_limit"] = max(0, int(data["conversations_limit"]))
+    if "file_storage_limit_mb" in data and data["file_storage_limit_mb"] is not None:
+        entry["file_storage_limit_mb"] = max(0, int(data["file_storage_limit_mb"]))
+    if "vector_db_limit_mb" in data and data["vector_db_limit_mb"] is not None:
+        entry["vector_db_limit_mb"] = max(0, int(data["vector_db_limit_mb"]))
+    if "table_rows_limit" in data and data["table_rows_limit"] is not None:
+        entry["table_rows_limit"] = max(0, int(data["table_rows_limit"]))
+
+    _fs_sync_client(resolved_cid, entry)
+    return jsonify({
+        "ok": True,
+        "client_id": resolved_cid,
+        "plan_active": bool(entry.get("plan_active")),
+        "expires_at": entry.get("expires_at"),
+        **_get_client_limits(entry),
+    }), 200
 
 
 @app.post("/api/client/forgot-id")
@@ -984,7 +960,7 @@ def api_widget_status():
         return jsonify({"allowed": False, "reason": "missing_client_id"}), 400
 
     try:
-        doc, sha = _load_usage_doc()
+        doc, _ = _load_usage_doc()
         db = _get_db()
         _, client_entry = _resolve_account_record(db, doc, client_id=cid)
         if not client_entry:
@@ -992,15 +968,12 @@ def api_widget_status():
 
         active, reason, expired_changed = _check_and_enforce_plan_state(client_entry)
         if expired_changed:
-            if cid in doc.get("clients", {}):
-                doc["clients"][cid]["plan_active"] = False
-                _save_usage_doc(doc, sha, f"Auto-expire 30-day plan for {cid}", sync_github=True)
             try:
                 _fs_sync_client(cid, client_entry)
             except Exception:
                 pass
 
-        limit = _get_client_conversation_limit(doc, client_entry)
+        limit = _get_client_conversation_limit(client_entry)
         bot_entry = client_entry.get("agents", {}).get(bot_id, {})
         used = int(bot_entry.get("conversations_used", 0))
 
@@ -1040,17 +1013,16 @@ def api_track_usage():
         return jsonify({"error": "client_id is required."}), 400
 
     try:
-        doc, sha = _load_usage_doc()
-        res = _increment_usage_in_doc(doc, cid, bot_id, conv_inc=conv_inc, session_id=session_id)
+        db = _get_db()
+        doc, _ = _load_usage_doc()
+        resolved_cid, client_entry = _resolve_account_record(db, doc, client_id=cid)
+        if not resolved_cid or not client_entry:
+            return jsonify({"error": f"Client {cid} not found"}), 404
+
+        res = _increment_usage_in_firestore(db, resolved_cid, client_entry, bot_id, conv_inc=conv_inc, session_id=session_id)
         if not res.get("ok"):
-            if res.get("changed"):
-                _save_usage_doc(doc, sha, f"Auto-expire plan for {cid}", sync_github=True)
             return jsonify(res), 403
-        if res.get("changed"):
-            _save_usage_doc(doc, sha, f"Track usage for {cid} ({bot_id}): {res.get('conversations_used')}", sync_github=True)
         return jsonify(res), 200
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 404
     except Exception as exc:
         return jsonify({"error": f"Failed to track usage: {str(exc)}"}), 500
 
@@ -1065,17 +1037,17 @@ def api_create_order():
         return jsonify({"error": "client_id is required."}), 400
 
     try:
-        doc, sha = _load_usage_doc()
-        client_entry = doc.get("clients", {}).get(cid)
-        if not client_entry:
+        db = _get_db()
+        doc, _ = _load_usage_doc()
+        resolved_cid, client_entry = _resolve_account_record(db, doc, client_id=cid)
+        if not resolved_cid or not client_entry:
             return jsonify({"error": f"Client {cid} not found."}), 404
 
         active, reason, expired_changed = _check_and_enforce_plan_state(client_entry)
         if not active:
             if expired_changed:
-                _save_usage_doc(doc, sha, f"Auto-expire plan for {cid}", sync_github=True)
                 try:
-                    _fs_sync_client(cid, client_entry)
+                    _fs_sync_client(resolved_cid, client_entry)
                 except Exception:
                     pass
             return jsonify({"ok": False, "blocked": True, "reason": reason}), 403
@@ -1083,7 +1055,7 @@ def api_create_order():
         now_iso = datetime.now(timezone.utc).isoformat()
         order_record = {
             "order_id": str(data.get("order_id") or f"ORD-{int(time.time())}").strip(),
-            "client_id": cid,
+            "client_id": resolved_cid,
             "bot_id": bot_id,
             "customer_name": str(data.get("customer_name", "")).strip(),
             "phone": str(data.get("phone", "")).strip(),
@@ -1103,17 +1075,10 @@ def api_create_order():
             ],
         }
 
-        orders = client_entry.setdefault("orders_today", [])
-        orders.insert(0, order_record)
-
-        usage_res = _increment_usage_in_doc(
-            doc, cid, bot_id, conv_inc=1, session_id=str(data.get("session_id", "")).strip()
+        _fs_save_order(resolved_cid, order_record)
+        usage_res = _increment_usage_in_firestore(
+            db, resolved_cid, client_entry, bot_id, conv_inc=1, session_id=str(data.get("session_id", "")).strip()
         )
-        _save_usage_doc(doc, sha, f"Add order {order_record['order_id']} for {cid}", sync_github=True)
-        try:
-            _fs_save_order(cid, order_record)
-        except Exception:
-            pass
 
         return jsonify({
             "ok": True,
@@ -1136,9 +1101,10 @@ def api_chat():
         return jsonify({"error": "Message is required."}), 400
 
     try:
-        doc, sha = _load_usage_doc()
-        client_entry = doc.get("clients", {}).get(cid)
-        if not client_entry:
+        db = _get_db()
+        doc, _ = _load_usage_doc()
+        resolved_cid, client_entry = _resolve_account_record(db, doc, client_id=cid)
+        if not resolved_cid or not client_entry:
             return jsonify({
                 "blocked": True,
                 "message": f"Client {cid} is not registered or inactive.",
@@ -1147,15 +1113,16 @@ def api_chat():
         active, reason, expired_changed = _check_and_enforce_plan_state(client_entry)
         if not active:
             if expired_changed:
-                _save_usage_doc(doc, sha, f"Auto-expire plan for {cid}", sync_github=True)
                 try:
-                    _fs_sync_client(cid, client_entry)
+                    _fs_sync_client(resolved_cid, client_entry)
                 except Exception:
                     pass
             msg = "Plan expired. Please renew." if reason == "plan_expired" else "Chatbot is currently deactivated."
             return jsonify({"blocked": True, "reason": reason, "message": msg}), 403
 
-        usage_res = _increment_usage_in_doc(doc, cid, bot_id, conv_inc=1, session_id=session_id)
+        usage_res = _increment_usage_in_firestore(
+            db, resolved_cid, client_entry, bot_id, conv_inc=1, session_id=session_id
+        )
         if not usage_res.get("ok"):
             return jsonify({
                 "blocked": True,
@@ -1169,7 +1136,7 @@ def api_chat():
             now_iso = datetime.now(timezone.utc).isoformat()
             saved_order = {
                 "order_id": str(order_payload.get("order_id") or f"ORD-{int(time.time())}").strip(),
-                "client_id": cid,
+                "client_id": resolved_cid,
                 "bot_id": bot_id,
                 "customer_name": str(order_payload.get("customer_name", "")).strip(),
                 "phone": str(order_payload.get("phone", "")).strip(),
@@ -1188,19 +1155,12 @@ def api_chat():
                     }
                 ],
             }
-            client_entry.setdefault("orders_today", []).insert(0, saved_order)
-            try:
-                _fs_save_order(cid, saved_order)
-            except Exception:
-                pass
-
-        if usage_res.get("changed") or saved_order:
-            _save_usage_doc(doc, sha, f"Chat update for {cid} ({bot_id})", sync_github=True)
+            _fs_save_order(resolved_cid, saved_order)
 
         reply_text = (
             f"Order {saved_order['order_id']} recorded for {saved_order['customer_name'] or 'Customer'}."
             if saved_order
-            else f"Received: \"{message}\" — Assistant is active for {client_entry.get('store_name', cid)}."
+            else f"Received: \"{message}\" — Assistant is active for {client_entry.get('store_name', resolved_cid)}."
         )
 
         return jsonify({
@@ -1376,7 +1336,7 @@ def api_verify_otp():
             return jsonify({"error": "Password එක වැරදියි."}), 401
 
     try:
-        resolved_cid, client_entry = register_client_in_usage_json(
+        resolved_cid, client_entry = register_client_record(
             final_cid,
             store_name=store_name or (existing_client or {}).get("store_name", ""),
             email=to_email,
@@ -1405,9 +1365,6 @@ def api_verify_otp():
         "last_login_ip": client_ip,
         "token": token,
     }), 200
-
-
-# --- Reset Password OTP Endpoints ---
 
 
 @app.post("/api/password/reset/send-otp")
@@ -1509,12 +1466,9 @@ def api_password_reset_confirm():
 
     RESET_OTP_STORE.pop(reset_key, None)
 
-    final_cid, client_entry = register_client_in_usage_json(cid_lookup, email=to_email, last_ip=client_ip)
+    final_cid, client_entry = register_client_record(cid_lookup, email=to_email, last_ip=client_ip)
     pw_hash = _hash_password(final_pw)
-    try:
-        _fs_sync_client(final_cid, client_entry, password_hash=pw_hash, last_login_ip=client_ip)
-    except Exception:
-        pass
+    _fs_sync_client(final_cid, client_entry, password_hash=pw_hash, last_login_ip=client_ip)
 
     token = _issue_client_token(final_cid, to_email)
     return jsonify({
@@ -1527,9 +1481,6 @@ def api_password_reset_confirm():
     }), 200
 
 
-# --- Client-Isolated Dashboard & Order Tracking Endpoints (Firebase Firestore + usage.json) ---
-
-
 @app.get("/api/my/dashboard")
 def api_my_dashboard():
     authed_cid = _get_authenticated_client_id()
@@ -1540,14 +1491,13 @@ def api_my_dashboard():
         return jsonify({"error": "Access denied: you can only view your own dashboard."}), 403
 
     client_ip = get_client_ip()
-    usage_doc, sha = _load_usage_doc()
-    plans = usage_doc.get("plans") or _default_usage_doc()["plans"]
-    usage_client = (usage_doc.get("clients") or {}).get(authed_cid)
-
     db = _get_db()
     fs_client = _fs_get_client(db, authed_cid) if db else None
 
-    if not usage_client and not fs_client:
+    usage_doc, _ = _load_usage_doc()
+    usage_client = (usage_doc.get("clients") or {}).get(authed_cid)
+
+    if not fs_client and not usage_client:
         return jsonify({"error": "Client account not found."}), 404
 
     merged = dict(usage_client or {})
@@ -1560,17 +1510,18 @@ def api_my_dashboard():
     merged["plan_active"] = bool(active)
 
     if expired_changed:
-        if authed_cid in usage_doc.get("clients", {}):
-            usage_doc["clients"][authed_cid]["plan_active"] = False
-            _save_usage_doc(usage_doc, sha, f"Auto-expire 30-day plan for {authed_cid}", sync_github=True)
+        try:
+            _fs_sync_client(authed_cid, merged)
+        except Exception:
+            pass
 
     try:
         _fs_sync_client(authed_cid, merged, last_login_ip=client_ip)
     except Exception:
         pass
 
-    plan_name = merged.get("plan")
-    conv_limit = int((plans.get(plan_name) or {}).get("conversations_limit", 0)) if plan_name else 0
+    limits = _get_client_limits(merged)
+    merged.update(limits)
 
     agents = merged.get("agents") or {}
     total_conversations_used = sum(
@@ -1585,12 +1536,15 @@ def api_my_dashboard():
         "username": merged.get("username") or merged.get("generated_username") or authed_cid,
         "store_name": merged.get("store_name") or f"{authed_cid} Store",
         "email": merged.get("email") or "",
-        "plan": plan_name or "No Active Plan",
+        "plan": merged.get("plan") or "No Active Plan",
         "plan_active": bool(active),
         "expires_at": merged.get("expires_at"),
         "last_login_ip": client_ip,
         "conversations_used": total_conversations_used,
-        "conversations_limit": conv_limit,
+        "conversations_limit": limits["conversations_limit"],
+        "file_storage_limit_mb": limits["file_storage_limit_mb"],
+        "vector_db_limit_mb": limits["vector_db_limit_mb"],
+        "table_rows_limit": limits["table_rows_limit"],
         "agents": agents,
         "client": merged,
     }), 200
@@ -1618,16 +1572,6 @@ def api_my_orders():
                 orders_by_id[oid] = item
         except Exception:
             pass
-
-    usage_doc, _ = _load_usage_doc()
-    usage_client = (usage_doc.get("clients") or {}).get(authed_cid) or {}
-    for o in (usage_client.get("orders_today") or []):
-        if isinstance(o, dict):
-            oid = str(o.get("order_id") or "").strip()
-            if oid and oid not in orders_by_id:
-                item = dict(o)
-                item["client_id"] = authed_cid
-                orders_by_id[oid] = item
 
     my_orders = list(orders_by_id.values())
     my_orders.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)

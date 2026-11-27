@@ -1,21 +1,18 @@
 import base64
-import hashlib
-import hmac
 import json
 import os
 import re
 import secrets
 import time
-import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -37,16 +34,16 @@ DEFAULT_FONT_STACK = (
 # Make.com scenario webhook URL එක (Google Sheet / scenario වෙත data යවන URL එක):
 MAKE_WEBHOOK_URL = os.environ.get(
     "MAKE_WEBHOOK_URL",
-    "මෙතනට webhook url එක දාන්න",
+    "",
 )
 
 # Google Apps Script / Stock webhook URL (අවශ්‍ය නම් env හෝ මෙතන යොදන්න):
 APPS_SCRIPT_STOCK_URL = os.environ.get(
     "APPS_SCRIPT_STOCK_URL",
-    "මෙතනට webhook url එක දාන්න",
+    "",
 )
 
-ADMIN_SECRET = os.environ.get("ZENIX_ADMIN_SECRET", "zenix-admin-secret-change-me")
+ADMIN_SECRET = os.environ.get("ZENIX_ADMIN_SECRET", "").strip()
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemini-4-neon").strip()
 OPENROUTER_CHAT_URL = os.environ.get(
@@ -72,6 +69,11 @@ def _is_placeholder_url(url: str) -> bool:
     if not (u.startswith("http://") or u.startswith("https://")):
         return True
     return False
+
+
+def _verify_admin_if_configured(x_admin_secret: Optional[str]) -> None:
+    if ADMIN_SECRET and (x_admin_secret or "").strip() != ADMIN_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid or missing admin secret")
 
 
 def _load_json(path: Path, default: Any) -> Any:
@@ -139,7 +141,7 @@ def _load_orders() -> List[Dict[str, Any]]:
 
 
 def _save_orders(orders: List[Dict[str, Any]]) -> None:
-    _save_json(ORDERS_FILE, orders[:1000])
+    _save_json(ORDERS_FILE, orders[:5000])
 
 
 def _load_stock_deduction_log() -> Dict[str, Any]:
@@ -152,7 +154,7 @@ def _load_stock_deduction_log() -> Dict[str, Any]:
 
 
 def _save_stock_deduction_log(log_data: Dict[str, Any]) -> None:
-    log_data["processed_keys"] = log_data.get("processed_keys", [])[-2000:]
+    log_data["processed_keys"] = log_data.get("processed_keys", [])[-5000:]
     _save_json(STOCK_DEDUCTION_LOG_FILE, log_data)
 
 
@@ -238,9 +240,6 @@ def _save_payment_proof_file(
     data_url: Optional[str] = None,
     raw_base64: Optional[str] = None,
 ) -> Dict[str, str]:
-    """
-    PNG, JPG, JPEG, WEBP, GIF, PDF වැනි payment proof files save කරයි.
-    """
     safe_order = re.sub(r"[^A-Za-z0-9_-]", "_", (order_id or "ORD").strip())
     mime_type = ""
     b64_payload = ""
@@ -248,7 +247,9 @@ def _save_payment_proof_file(
     if data_url and isinstance(data_url, str) and data_url.startswith("data:"):
         header_part, _, encoded_part = data_url.partition(",")
         b64_payload = encoded_part.strip()
-        mime_match = re.match(r"^data:([A-Za-z0-9.+/-]+);base64$", header_part.strip(), re.IGNORECASE)
+        mime_match = re.match(
+            r"^data:([A-Za-z0-9.+/-]+);base64$", header_part.strip(), re.IGNORECASE
+        )
         if mime_match:
             mime_type = mime_match.group(1).lower()
     elif raw_base64 and isinstance(raw_base64, str):
@@ -287,7 +288,8 @@ def _save_payment_proof_file(
         return {
             "payment_proof_name": filename,
             "payment_proof_url": f"/api/payment-proofs/{urllib.parse.quote(filename)}",
-            "payment_proof_data_url": data_url or f"data:{mime_type or 'image/png'};base64,{b64_payload}",
+            "payment_proof_data_url": data_url
+            or f"data:{mime_type or 'image/png'};base64,{b64_payload}",
         }
     except Exception:
         return {
@@ -321,13 +323,14 @@ def _push_stock_deduction_once(
     client_id: str = "",
     site_id: str = "",
 ) -> Dict[str, Any]:
-    """
-    Stock deduction එක එකම 1 වතාවක් පමණක් (order_id හෝ item+qty key මගින්) trigger කරයි.
-    """
     clean_order = (order_id or "").strip()
     clean_item = (item or "").strip()
     qty = max(1, int(quantity or 1))
-    dedup_key = f"order:{clean_order}" if clean_order else f"manual:{clean_item.lower()}:{qty}:{int(time.time() // 5)}"
+    dedup_key = (
+        f"order:{clean_order}"
+        if clean_order
+        else f"manual:{clean_item.lower()}:{qty}:{int(time.time() // 5)}"
+    )
 
     log_data = _load_stock_deduction_log()
     processed_set = set(log_data.get("processed_keys", []))
@@ -471,7 +474,9 @@ def _generate_openrouter_reply(
                     for p in products[:15]
                 ]
                 return f"**{b_name}** — මිල ගණන්:\n" + "\n".join(lines)
-            return f"මිල ගණන් පිළිබඳ විස්තර සඳහා කරුණාකර අපව සම්බන්ධ කරගන්න. {contact_info}".strip()
+            return (
+                f"මිල ගණන් පිළිබඳ විස්තර සඳහා කරුණාකර අපව සම්බන්ධ කරගන්න. {contact_info}".strip()
+            )
 
         if any(k in msg_l for k in ("bank", "account", "payment", "බැංකු", "ගෙවීම")):
             if bank_details:
@@ -479,7 +484,10 @@ def _generate_openrouter_reply(
             return "Payment ක්‍රම ලෙස Bank Transfer (Slip upload සමඟ) හෝ Cash on Delivery (COD) ලබා ගත හැක."
 
         if any(k in msg_l for k in ("contact", "phone", "number", "දුරකථන", "විස්තර")):
-            return contact_info or f"**{b_name}** වෙත සාදරයෙන් පිළිගනිමු. ඔබට අවශ්‍ය සේවාව හෝ item එක කුමක්ද?"
+            return (
+                contact_info
+                or f"**{b_name}** වෙත සාදරයෙන් පිළිගනිමු. ඔබට අවශ්‍ය සේවාව හෝ item එක කුමක්ද?"
+            )
 
         if delivery_info and any(k in msg_l for k in ("delivery", "shipping", "ඩිලිවරි")):
             return f"**Delivery Info:**\n{delivery_info}"
@@ -552,7 +560,7 @@ def _generate_openrouter_reply(
             parsed = json.loads(resp.read().decode("utf-8"))
             choices = parsed.get("choices") or []
             if choices:
-                msg_obj = (choices[0].get("message") or {})
+                msg_obj = choices[0].get("message") or {}
                 content = msg_obj.get("content")
                 if isinstance(content, str) and content.strip():
                     return content.strip()
@@ -634,7 +642,7 @@ class OrderStatusUpdatePayload(BaseModel):
 
 # --- FastAPI App ---
 
-app = FastAPI(title="Zenix AI Server", version="2.1.0")
+app = FastAPI(title="Zenix AI Server", version="2.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -684,8 +692,7 @@ def register_or_update_client(
     payload: ClientRegisterPayload,
     x_admin_secret: Optional[str] = Header(default=None),
 ):
-    if x_admin_secret and x_admin_secret != ADMIN_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid admin secret")
+    _verify_admin_if_configured(x_admin_secret)
 
     clients = _load_clients()
     c_id = (payload.client_id or "").strip() or f"client_{secrets.token_hex(4)}"
@@ -720,7 +727,8 @@ def register_or_update_client(
 
 
 @app.get("/api/clients")
-def list_clients():
+def list_clients(x_admin_secret: Optional[str] = Header(default=None)):
+    _verify_admin_if_configured(x_admin_secret)
     clients = _load_clients()
     return {"ok": True, "clients": clients, "count": len(clients)}
 
@@ -732,6 +740,11 @@ def deduct_stock_endpoint(
     x_client_id: Optional[str] = Header(default=None),
 ):
     c_id = (payload.client_id or x_client_id or "").strip()
+    c_key = (x_client_key or "").strip()
+    client = _find_client(client_key=c_key, client_id=c_id)
+    if client:
+        c_id = str(client.get("client_id") or c_id).strip()
+
     result = _push_stock_deduction_once(
         order_id=payload.order_id or "",
         item=payload.item,
@@ -750,7 +763,9 @@ def create_or_sync_order(
 ):
     now_str = _utc_now_iso()
     order_id = (payload.order_id or "").strip() or (
-        "ORD-" + datetime.now(timezone.utc).strftime("%y%m%d") + f"-{secrets.randbelow(9000) + 1000}"
+        "ORD-"
+        + datetime.now(timezone.utc).strftime("%y%m%d")
+        + f"-{secrets.randbelow(9000) + 1000}"
     )
 
     qty = max(1, int(payload.quantity or 1))
@@ -781,6 +796,9 @@ def create_or_sync_order(
 
     c_id = (payload.client_id or x_client_id or "").strip()
     c_key = (payload.client_key or x_client_key or "").strip()
+    client = _find_client(client_key=c_key, client_id=c_id)
+    if client:
+        c_id = str(client.get("client_id") or c_id).strip()
 
     order_record = {
         "order_id": order_id,
@@ -808,8 +826,6 @@ def create_or_sync_order(
 
     saved_order = _record_order_usage_and_store(order_record)
 
-    # Stock deduction එක දැනටමත් widget එකෙන් කරලා තියෙනවා නම් (skip_stock_deduction=True / stock_deducted_once=True),
-    # server එකෙන් දෙවන වරට deduct කරන්නේ නැහැ.
     stock_result = {"deducted": False, "skipped_duplicate": True}
     if not payload.skip_stock_deduction and not payload.stock_deducted_once:
         stock_result = _push_stock_deduction_once(
@@ -844,8 +860,10 @@ def create_or_sync_order(
 @app.get("/api/orders")
 def list_orders(
     client_id: Optional[str] = Query(default=None),
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=50, ge=1, le=500),
+    x_admin_secret: Optional[str] = Header(default=None),
 ):
+    _verify_admin_if_configured(x_admin_secret)
     orders = _load_orders()
     if client_id and client_id.strip():
         target = client_id.strip()
@@ -854,7 +872,12 @@ def list_orders(
 
 
 @app.patch("/api/orders/{order_id}/status")
-def update_order_status(order_id: str, payload: OrderStatusUpdatePayload):
+def update_order_status(
+    order_id: str,
+    payload: OrderStatusUpdatePayload,
+    x_admin_secret: Optional[str] = Header(default=None),
+):
+    _verify_admin_if_configured(x_admin_secret)
     orders = _load_orders()
     target_id = order_id.strip()
     found = None
@@ -875,10 +898,14 @@ def update_order_status(order_id: str, payload: OrderStatusUpdatePayload):
 
 
 @app.get("/api/payment-proofs/{filename}")
-def get_payment_proof(filename: str):
+def get_payment_proof(
+    filename: str,
+    x_admin_secret: Optional[str] = Header(default=None),
+):
+    _verify_admin_if_configured(x_admin_secret)
     clean_name = Path(urllib.parse.unquote(filename)).name
-    file_path = PROOFS_DIR / clean_name
-    if not file_path.exists() or not file_path.is_file():
+    file_path = (PROOFS_DIR / clean_name).resolve()
+    if PROOFS_DIR.resolve() not in file_path.parents or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Payment proof not found")
 
     ext = file_path.suffix.lower()
@@ -894,7 +921,7 @@ def get_payment_proof(filename: str):
     with file_path.open("rb") as f:
         content = f.read()
 
-    return PlainTextResponse(content="", status_code=200) if False else JSONResponse(
+    return JSONResponse(
         content={
             "ok": True,
             "filename": clean_name,
@@ -914,10 +941,20 @@ def chat_endpoint(
     if not msg_text and not payload.image_base64:
         raise HTTPException(status_code=400, detail="Message or image is required")
 
-    c_id = (payload.client_id or x_client_id or "").strip() or "default"
-    c_key = (payload.client_key or x_client_key or "").strip()
+    raw_id = (payload.client_id or x_client_id or "").strip()
+    raw_key = (payload.client_key or x_client_key or "").strip()
 
-    client = _find_client(client_key=c_key, client_id=c_id)
+    client = _find_client(client_key=raw_key, client_id=raw_id)
+    c_id = (
+        (str(client.get("client_id") or "").strip() if client else "")
+        or raw_id
+        or "default"
+    )
+    c_key = (
+        (str(client.get("client_key") or "").strip() if client else "")
+        or raw_key
+    )
+
     base_cfg = _build_default_widget_config(client=client, client_id=c_id, client_key=c_key)
     ctx = dict(base_cfg)
     if isinstance(payload.config_context, dict):
@@ -953,7 +990,11 @@ def chat_endpoint(
 
 
 @app.get("/api/usage")
-def get_usage(client_id: Optional[str] = Query(default=None)):
+def get_usage(
+    client_id: Optional[str] = Query(default=None),
+    x_admin_secret: Optional[str] = Header(default=None),
+):
+    _verify_admin_if_configured(x_admin_secret)
     usage = _load_usage()
     if client_id and client_id.strip():
         c_id = client_id.strip()
@@ -986,4 +1027,5 @@ def get_usage(client_id: Optional[str] = Query(default=None)):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+    module_name = f"{Path(__file__).stem}:app"
+    uvicorn.run(module_name, host="0.0.0.0", port=8000, reload=True)
