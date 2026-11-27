@@ -312,6 +312,18 @@
       word-break: break-word;
     }
 
+    .cod-pill {
+      display: inline-block;
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--warn);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: 7px;
+      padding: 4px 10px;
+      font-size: 12.5px;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
     .proof-actions {
       display: flex;
       flex-wrap: wrap;
@@ -496,7 +508,7 @@
   <main class="container">
     <div class="info-banner">
       <strong>Client-Isolated Order Tracker:</strong>
-      Board එකේ පෙන්වන්නේ පැය 24කට (24 Hours) ඇතුළත orders පමණි. <strong>දින 30ක් (30 Days)</strong> ඇතුළත order එකක් නම්, <strong>Order ID</strong> හෝ <strong>Phone Number</strong> search කළ විට order විස්තර පෙන්වන අතර <strong>View</strong> ඔබා Payment Proof චෙක් කරන්න පුළුවන්. Proof එක බැලූ පසු <strong>දින 2කින් (48 Hours)</strong> ස්වයංක්‍රීයව delete වන ලෙස සකසා ඇත.
+      Board එකේ පෙන්වන්නේ පැය 24කට (24 Hours) ඇතුළත orders පමණි. <strong>දින 30ක් (30 Days)</strong> ඇතුළත order එකක් නම්, <strong>Order ID</strong> හෝ <strong>Phone Number</strong> search කළ විට order විස්තර පෙන්වන අතර Bank Transfer නම් <strong>View</strong> ඔබා Payment Proof චෙක් කර <strong>Order ID</strong> නමින් download කළ හැක. (දින 31 වන විට orders ස්වයංක්‍රීයව delete වේ.)
     </div>
 
     <div class="blocked-box" id="blockedBox">
@@ -531,7 +543,7 @@
               <th>Phone</th>
               <th>Item</th>
               <th>Qty</th>
-              <th>Payment</th>
+              <th>Payment Method</th>
               <th>Status</th>
               <th>Date</th>
             </tr>
@@ -553,13 +565,13 @@
     </section>
   </main>
 
-  <!-- Payment Proof Modal (View + 30d Download + Close Icon) -->
+  <!-- Payment Proof Modal (View + Order-ID Download + Close Icon) -->
   <div class="proof-modal-backdrop" id="proofModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="proofModalTitle">
     <div class="proof-modal">
       <div class="proof-modal-header">
         <div>
           <div class="proof-modal-title" id="proofModalTitle">Payment Proof</div>
-          <div class="proof-modal-sub" id="proofModalSub">30-day archive window</div>
+          <div class="proof-modal-sub" id="proofModalSub">Bank Transfer Proof</div>
         </div>
         <div class="proof-modal-controls">
           <button class="proof-download-btn" id="proofDownloadBtn" type="button">⬇ Download</button>
@@ -574,10 +586,8 @@
     const THEME_KEY = "zenix_dashboard_theme";
     const themeBtn = document.getElementById("themeBtn");
 
-    // Board shows orders from last 24 hours; searching by Order ID/phone finds older orders up to 30 days for proof access
     const BOARD_WINDOW_MS = 24 * 60 * 60 * 1000;          // 24 hours on board
     const ORDER_SEARCH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30 days searchable window
-    const AUTO_DELETE_AFTER_VIEW_MS = 2 * 24 * 60 * 60 * 1000; // 2 days (48h) auto-delete after viewing proof
 
     function applyTheme(theme) {
       const next = theme === "light" ? "light" : "dark";
@@ -637,7 +647,7 @@
 
     document.getElementById("clientBadge").textContent = "ID: " + ACTIVE_CLIENT_ID;
     document.getElementById("scopeText").textContent =
-      "Client Scope: " + ACTIVE_CLIENT_ID + " (24h Board • 30d Search Proof)";
+      "Client Scope: " + ACTIVE_CLIENT_ID + " (24h Board • 30d Search)";
     document.getElementById("backDashboardLink").setAttribute(
       "href",
       "./dashboard.html?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID)
@@ -686,56 +696,10 @@
       return Number.isNaN(ms) ? null : ms;
     }
 
-
-    const VIEWED_PROOFS_KEY = "zenix_proof_viewed_at_" + ACTIVE_CLIENT_ID;
-
-    function getViewedProofMap() {
-      try {
-        return JSON.parse(localStorage.getItem(VIEWED_PROOFS_KEY) || "{}") || {};
-      } catch {
-        return {};
-      }
-    }
-
-    function saveViewedProofMap(map) {
-      try {
-        localStorage.setItem(VIEWED_PROOFS_KEY, JSON.stringify(map));
-      } catch {}
-    }
-
-    function markProofViewed(orderId) {
-      if (!orderId) return Date.now();
-      const map = getViewedProofMap();
-      const key = String(orderId).trim().toUpperCase();
-      if (!map[key]) {
-        map[key] = Date.now();
-        saveViewedProofMap(map);
-      }
-      return Number(map[key]);
-    }
-
-    function getAutoDeleteStatus(order) {
-      const key = String((order && order.order_id) || "").trim().toUpperCase();
-      const map = getViewedProofMap();
-      const viewedAt = Number(map[key] || 0);
-      if (!viewedAt) {
-        return { viewed: false, expired: false, remainingMs: AUTO_DELETE_AFTER_VIEW_MS };
-      }
-      const deleteAt = viewedAt + AUTO_DELETE_AFTER_VIEW_MS;
-      const remainingMs = deleteAt - Date.now();
-      return {
-        viewed: true,
-        expired: remainingMs <= 0,
-        remainingMs: Math.max(0, remainingMs)
-      };
-    }
-
-    function formatRemaining2Days(ms) {
-      const totalHours = Math.max(0, Math.floor(ms / (60 * 60 * 1000)));
-      const days = Math.floor(totalHours / 24);
-      const hrs = totalHours % 24;
-      if (days <= 0) return "Auto-deletes in " + hrs + "h";
-      return "Auto-deletes in " + days + "d " + hrs + "h";
+    function isWithin24Hours(order) {
+      const createdMs = getOrderTimestampMs(order);
+      if (createdMs === null) return true;
+      return (Date.now() - createdMs) <= BOARD_WINDOW_MS;
     }
 
     function isWithin30Days(order) {
@@ -744,31 +708,11 @@
       return (Date.now() - createdMs) <= ORDER_SEARCH_WINDOW_MS;
     }
 
-    async function notifyBackendScheduleDelete(orderId) {
-      if (!API_BASE || !TOKEN || !orderId) return;
-      try {
-        await fetch(API_BASE + "/api/my/orders/proof/schedule-delete", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + TOKEN
-          },
-          body: JSON.stringify({
-            client_id: ACTIVE_CLIENT_ID,
-            order_id: orderId,
-            delete_after_days: 2
-          })
-        });
-      } catch {}
+    function isCodOrder(order) {
+      const pm = String((order && order.payment_method) || "").trim().toLowerCase();
+      return pm === "cod" || pm.includes("cash on delivery") || pm.includes("cash");
     }
 
-    function isWithin24Hours(order) {
-      const createdMs = getOrderTimestampMs(order);
-      if (createdMs === null) return true;
-      return (Date.now() - createdMs) <= BOARD_WINDOW_MS;
-    }
-
-    // Extract a valid URL or data URI from payment_proof (Photo / Image / PDF)
     function extractProofUrl(raw) {
       const str = String(raw || "").trim();
       if (!str) return "";
@@ -785,54 +729,17 @@
       return "";
     }
 
-    // Check 30-day proof retention window
-    function getProofWindowStatus(order) {
-      const explicitExp = order && (order.proof_expires_at || order.payment_proof_expires_at);
-      if (explicitExp) {
-        const expMs = typeof explicitExp === "number" ? explicitExp : Date.parse(explicitExp);
-        if (!Number.isNaN(expMs)) {
-          const remainingMs = expMs - Date.now();
-          return {
-            expired: remainingMs <= 0,
-            remainingMs: Math.max(0, remainingMs),
-            expiresAtMs: expMs
-          };
-        }
-      }
-
-      const createdMs = getOrderTimestampMs(order);
-      if (createdMs !== null) {
-        const expiresAtMs = createdMs + PROOF_RETENTION_MS;
-        const remainingMs = expiresAtMs - Date.now();
-        return {
-          expired: remainingMs <= 0,
-          remainingMs: Math.max(0, remainingMs),
-          expiresAtMs
-        };
-      }
-
-      return {
-        expired: false,
-        remainingMs: PROOF_RETENTION_MS,
-        expiresAtMs: Date.now() + PROOF_RETENTION_MS
-      };
-    }
-
-    function formatRemainingDays(ms) {
-      const totalHours = Math.max(0, Math.floor(ms / (60 * 60 * 1000)));
-      const days = Math.floor(totalHours / 24);
-      const hrs = totalHours % 24;
-      if (days <= 0) return hrs + "h left (30d limit)";
-      return days + "d " + hrs + "h left (30d limit)";
-    }
-
-    function guessFileExtension(url, contentType) {
+    function guessFileExtension(url, contentType, order) {
       const ct = String(contentType || "").toLowerCase();
       if (ct.includes("png") || url.includes("data:image/png")) return ".png";
       if (ct.includes("jpeg") || ct.includes("jpg") || url.includes("data:image/jpeg")) return ".jpg";
       if (ct.includes("webp") || url.includes("data:image/webp")) return ".webp";
       if (ct.includes("gif") || url.includes("data:image/gif")) return ".gif";
       if (ct.includes("pdf") || url.includes("data:application/pdf")) return ".pdf";
+
+      const proofName = String((order && order.payment_proof_name) || "").toLowerCase();
+      const nameExt = proofName.match(/\.(png|jpe?g|webp|gif|pdf)$/);
+      if (nameExt) return nameExt[0];
 
       try {
         const pathname = new URL(url, window.location.origin).pathname.toLowerCase();
@@ -842,15 +749,17 @@
       return ".png";
     }
 
-    async function downloadProofFile(url, orderId) {
+    async function downloadProofFile(url, order) {
       if (!url) return;
-      const safeOrderId = String(orderId || "order").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const orderId = (order && order.order_id) || "order";
+      const safeOrderId = String(orderId).trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+      const ext = guessFileExtension(url, "", order);
+      const renamedFile = safeOrderId + ext;
 
       if (url.startsWith("data:")) {
-        const ext = guessFileExtension(url, "");
         const a = document.createElement("a");
         a.href = url;
-        a.download = "payment-proof-" + safeOrderId + ext;
+        a.download = renamedFile;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -861,11 +770,11 @@
         const res = await fetch(url, { mode: "cors" });
         if (!res.ok) throw new Error("Fetch failed");
         const blob = await res.blob();
-        const ext = guessFileExtension(url, blob.type);
+        const finalExt = guessFileExtension(url, blob.type, order);
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = blobUrl;
-        a.download = "payment-proof-" + safeOrderId + ext;
+        a.download = safeOrderId + finalExt;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -875,7 +784,7 @@
         a.href = url;
         a.target = "_blank";
         a.rel = "noopener noreferrer";
-        a.download = "payment-proof-" + safeOrderId;
+        a.download = renamedFile;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -884,35 +793,23 @@
 
     function openProofModal(order) {
       if (!order) return;
-      if (!isWithin30Days(order)) {
-        alert("මෙම Order එක දින 30ක (30 Days) කාලය ඉක්මවා ඇත.");
-        return;
-      }
-      const delStatus = getAutoDeleteStatus(order);
-      if (delStatus.expired) {
-        order.payment_proof = "";
-        alert("Payment Proof බැලූ පසු දින 2ක කාලය අවසන් වී ඇති බැවින් එය ස්වයංක්‍රීයව ඉවත් වී ඇත.");
-        openDetail(order);
-        return;
-      }
-
       const proofUrl = extractProofUrl(order.payment_proof);
       if (!proofUrl) return;
 
-      markProofViewed(order.order_id);
-      notifyBackendScheduleDelete(order.order_id);
-      const updatedDel = getAutoDeleteStatus(order);
-
       activeProofItem = {
         url: proofUrl,
-        orderId: order.order_id || "order"
+        order: order
       };
 
-      proofModalTitle.textContent = "Payment Proof — " + String(order.order_id || "-");
-      proofModalSub.textContent = formatRemaining2Days(updatedDel.remainingMs) + " (after view)";
+      const safeId = String(order.order_id || "order").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+      const ext = guessFileExtension(proofUrl, "", order);
+
+      proofModalTitle.textContent = "Bank Transfer Proof — " + String(order.order_id || "-");
+      proofModalSub.textContent = "Download filename: " + safeId + ext;
 
       const isPdf =
         proofUrl.startsWith("data:application/pdf") ||
+        ext === ".pdf" ||
         proofUrl.toLowerCase().split("?")[0].endsWith(".pdf");
 
       if (isPdf) {
@@ -920,7 +817,7 @@
           '<iframe src="' + escapeHtml(proofUrl) + '" title="Payment Proof PDF"></iframe>';
       } else {
         proofModalBody.innerHTML =
-          '<img src="' + escapeHtml(proofUrl) + '" alt="Payment Proof" />';
+          '<img src="' + escapeHtml(proofUrl) + '" alt="Bank Transfer Proof" />';
       }
 
       proofModalBackdrop.classList.add("open");
@@ -945,7 +842,7 @@
     });
     proofDownloadBtn.addEventListener("click", () => {
       if (!activeProofItem) return;
-      downloadProofFile(activeProofItem.url, activeProofItem.orderId);
+      downloadProofFile(activeProofItem.url, activeProofItem.order);
     });
 
     function openDetail(order) {
@@ -956,6 +853,8 @@
       document.getElementById("detailTitle").textContent =
         "Order Details — " + escapeHtml(order.order_id || "-");
 
+      const payMethod = String(order.payment_method || (isCodOrder(order) ? "COD" : "Bank Transfer"));
+
       detailGrid.innerHTML =
         '<div class="detail-box"><span>Order ID</span><strong>' + escapeHtml(order.order_id || "-") + '</strong></div>' +
         '<div class="detail-box"><span>Customer Name</span><strong>' + escapeHtml(order.customer_name || "-") + '</strong></div>' +
@@ -963,30 +862,29 @@
         '<div class="detail-box"><span>Address</span><strong>' + escapeHtml(order.address || "-") + '</strong></div>' +
         '<div class="detail-box"><span>Item</span><strong>' + escapeHtml(order.item || "-") + '</strong></div>' +
         '<div class="detail-box"><span>Quantity</span><strong>' + escapeHtml(order.quantity ?? 1) + '</strong></div>' +
-        '<div class="detail-box"><span>Payment Method</span><strong>' + escapeHtml(order.payment_method || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>Payment Method</span><strong>' + escapeHtml(payMethod) + '</strong></div>' +
         '<div class="detail-box"><span>Status</span><strong>' + escapeHtml(order.status || "Pending") + '</strong></div>' +
-        '<div class="detail-box"><span>Created At</span><strong>' + escapeHtml(order.created_at || "-") + '</strong></div>';
+        '<div class="detail-box"><span>Date</span><strong>' + escapeHtml(order.created_at ? new Date(order.created_at).toLocaleString() : "-") + '</strong></div>';
 
       const proofUrl = extractProofUrl(order.payment_proof);
-      const delStatus = getAutoDeleteStatus(order);
 
       proofBox.innerHTML = "";
       const wrapper = document.createElement("div");
       wrapper.className = "detail-box";
 
       const labelEl = document.createElement("span");
-      labelEl.textContent = "Payment Proof (Photo / Image / PDF — Auto-deletes 2 days after viewing)";
+      labelEl.textContent = "Payment Proof";
       wrapper.appendChild(labelEl);
 
-      if (delStatus.expired) {
-        order.payment_proof = "";
-        const expEl = document.createElement("div");
-        expEl.className = "proof-expired-msg";
-        expEl.textContent = "Auto-deleted (2 days passed after viewing)";
-        wrapper.appendChild(expEl);
+      if (isCodOrder(order) && !proofUrl) {
+        const codEl = document.createElement("div");
+        codEl.className = "cod-pill";
+        codEl.textContent = "Cash on Delivery (COD) — Payment Proof Not Required";
+        wrapper.appendChild(codEl);
       } else if (!proofUrl) {
-        const noneEl = document.createElement("strong");
-        noneEl.textContent = "No proof attached / Already deleted";
+        const noneEl = document.createElement("div");
+        noneEl.className = "proof-expired-msg";
+        noneEl.textContent = "No Bank Transfer Proof attached";
         wrapper.appendChild(noneEl);
       } else {
         const actionsEl = document.createElement("div");
@@ -1002,14 +900,15 @@
         dlBtn.type = "button";
         dlBtn.className = "btn-ghost";
         dlBtn.textContent = "⬇ Download";
-        dlBtn.addEventListener("click", () => downloadProofFile(proofUrl, order.order_id));
+        dlBtn.addEventListener("click", () => downloadProofFile(proofUrl, order));
+
+        const safeId = String(order.order_id || "order").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+        const ext = guessFileExtension(proofUrl, "", order);
 
         const metaEl = document.createElement("span");
         metaEl.className = "proof-meta";
         metaEl.style.margin = "0";
-        metaEl.textContent = delStatus.viewed
-          ? formatRemaining2Days(delStatus.remainingMs)
-          : "Deletes 2 days after View";
+        metaEl.textContent = "Bank Transfer Proof • Saves as " + safeId + ext;
 
         actionsEl.appendChild(viewBtn);
         actionsEl.appendChild(dlBtn);
@@ -1053,8 +952,8 @@
 
       if (scoped.length === 0) {
         const msg = isSearchResult
-          ? "No matching order found for " + escapeHtml(ACTIVE_CLIENT_ID) + "."
-          : "No orders within the last 24 hours for " + escapeHtml(ACTIVE_CLIENT_ID) + ". Search by Order ID to view older orders (up to 30 days).";
+          ? "No matching order found within 30 days for " + escapeHtml(ACTIVE_CLIENT_ID) + "."
+          : "No orders within the last 24 hours for " + escapeHtml(ACTIVE_CLIENT_ID) + ". Search by Order ID or Phone to view older orders (up to 30 days).";
         ordersTbody.innerHTML = '<tr><td colspan="8" class="empty-row">' + msg + "</td></tr>";
         return;
       }
@@ -1090,13 +989,15 @@
           ? new Date(o.created_at).toLocaleString()
           : "-";
 
+        const payMethod = String(o.payment_method || (isCodOrder(o) ? "COD" : "Bank Transfer"));
+
         tr.appendChild(tdId);
         tr.innerHTML +=
           "<td>" + escapeHtml(o.customer_name || "-") + "</td>" +
           "<td>" + escapeHtml(o.phone || "-") + "</td>" +
           "<td>" + escapeHtml(o.item || "-") + "</td>" +
           "<td>" + escapeHtml(o.quantity ?? 1) + "</td>" +
-          "<td>" + escapeHtml(o.payment_method || "-") + "</td>";
+          "<td>" + escapeHtml(payMethod) + "</td>";
         tr.appendChild(tdStatus);
         tr.innerHTML += "<td>" + escapeHtml(dateDisp) + "</td>";
 
@@ -1109,13 +1010,11 @@
       const qDigits = normalizeDigits(searchInput.value);
 
       if (!q) {
-        // Default board view: only orders within last 24 hours
         const recent24h = allOrders.filter(isWithin24Hours);
         renderRows(recent24h, false);
         return;
       }
 
-      // Search view: searches orders within 30 days (including orders older than 24h, e.g., day 15)
       const matches = allOrders.filter((o) => {
         const cid = String((o && o.client_id) || "").trim().toUpperCase();
         if (cid !== ACTIVE_CLIENT_ID) return false;
@@ -1134,7 +1033,7 @@
       }
     }
 
-    async function fetchOrders() {
+    async function fetchOrders(queryOverride) {
       syncText.textContent = "Last Updated: " + new Date().toLocaleTimeString();
       if (!TOKEN) {
         blockedBox.style.display = "block";
@@ -1167,13 +1066,14 @@
 
         blockedBox.style.display = "none";
 
-        const ordRes = await fetch(
-          API_BASE + "/api/my/orders?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID),
-          {
-            headers: { "Authorization": "Bearer " + TOKEN },
-            cache: "no-store"
-          }
-        );
+        const qVal = queryOverride !== undefined ? String(queryOverride || "").trim() : String(searchInput.value || "").trim();
+        const url = API_BASE + "/api/my/orders?client_id=" + encodeURIComponent(ACTIVE_CLIENT_ID) +
+          (qVal ? "&search=" + encodeURIComponent(qVal) : "");
+
+        const ordRes = await fetch(url, {
+          headers: { "Authorization": "Bearer " + TOKEN },
+          cache: "no-store"
+        });
 
         if (!ordRes.ok) {
           renderRows([], false);
@@ -1193,32 +1093,32 @@
       }
     }
 
-    document.getElementById("searchBtn").addEventListener("click", applyFilter);
+    document.getElementById("searchBtn").addEventListener("click", () => fetchOrders(searchInput.value));
     searchInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        applyFilter();
+        fetchOrders(searchInput.value);
       }
     });
 
     document.getElementById("resetBtn").addEventListener("click", () => {
       searchInput.value = "";
       detailCard.style.display = "none";
-      applyFilter();
+      fetchOrders("");
     });
 
     document.getElementById("closeDetailBtn").addEventListener("click", () => {
       detailCard.style.display = "none";
     });
 
-    document.getElementById("refreshBtn").addEventListener("click", fetchOrders);
+    document.getElementById("refreshBtn").addEventListener("click", () => fetchOrders(searchInput.value));
 
     document.getElementById("logoutBtn").addEventListener("click", () => {
       sessionStorage.removeItem("zenix_auth_pass");
       window.location.replace(resolveLoginUrl());
     });
 
-    fetchOrders();
+    fetchOrders("");
   </script>
 </body>
 </html>
