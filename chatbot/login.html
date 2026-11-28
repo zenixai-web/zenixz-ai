@@ -1165,11 +1165,12 @@
       if (!cleanVal) return null;
 
       const isEmail = isValidEmailAddress(cleanVal);
-      const isCid = /^CLT-/i.test(cleanVal);
+      const isCid = /^(CLT-|USR-)/i.test(cleanVal);
       const bodyPayload = {
-        client_id: isCid ? cleanVal.toUpperCase() : "",
+        identifier: cleanVal,
+        client_id: /^CLT-/i.test(cleanVal) ? cleanVal.toUpperCase() : "",
         email: isEmail ? normalizeEmail(cleanVal) : "",
-        username: (!isEmail && !isCid) ? cleanVal : ""
+        username: !isEmail ? cleanVal : ""
       };
 
       for (const path of ["/api/clients/lookup", "/api/client/lookup"]) {
@@ -1204,6 +1205,7 @@
 
       const isReset = flowType === "reset";
       const isRegister = flowType === "register";
+      const uname = rec.username || rec.generated_username || "";
 
       if (OTP_CONFIG.API_BASE_URL) {
         try {
@@ -1211,14 +1213,16 @@
           const payload = isReset
             ? {
                 client_id: rec.client_id,
-                username: rec.username || rec.generated_username || "",
+                username: uname,
                 email: targetEmail,
+                identifier: uname || rec.client_id || targetEmail,
                 new_password: newPassword
               }
             : {
                 client_id: isRegister ? "" : rec.client_id,
                 email: targetEmail,
-                username: rec.username || rec.generated_username || "",
+                username: uname,
+                identifier: uname || rec.client_id || targetEmail,
                 store_name: rec.store_name || "",
                 business_reg_no: rec.business_reg_no || "",
                 password: rec.password || "",
@@ -1238,7 +1242,8 @@
               body: JSON.stringify({
                 client_id: rec.client_id,
                 email: targetEmail,
-                username: rec.username || rec.generated_username || "",
+                username: uname,
+                identifier: uname || rec.client_id || targetEmail,
                 is_new_account: false
               })
             });
@@ -1316,8 +1321,14 @@
           const rec = records[k];
           const recCid = String(rec.client_id || k).toUpperCase();
           const recEmail = normalizeEmail(rec.owner_email || rec.email);
-          const recUser = String(rec.username || rec.generated_username || "").toUpperCase();
-          return recCid === upperId || recUser === upperId || recEmail === normalizeEmail(idVal);
+          const recUser = String(rec.username || "").toUpperCase();
+          const recGenUser = String(rec.generated_username || "").toUpperCase();
+          return (
+            recCid === upperId ||
+            recUser === upperId ||
+            recGenUser === upperId ||
+            recEmail === normalizeEmail(idVal)
+          );
         });
 
         if (matchedKey) {
@@ -1335,7 +1346,7 @@
             email: boundEmail,
             owner_email: boundEmail,
             username: boundUser,
-            generated_username: boundUser,
+            generated_username: rec.generated_username || boundUser,
             plan_active: Boolean(rec.plan_active === true),
             password: pwVal
           });
@@ -1346,7 +1357,9 @@
         if (remoteAccount && remoteAccount.client_id) {
           const resolvedCid = String(remoteAccount.client_id).trim().toUpperCase();
           const remoteOwnerEmail = normalizeEmail(remoteAccount.owner_email || remoteAccount.email || "");
-          const remoteUser = String(remoteAccount.username || remoteAccount.generated_username || resolvedCid).trim();
+          const remoteUser = String(
+            remoteAccount.username || remoteAccount.generated_username || idVal || resolvedCid
+          ).trim();
 
           if (!isValidEmailAddress(remoteOwnerEmail)) {
             showErrorPopup("මෙම Account එකට සම්බන්ධ Email Address එක හමු නොවීය.");
@@ -1361,7 +1374,7 @@
             business_reg_no: remoteAccount.business_reg_no || "",
             password: pwVal,
             username: remoteUser,
-            generated_username: remoteUser,
+            generated_username: remoteAccount.generated_username || remoteUser,
             plan_active: Boolean(remoteAccount.plan_active === true),
             last_login_at: "-"
           };
@@ -1454,7 +1467,9 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   client_id: rec.client_id,
+                  username: resolvedUsername,
                   email: boundEmail,
+                  identifier: resolvedUsername || rec.client_id || boundEmail,
                   otp: enteredOtp,
                   new_password: pendingNewPassword
                 })
@@ -1465,7 +1480,9 @@
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     client_id: rec.client_id,
+                    username: resolvedUsername,
                     email: boundEmail,
+                    identifier: resolvedUsername || rec.client_id || boundEmail,
                     otp: enteredOtp,
                     password: pendingNewPassword,
                     is_new_account: false
@@ -1480,6 +1497,9 @@
               if (resetConfirmData.client_id) {
                 resolvedCid = String(resetConfirmData.client_id).trim().toUpperCase();
               }
+              if (resetConfirmData.username || resetConfirmData.generated_username) {
+                resolvedUsername = String(resetConfirmData.username || resetConfirmData.generated_username).trim();
+              }
             } else {
               const verifyRes = await fetch(`${OTP_CONFIG.API_BASE_URL}/api/otp/verify`, {
                 method: "POST",
@@ -1489,6 +1509,7 @@
                   email: boundEmail,
                   owner_email: boundEmail,
                   username: resolvedUsername,
+                  identifier: resolvedUsername || rec.client_id || boundEmail,
                   store_name: rec.store_name || "",
                   business_reg_no: rec.business_reg_no || "",
                   password: rec.password || "",
@@ -1532,7 +1553,9 @@
           const numMatch = String(resolvedCid || rec.client_id || "").match(/(\d+)/);
           if (numMatch) {
             resolvedCid = `CLT-${numMatch[1]}`;
-            resolvedUsername = `USR-${numMatch[1]}`;
+            if (!resolvedUsername || /^CLT-/i.test(resolvedUsername)) {
+              resolvedUsername = `USR-${numMatch[1]}`;
+            }
           }
           resolvedPlanActive = false;
         }
@@ -1543,7 +1566,7 @@
           email: boundEmail,
           owner_email: boundEmail,
           username: resolvedUsername,
-          generated_username: resolvedUsername,
+          generated_username: rec.generated_username || resolvedUsername,
           plan_active: resolvedPlanActive
         };
 
@@ -1584,7 +1607,7 @@
             owner_email: boundEmail,
             business_reg_no: rec.business_reg_no,
             username: resolvedUsername,
-            generated_username: resolvedUsername,
+            generated_username: rec.generated_username || resolvedUsername,
             plan_active: resolvedPlanActive,
             api_base: OTP_CONFIG.API_BASE_URL,
             token: backendToken,
@@ -1625,7 +1648,7 @@
     document.getElementById("resetFromMailBtn").addEventListener("click", () => {
       const rec = records[pendingUserKey];
       showOnlySubView(resetForm);
-      document.getElementById("resetIdInput").value = rec?.username || rec?.client_id || pendingUserKey || "";
+      document.getElementById("resetIdInput").value = rec?.username || rec?.generated_username || rec?.client_id || pendingUserKey || "";
       document.getElementById("resetEmailInput").value = normalizeEmail(rec?.owner_email || rec?.email || "");
       document.getElementById("resetOk").textContent = "";
       clearFieldPasswordError(newPassInput, resetPwErrorPop);
@@ -1679,9 +1702,10 @@
         let matchedKey = Object.keys(records).find((k) => {
           const rec = records[k];
           const recCid = String(rec.client_id || k).toUpperCase();
-          const recUser = String(rec.username || rec.generated_username || "").toUpperCase();
+          const recUser = String(rec.username || "").toUpperCase();
+          const recGenUser = String(rec.generated_username || "").toUpperCase();
           const recEmail = normalizeEmail(rec.owner_email || rec.email);
-          const idOk = !idVal || recCid === upperId || recUser === upperId;
+          const idOk = !idVal || recCid === upperId || recUser === upperId || recGenUser === upperId;
           return idOk && recEmail === emailVal;
         });
 
@@ -1703,8 +1727,8 @@
               owner_email: emailVal,
               business_reg_no: remoteAcc.business_reg_no || "",
               password: pwCheck.formatted,
-              username: remoteAcc.username || remoteAcc.generated_username || resolvedCid,
-              generated_username: remoteAcc.generated_username || remoteAcc.username || resolvedCid,
+              username: remoteAcc.username || remoteAcc.generated_username || idVal || resolvedCid,
+              generated_username: remoteAcc.generated_username || remoteAcc.username || idVal || resolvedCid,
               plan_active: Boolean(remoteAcc.plan_active === true),
               last_login_at: "-"
             };

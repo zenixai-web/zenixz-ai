@@ -290,12 +290,19 @@ def _save_maintenance_state(st: Dict[str, Any]) -> None:
 def _fs_get_client(db, cid: str) -> Optional[Dict[str, Any]]:
     if not db or not cid:
         return None
+    clean_cid = cid.strip().upper()
     try:
-        snap = db.collection("clients").document(cid.upper()).get()
+        snap = db.collection("clients").document(clean_cid).get()
         if snap.exists:
             data = snap.to_dict() or {}
-            data["client_id"] = cid.upper()
+            data["client_id"] = str(data.get("client_id") or snap.id or clean_cid).upper()
             return data
+        for d in db.collection("clients").stream():
+            data = d.to_dict() or {}
+            doc_cid = str(data.get("client_id") or d.id or "").strip().upper()
+            if doc_cid == clean_cid:
+                data["client_id"] = doc_cid
+                return data
     except Exception as exc:
         globals()["_FIRESTORE_LAST_ERROR"] = str(exc)
     return None
@@ -304,16 +311,20 @@ def _fs_get_client(db, cid: str) -> Optional[Dict[str, Any]]:
 def _fs_find_by_email(db, email_lower: str) -> Optional[str]:
     if not db or not email_lower:
         return None
+    em_clean = email_lower.strip().lower()
     try:
-        docs = (
-            db.collection("clients").where("email", "==", email_lower).limit(1).stream()
-        )
-        for d in docs:
-            return str(d.id).upper()
+        for field_name in ("email", "owner_email", "client_email"):
+            docs = (
+                db.collection("clients").where(field_name, "==", em_clean).limit(1).stream()
+            )
+            for d in docs:
+                data = d.to_dict() or {}
+                return str(data.get("client_id") or d.id).upper()
         for d in db.collection("clients").stream():
             data = d.to_dict() or {}
-            if str(data.get("email") or "").strip().lower() == email_lower:
-                return str(d.id).upper()
+            for field_name in ("email", "owner_email", "client_email"):
+                if str(data.get(field_name) or "").strip().lower() == em_clean:
+                    return str(data.get("client_id") or d.id).upper()
     except Exception as exc:
         globals()["_FIRESTORE_LAST_ERROR"] = str(exc)
     return None
@@ -325,20 +336,22 @@ def _fs_find_by_username(db, username_val: str) -> Optional[Dict[str, Any]]:
     u_clean = username_val.strip()
     u_lower = u_clean.lower()
     try:
-        for field_name in ("username", "generated_username"):
-            docs = (
-                db.collection("clients").where(field_name, "==", u_clean).limit(1).stream()
-            )
-            for d in docs:
-                data = d.to_dict() or {}
-                data["client_id"] = str(d.id).upper()
-                return data
+        for field_name in ("username", "generated_username", "client_id"):
+            for candidate in (u_clean, u_lower, u_clean.upper()):
+                docs = (
+                    db.collection("clients").where(field_name, "==", candidate).limit(1).stream()
+                )
+                for d in docs:
+                    data = d.to_dict() or {}
+                    data["client_id"] = str(data.get("client_id") or d.id).upper()
+                    return data
         for d in db.collection("clients").stream():
             data = d.to_dict() or {}
             u_match = str(data.get("username") or "").strip().lower()
             g_match = str(data.get("generated_username") or "").strip().lower()
-            if u_lower in (u_match, g_match):
-                data["client_id"] = str(d.id).upper()
+            c_match = str(data.get("client_id") or d.id or "").strip().lower()
+            if u_lower in (u_match, g_match, c_match):
+                data["client_id"] = str(data.get("client_id") or d.id).upper()
                 return data
     except Exception as exc:
         globals()["_FIRESTORE_LAST_ERROR"] = str(exc)
@@ -442,7 +455,7 @@ def _save_client_record(
         or entry.get("username")
         or clean_cid,
         "store_name": entry.get("store_name") or f"{clean_cid} Store",
-        "email": (entry.get("email") or "").strip().lower(),
+        "email": (entry.get("email") or entry.get("owner_email") or "").strip().lower(),
         "business_reg_no": (entry.get("business_reg_no") or "").strip().upper(),
         "plan": (entry.get("plan") or "normal").strip().lower(),
         "plan_active": bool(entry.get("plan_active", False)),
@@ -568,6 +581,54 @@ def _build_premium_apps_script(cid: str, secret_key: str) -> str:
     )
 
 
+def _match_local_client(
+    local_map: Dict[str, Any],
+    cid_upper: str = "",
+    em_lower: str = "",
+    usr_raw: str = "",
+) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
+    if not isinstance(local_map, dict):
+        return None, None
+
+    if cid_upper:
+        if cid_upper in local_map and isinstance(local_map[cid_upper], dict):
+            rec = dict(local_map[cid_upper])
+            rec["client_id"] = cid_upper
+            return cid_upper, rec
+        for k, v in local_map.items():
+            if isinstance(v, dict):
+                v_cid = str(v.get("client_id") or k or "").strip().upper()
+                if v_cid == cid_upper:
+                    rec = dict(v)
+                    rec["client_id"] = v_cid
+                    return v_cid, rec
+
+    if em_lower:
+        for k, v in local_map.items():
+            if isinstance(v, dict):
+                for e_field in ("email", "owner_email", "client_email"):
+                    if str(v.get(e_field) or "").strip().lower() == em_lower:
+                        v_cid = str(v.get("client_id") or k or "").strip().upper()
+                        rec = dict(v)
+                        rec["client_id"] = v_cid
+                        return v_cid, rec
+
+    if usr_raw:
+        u_low = usr_raw.strip().lower()
+        for k, v in local_map.items():
+            if isinstance(v, dict):
+                u_match = str(v.get("username") or "").strip().lower()
+                g_match = str(v.get("generated_username") or "").strip().lower()
+                c_match = str(v.get("client_id") or k or "").strip().lower()
+                if u_low in (u_match, g_match, c_match):
+                    v_cid = str(v.get("client_id") or k or "").strip().upper()
+                    rec = dict(v)
+                    rec["client_id"] = v_cid
+                    return v_cid, rec
+
+    return None, None
+
+
 def _resolve_client(
     db, client_id: str = "", email: str = "", username: str = ""
 ) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
@@ -575,43 +636,40 @@ def _resolve_client(
     em = (email or "").strip().lower()
     usr = (username or "").strip()
 
+    # Check if `username` actually contains an email or client_id format
+    if not em and usr and "@" in usr:
+        em = usr.lower()
+    if not cid and usr and usr.upper().startswith(("CLT-", "USR-")):
+        cid = usr.upper()
+
     if cid:
         fs_rec = _fs_get_client(db, cid)
         if fs_rec:
-            return cid, fs_rec
+            return str(fs_rec.get("client_id") or cid).upper(), fs_rec
         local_map = _load_json(CLIENTS_FILE, {})
-        if isinstance(local_map, dict) and cid in local_map:
-            rec = dict(local_map[cid])
-            rec["client_id"] = cid
-            return cid, rec
+        l_cid, l_rec = _match_local_client(local_map, cid_upper=cid)
+        if l_cid and l_rec:
+            return l_cid, l_rec
 
     if em:
         owner_cid = _fs_find_by_email(db, em)
         if owner_cid:
             fs_rec = _fs_get_client(db, owner_cid)
             if fs_rec:
-                return owner_cid, fs_rec
+                return str(fs_rec.get("client_id") or owner_cid).upper(), fs_rec
         local_map = _load_json(CLIENTS_FILE, {})
-        if isinstance(local_map, dict):
-            for k, v in local_map.items():
-                if str((v or {}).get("email") or "").strip().lower() == em:
-                    rec = dict(v)
-                    rec["client_id"] = str(k).upper()
-                    return str(k).upper(), rec
+        l_cid, l_rec = _match_local_client(local_map, em_lower=em)
+        if l_cid and l_rec:
+            return l_cid, l_rec
 
     if usr:
         fs_u = _fs_find_by_username(db, usr)
         if fs_u:
             return str(fs_u["client_id"]).upper(), fs_u
         local_map = _load_json(CLIENTS_FILE, {})
-        if isinstance(local_map, dict):
-            for k, v in local_map.items():
-                u_match = str((v or {}).get("username") or "").strip().lower()
-                g_match = str((v or {}).get("generated_username") or "").strip().lower()
-                if usr.lower() in (u_match, g_match):
-                    rec = dict(v)
-                    rec["client_id"] = str(k).upper()
-                    return str(k).upper(), rec
+        l_cid, l_rec = _match_local_client(local_map, usr_raw=usr)
+        if l_cid and l_rec:
+            return l_cid, l_rec
 
     return None, None
 
@@ -1102,6 +1160,7 @@ class ClientLookupIn(BaseModel):
     client_id: Optional[str] = ""
     email: Optional[str] = ""
     username: Optional[str] = ""
+    identifier: Optional[str] = ""
 
 
 class ForgotIdIn(BaseModel):
@@ -1112,6 +1171,7 @@ class OtpSendIn(BaseModel):
     email: Optional[str] = ""
     client_id: Optional[str] = ""
     username: Optional[str] = ""
+    identifier: Optional[str] = ""
     store_name: Optional[str] = ""
     business_reg_no: Optional[str] = ""
     password: Optional[str] = ""
@@ -1124,6 +1184,7 @@ class OtpVerifyIn(BaseModel):
     owner_email: Optional[str] = ""
     client_id: Optional[str] = ""
     username: Optional[str] = ""
+    identifier: Optional[str] = ""
     otp: str = Field(..., min_length=1)
     store_name: Optional[str] = ""
     business_reg_no: Optional[str] = ""
@@ -1262,9 +1323,19 @@ def admin_update_client(
 @app.post("/api/clients/lookup")
 @app.post("/api/client/lookup")
 def lookup_client(payload: ClientLookupIn):
+    raw_ident = (payload.identifier or "").strip()
     cid_in = (payload.client_id or "").strip().upper()
     em_in = (payload.email or "").strip().lower()
     usr_in = (payload.username or "").strip()
+
+    if raw_ident and not cid_in and not em_in and not usr_in:
+        if "@" in raw_ident:
+            em_in = raw_ident.lower()
+        elif raw_ident.upper().startswith(("CLT-", "USR-")):
+            cid_in = raw_ident.upper()
+            usr_in = raw_ident
+        else:
+            usr_in = raw_ident
 
     if not cid_in and not em_in and not usr_in:
         raise HTTPException(status_code=400, detail="Identifier required")
@@ -1488,9 +1559,19 @@ def get_client_embed(
 @app.post("/api/otp/send")
 @app.post("/api/password/reset/send-otp")
 def send_otp(payload: OtpSendIn):
+    raw_ident = (payload.identifier or "").strip()
     cid_in = (payload.client_id or "").strip().upper()
     usr_in = (payload.username or "").strip()
     em_in = (payload.email or "").strip().lower()
+
+    if raw_ident and not cid_in and not em_in and not usr_in:
+        if "@" in raw_ident:
+            em_in = raw_ident.lower()
+        elif raw_ident.upper().startswith(("CLT-", "USR-")):
+            cid_in = raw_ident.upper()
+            usr_in = raw_ident
+        else:
+            usr_in = raw_ident
 
     db = _get_db()
     resolved_cid, existing = _resolve_client(
@@ -1552,9 +1633,19 @@ def send_otp(payload: OtpSendIn):
 @app.post("/api/otp/verify")
 @app.post("/api/password/reset/confirm")
 def verify_otp(payload: OtpVerifyIn, request: Request):
+    raw_ident = (payload.identifier or "").strip()
     cid_in = (payload.client_id or "").strip().upper()
     usr_in = (payload.username or "").strip()
     em_in = (payload.email or payload.owner_email or "").strip().lower()
+
+    if raw_ident and not cid_in and not em_in and not usr_in:
+        if "@" in raw_ident:
+            em_in = raw_ident.lower()
+        elif raw_ident.upper().startswith(("CLT-", "USR-")):
+            cid_in = raw_ident.upper()
+            usr_in = raw_ident
+        else:
+            usr_in = raw_ident
 
     db = _get_db()
     resolved_cid, existing = _resolve_client(
