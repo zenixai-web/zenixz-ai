@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import json
+import mimetypes
 import os
 import random
 import secrets
@@ -16,12 +17,14 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 import firebase_admin
 from firebase_admin import credentials, firestore
 
 BASE_DIR = Path(__file__).resolve().parent
+CHATBOT_DIR = BASE_DIR / "chatbot"
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1131,6 +1134,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _resolve_chatbot_asset(rel_path: str) -> Optional[Path]:
+    clean_rel = rel_path.lstrip("/").replace("\\", "/")
+    candidate_dirs = [CHATBOT_DIR, BASE_DIR]
+    for base in candidate_dirs:
+        base_resolved = base.resolve()
+        target = (base_resolved / clean_rel).resolve()
+        if target == base_resolved or base_resolved in target.parents:
+            if target.exists() and target.is_file():
+                return target
+    return None
+
+
+@app.get("/chatbot/app.js")
+@app.get("/app.js")
+def serve_chatbot_js():
+    js_path = _resolve_chatbot_asset("app.js")
+    if not js_path:
+        raise HTTPException(status_code=404, detail="app.js not found")
+    return FileResponse(js_path, media_type="application/javascript")
+
+
+@app.get("/chatbot/{file_path:path}")
+def serve_chatbot_files(file_path: str):
+    asset_path = _resolve_chatbot_asset(file_path)
+    if not asset_path:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    guessed_type, _ = mimetypes.guess_type(str(asset_path))
+    return FileResponse(
+        asset_path, media_type=guessed_type or "application/octet-stream"
+    )
 
 
 @app.get("/")
