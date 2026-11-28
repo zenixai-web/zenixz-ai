@@ -1468,7 +1468,7 @@
     function applyPlanAccessLock(active, storeName, premium, scriptCode, clientKey) {
       embedSection.style.display = active ? "block" : "none";
       if (active) {
-        embedClientIdLabel.textContent = ACTIVE_CLIENT_ID;
+        if (embedClientIdLabel) embedClientIdLabel.textContent = ACTIVE_CLIENT_ID;
         document.getElementById("embedSnippetPrompt").innerHTML =
           tr("embedClientIdPrefix") +
           '<strong id="embedClientIdLabel">' +
