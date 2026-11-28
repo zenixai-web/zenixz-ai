@@ -161,6 +161,94 @@
       ? new BroadcastChannel(`zenix_orders_channel_${STORAGE_SCOPE}`)
       : null;
 
+  const I18N = {
+    si: {
+      welcome:
+        "ආයුබෝවන්! මම ඔබේ AI සහායකයා. ඔබට මොනවාද අවශ්‍ය කරන්නේ? නිෂ්පාදන විස්තර හෝ ඇනවුම් සඳහා අහන්න.",
+      placeholder: "ඔබේ පණිවිඩය මෙතන ලියන්න...",
+      send: "Send",
+      typing: "ලියමින් සිටී...",
+      askWhatNeeded: "ඔබට මොනවාද අවශ්‍ය කරන්නේ? අපගේ නිෂ්පාදන හෝ ඇනවුම් ගැන විමසන්න.",
+      cardOrder: "🛒 ඇනවුම් කිරීමට කැමති නම්",
+      cardOrderSub: "Order එකක් දාන්න",
+      cardOtherItem: "📦 වෙනත් භාණ්ඩයක් ගැන",
+      cardOtherItemSub: "තවත් විස්තර බලන්න",
+      offTopicPopup:
+        "මට උදව් කරන්න පුළුවන් මෙම ව්‍යාපාරයේ නිෂ්පාදන සහ ගනුදෙනු/ඇනවුම් සම්බන්ධයෙන් පමණයි. කරුණාකර ඒ සම්බන්ධ දෙයක් පමණක් මගෙන් අහන්න."
+    },
+    en: {
+      welcome:
+        "Hello! I am your AI store assistant. What would you like help with? Ask about our products or place an order.",
+      placeholder: "Type your message here...",
+      send: "Send",
+      typing: "Typing...",
+      askWhatNeeded: "What would you like? Ask about products or place an order.",
+      cardOrder: "🛒 Place an Order",
+      cardOrderSub: "Order this item",
+      cardOtherItem: "📦 Another Product",
+      cardOtherItemSub: "Explore more items",
+      offTopicPopup:
+        "I can only help with this store's products and order transactions. Please ask only about products or orders."
+    },
+    ta: {
+      welcome:
+        "வணக்கம்! நான் உங்கள் AI உதவியாளர். உங்களுக்கு என்ன தேவை? பொருட்கள் அல்லது ஆர்டர்கள் பற்றி கேளுங்கள்.",
+      placeholder: "உங்கள் செய்தியை இங்கே தட்டச்சு செய்க...",
+      send: "Send",
+      typing: "எழுதுகிறது...",
+      askWhatNeeded: "உங்களுக்கு என்ன தேவை? பொருட்கள் அல்லது ஆர்டர் பற்றி கேளுங்கள்.",
+      cardOrder: "🛒 ஆர்டர் செய்ய விரும்பினால்",
+      cardOrderSub: "ஆர்டர் பதிவு செய்க",
+      cardOtherItem: "📦 வேறு பொருள் பற்றி",
+      cardOtherItemSub: "மேலும் விவரம் பார்க்க",
+      offTopicPopup:
+        "இந்த வணிகத்தின் பொருட்கள் மற்றும் ஆர்டர்கள் தொடர்பாக மட்டுமே என்னால் உதவ முடியும். அது தொடர்பான கேள்விகளை மட்டும் கேளுங்கள்."
+    }
+  };
+
+  const DEFAULT_CONFIG = {
+    botName: ACTIVE_CLIENT_NAME ? `${ACTIVE_CLIENT_NAME} AI Assistant` : "Zenix AI Assistant",
+    primaryColor: "#2563eb",
+    secondaryColor: "#1e40af",
+    theme: "dark",
+    language: "si",
+    orderFlowEnabled: true,
+    maxOrderQty: 50,
+    toggles: {
+      showLanguageSwitcher: true,
+      showThemeToggle: true,
+      showChoiceCards: true,
+      strictOffTopic: true
+    }
+  };
+
+  let config = Object.assign({}, DEFAULT_CONFIG, {
+    toggles: Object.assign({}, DEFAULT_CONFIG.toggles)
+  });
+  let isOpen = false;
+  let isSending = false;
+  let conversationHistory = [];
+  let messageCounter = 0;
+  let domRefs = {};
+  let attachedSlipData = null;
+  let lastMentionedItem = "";
+
+  let orderDraft = {
+    active: false,
+    step: null,
+    item: "",
+    quantity: 1,
+    customerName: "",
+    phone: "",
+    address: "",
+    paymentMethod: "",
+    paymentProof: ""
+  };
+
+  function getLangPack() {
+    return I18N[config.language] || I18N.si;
+  }
+
   function isWithin24Hours(isoStr) {
     if (!isoStr) return true;
     const ts = Date.parse(String(isoStr));
@@ -223,42 +311,6 @@
     broadcastOrderUpdate(lightRecord);
     return updated;
   }
-
-  const DEFAULT_CONFIG = {
-    botName: ACTIVE_CLIENT_NAME ? `${ACTIVE_CLIENT_NAME} AI Assistant` : "Zenix AI Assistant",
-    welcomeMessage:
-      "ආයුබෝවන්! මම ඔබේ AI සහායකයා. ඔබට කොහොමද උදව් කරන්න පුළුවන්?",
-    primaryColor: "#2563eb",
-    secondaryColor: "#1e40af",
-    position: "bottom-right",
-    theme: "dark",
-    fontFamily: CHAT_FONT_STACK,
-    fontSize: 14,
-    currency: "LKR",
-    language: "si",
-    orderFlowEnabled: true,
-    maxOrderQty: 50
-  };
-
-  let config = Object.assign({}, DEFAULT_CONFIG);
-  let isOpen = false;
-  let isSending = false;
-  let conversationHistory = [];
-  let messageCounter = 0;
-  let domRefs = {};
-  let attachedSlipData = null;
-
-  let orderDraft = {
-    active: false,
-    step: null,
-    item: "",
-    quantity: 1,
-    customerName: "",
-    phone: "",
-    address: "",
-    paymentMethod: "",
-    paymentProof: ""
-  };
 
   function generateOrderId() {
     const now = new Date();
@@ -328,6 +380,28 @@
       CLIENT_PLAN_TYPE = String(data.plan || "normal").trim().toLowerCase();
       STOCK_CSV_URL = String(data.stock_csv_url || "").trim();
       STOCK_WEBAPP_URL = String(data.stock_webapp_url || "").trim();
+
+      const preferredLang = String(data.default_language || data.language || "").trim().toLowerCase();
+      if (I18N[preferredLang]) {
+        config.language = preferredLang;
+      }
+
+      const widgetOpts =
+        (data.widget_options && typeof data.widget_options === "object" && data.widget_options) ||
+        (data.toggles && typeof data.toggles === "object" && data.toggles) ||
+        {};
+      if (typeof widgetOpts.show_language_switcher === "boolean") {
+        config.toggles.showLanguageSwitcher = widgetOpts.show_language_switcher;
+      }
+      if (typeof widgetOpts.show_theme_toggle === "boolean") {
+        config.toggles.showThemeToggle = widgetOpts.show_theme_toggle;
+      }
+      if (typeof widgetOpts.show_choice_cards === "boolean") {
+        config.toggles.showChoiceCards = widgetOpts.show_choice_cards;
+      }
+      if (typeof widgetOpts.strict_off_topic === "boolean") {
+        config.toggles.strictOffTopic = widgetOpts.strict_off_topic;
+      }
       return true;
     } catch (_) {
       return false;
@@ -353,36 +427,121 @@
     return out;
   }
 
-  async function checkStockFromCsv(itemName, qty) {
-    if (!STOCK_CSV_URL) return { checked: false, available: true, stockQty: null };
+  async function loadStockCatalogFromCsv() {
+    if (!STOCK_CSV_URL) return [];
     try {
       const res = await fetch(STOCK_CSV_URL, { cache: "no-store" });
-      if (!res.ok) return { checked: false, available: true, stockQty: null };
+      if (!res.ok) return [];
       const csvText = await res.text();
       const lines = csvText
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter(Boolean);
-      if (lines.length < 2) return { checked: false, available: true, stockQty: null };
-
-      const target = String(itemName || "").trim().toLowerCase();
+      if (lines.length < 2) return [];
+      const items = [];
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCsvRow(lines[i]);
-        const nameCol = String(cols[0] || "").trim().toLowerCase();
-        if (nameCol && (nameCol.includes(target) || target.includes(nameCol))) {
-          const rawStock = parseInt(String(cols[1] || "0").replace(/[^0-9-]/g, ""), 10);
-          const stockQty = Number.isNaN(rawStock) ? 0 : rawStock;
-          return {
-            checked: true,
-            available: stockQty >= Math.max(1, Number(qty || 1)),
-            stockQty
-          };
-        }
+        const name = String(cols[0] || "").trim();
+        if (!name) continue;
+        const rawStock = parseInt(String(cols[1] || "0").replace(/[^0-9-]/g, ""), 10);
+        const qty = Number.isNaN(rawStock) ? 0 : rawStock;
+        const price = String(cols[2] || "").trim();
+        items.push({ name, qty, price });
       }
-      return { checked: false, available: true, stockQty: null };
+      return items;
     } catch (_) {
-      return { checked: false, available: true, stockQty: null };
+      return [];
     }
+  }
+
+  async function checkStockFromCsv(itemName, qty) {
+    const catalog = await loadStockCatalogFromCsv();
+    if (!catalog.length) return { checked: false, available: true, stockQty: null, matches: [] };
+    const target = String(itemName || "").trim().toLowerCase();
+    for (const row of catalog) {
+      const rName = row.name.toLowerCase();
+      if (rName && (rName === target || rName.includes(target) || target.includes(rName))) {
+        lastMentionedItem = row.name;
+        return {
+          checked: true,
+          available: row.qty >= Math.max(1, Number(qty || 1)),
+          stockQty: row.qty,
+          price: row.price,
+          matches: [row]
+        };
+      }
+    }
+    return { checked: false, available: true, stockQty: null, matches: catalog };
+  }
+
+  async function handleStockInquiryIfApplicable(text) {
+    const low = String(text || "").toLowerCase();
+    const asksStock =
+      low.includes("stock") ||
+      low.includes("available") ||
+      low.includes("price") ||
+      low.includes("තියෙනවද") ||
+      low.includes("ස්ටොක්") ||
+      low.includes("මිල") ||
+      low.includes("කීයද");
+
+    if (!asksStock || !STOCK_CSV_URL) return null;
+    const catalog = await loadStockCatalogFromCsv();
+    if (!catalog.length) return null;
+
+    const matched = catalog.filter(
+      (it) =>
+        low.includes(it.name.toLowerCase()) ||
+        it.name.toLowerCase().split(/\s+/).some((w) => w.length >= 3 && low.includes(w))
+    );
+
+    const listToShow = matched.length ? matched : catalog.slice(0, 8);
+    if (matched.length === 1) {
+      lastMentionedItem = matched[0].name;
+    }
+
+    const lines = listToShow.map((it) => {
+      const stText = it.qty > 0 ? `In Stock (${it.qty})` : "Out of Stock";
+      const prText = it.price ? ` — ${it.price}` : "";
+      return `• **${it.name}**: ${stText}${prText}`;
+    });
+
+    return `📦 **Stock Details**\n${lines.join("\n")}`;
+  }
+
+  function isOffTopicMessage(text) {
+    if (!config.toggles.strictOffTopic) return false;
+    const raw = String(text || "").trim();
+    const low = raw.toLowerCase();
+    if (!low) return false;
+
+    const businessKeywords = [
+      "order", "buy", "price", "cost", "stock", "item", "product", "delivery",
+      "ship", "cod", "bank", "slip", "payment", "pay", "quantity", "qty",
+      "address", "phone", "name", "store", "shop", "help", "support",
+      "ඕඩර්", "ඇනවුම්", "මිල", "ස්ටොක්", "භාණ්ඩ", "ඩිලිවරි", "බෑන්ක්",
+      "ස්ලිප්", "ගෙවීම", "නම", "ෆෝන්", "ඇඩ්‍රස්", "උදව්", "සහය",
+      "ஆர்டர்", "விலை", "பொருள்", "பணம்", "டெலிவரி"
+    ];
+    if (businessKeywords.some((k) => low.includes(k))) {
+      return false;
+    }
+
+    const offTopicPatterns = [
+      "කන්නේ මොනවද", "කන්න මොනවද", "උදේට කෑවද", "දවල්ට කෑවද", "රෑට කෑවද",
+      "සින්දුවක්", "song", "sing", "joke", "funny", "movie", "film",
+      "cricket", "football", "politics", "election", "weather", "news",
+      "love", "girlfriend", "boyfriend", "breakfast", "lunch", "dinner",
+      "what to eat", "tell me a joke", "பாட்டு", "சாப்பாடு"
+    ];
+    return offTopicPatterns.some((p) => low.includes(p));
+  }
+
+  function isGreetingOnly(text) {
+    const low = String(text || "").trim().toLowerCase();
+    return [
+      "hi", "hello", "hey", "ayubowan", "ආයුබෝවන්", "හායි", "හෙලෝ", "வணக்கம்"
+    ].includes(low);
   }
 
   async function deductStockPremiumWebApp(orderObj) {
@@ -432,10 +591,10 @@
         position: absolute;
         bottom: 72px;
         right: 0;
-        width: 375px;
-        max-width: calc(100vw - 28px);
-        height: 530px;
-        max-height: calc(100vh - 105px);
+        width: 380px;
+        max-width: calc(100vw - 24px);
+        height: 545px;
+        max-height: calc(100vh - 100px);
         border-radius: 18px;
         overflow: hidden;
         display: none;
@@ -448,12 +607,45 @@
       .zenix-chat-window.open {
         display: flex;
       }
+      .zenix-chat-window.light-theme {
+        background: #ffffff;
+        color: #0f172a;
+        border: 1px solid #cbd5e1;
+      }
       .zenix-chat-header {
-        padding: 12px 14px;
+        padding: 11px 12px;
         color: #ffffff;
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 8px;
+      }
+      .zenix-header-controls {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        flex-wrap: wrap;
+      }
+      .zenix-lang-group {
+        display: inline-flex;
+        background: rgba(15, 23, 42, 0.35);
+        border-radius: 8px;
+        padding: 2px;
+        gap: 2px;
+      }
+      .zenix-lang-btn {
+        border: none;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.82);
+        border-radius: 6px;
+        padding: 3px 6px;
+        font-size: 10.5px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .zenix-lang-btn.active {
+        background: #ffffff;
+        color: #0f172a;
       }
       .zenix-messages {
         flex: 1;
@@ -463,6 +655,9 @@
         flex-direction: column;
         gap: 10px;
         background: #020617;
+      }
+      .zenix-chat-window.light-theme .zenix-messages {
+        background: #f8fafc;
       }
       .zenix-msg {
         max-width: 85%;
@@ -477,31 +672,54 @@
         color: #f8fafc;
         border: 1px solid #334155;
       }
+      .zenix-chat-window.light-theme .zenix-msg.bot {
+        background: #ffffff;
+        color: #0f172a;
+        border: 1px solid #e2e8f0;
+      }
       .zenix-msg.user {
         align-self: flex-end;
         color: #ffffff;
       }
-      .zenix-pay-popup {
-        display: flex;
+      .zenix-choice-popup {
+        display: none;
         gap: 8px;
         padding: 8px 12px;
         background: #0f172a;
         border-top: 1px solid #1e293b;
       }
-      .zenix-pay-choice {
+      .zenix-chat-window.light-theme .zenix-choice-popup {
+        background: #f1f5f9;
+        border-top: 1px solid #e2e8f0;
+      }
+      .zenix-choice-card {
         flex: 1;
         background: #1e293b;
         color: #f8fafc;
         border: 1px solid #3b82f6;
-        border-radius: 10px;
+        border-radius: 11px;
         padding: 9px 10px;
         cursor: pointer;
         text-align: left;
-        font-size: 12.5px;
+        font-size: 12px;
         font-weight: 600;
+        transition: transform 0.12s ease, background 0.15s ease;
       }
-      .zenix-pay-choice:hover {
+      .zenix-chat-window.light-theme .zenix-choice-card {
+        background: #ffffff;
+        color: #0f172a;
+        border: 1px solid #2563eb;
+      }
+      .zenix-choice-card:hover {
         background: #2563eb;
+        color: #ffffff;
+      }
+      .zenix-choice-sub {
+        display: block;
+        font-size: 10.5px;
+        opacity: 0.8;
+        margin-top: 2px;
+        font-weight: 400;
       }
       .zenix-slip-bar {
         display: none;
@@ -520,6 +738,10 @@
         gap: 6px;
         align-items: center;
       }
+      .zenix-chat-window.light-theme .zenix-input-area {
+        background: #ffffff;
+        border-top: 1px solid #e2e8f0;
+      }
       .zenix-text-input {
         flex: 1;
         border: 1px solid #334155;
@@ -529,6 +751,11 @@
         outline: none;
         background: #1e293b;
         color: #f8fafc;
+      }
+      .zenix-chat-window.light-theme .zenix-text-input {
+        background: #f1f5f9;
+        color: #0f172a;
+        border: 1px solid #cbd5e1;
       }
       .zenix-send-btn {
         border: none;
@@ -543,10 +770,30 @@
         border: none;
         color: #ffffff;
         border-radius: 7px;
-        padding: 4px 8px;
+        padding: 5px 8px;
         font-size: 11px;
         font-weight: 600;
         cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .zenix-attach-btn {
+        background: #1e293b;
+        border: 1px solid #334155;
+        color: #e2e8f0;
+        border-radius: 10px;
+        width: 36px;
+        height: 36px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .zenix-chat-window.light-theme .zenix-attach-btn {
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        color: #0f172a;
       }
     `;
     (document.head || document.documentElement).appendChild(style);
@@ -570,6 +817,90 @@
     if (el && el.parentNode) el.parentNode.removeChild(el);
   }
 
+  function hideChoiceCardsPopup() {
+    if (domRefs.choicePopupEl) {
+      domRefs.choicePopupEl.style.display = "none";
+      domRefs.choicePopupEl.innerHTML = "";
+    }
+  }
+
+  function showTwoOptionCardsPopup(mode) {
+    if (!config.toggles.showChoiceCards || !domRefs.choicePopupEl) return;
+    const pack = getLangPack();
+    domRefs.choicePopupEl.innerHTML = "";
+    domRefs.choicePopupEl.style.display = "flex";
+
+    if (mode === "payment") {
+      const bankBtn = document.createElement("button");
+      bankBtn.type = "button";
+      bankBtn.className = "zenix-choice-card";
+      bankBtn.innerHTML = `🏦 Bank Transfer<span class="zenix-choice-sub">Slip Upload (Pending)</span>`;
+      bankBtn.addEventListener("click", () => {
+        hideChoiceCardsPopup();
+        selectPaymentMethod("Bank Transfer");
+      });
+
+      const codBtn = document.createElement("button");
+      codBtn.type = "button";
+      codBtn.className = "zenix-choice-card";
+      codBtn.innerHTML = `🚚 Cash on Delivery<span class="zenix-choice-sub">Pay on Arrival (Confirmed)</span>`;
+      codBtn.addEventListener("click", () => {
+        hideChoiceCardsPopup();
+        selectPaymentMethod("Cash on Delivery");
+      });
+
+      domRefs.choicePopupEl.appendChild(bankBtn);
+      domRefs.choicePopupEl.appendChild(codBtn);
+      return;
+    }
+
+    const opt1 = document.createElement("button");
+    opt1.type = "button";
+    opt1.className = "zenix-choice-card";
+    opt1.innerHTML = `${escapeHtml(pack.cardOrder)}<span class="zenix-choice-sub">${escapeHtml(pack.cardOrderSub)}</span>`;
+    opt1.addEventListener("click", () => {
+      hideChoiceCardsPopup();
+      appendMessage("user", pack.cardOrder);
+      startOrderFlow(lastMentionedItem);
+    });
+
+    const opt2 = document.createElement("button");
+    opt2.type = "button";
+    opt2.className = "zenix-choice-card";
+    opt2.innerHTML = `${escapeHtml(pack.cardOtherItem)}<span class="zenix-choice-sub">${escapeHtml(pack.cardOtherItemSub)}</span>`;
+    opt2.addEventListener("click", () => {
+      hideChoiceCardsPopup();
+      appendMessage("user", pack.cardOtherItem);
+      appendMessage("bot", pack.askWhatNeeded);
+    });
+
+    domRefs.choicePopupEl.appendChild(opt1);
+    domRefs.choicePopupEl.appendChild(opt2);
+  }
+
+  function applyTheme() {
+    if (!domRefs.win) return;
+    domRefs.win.classList.toggle("light-theme", config.theme === "light");
+    if (domRefs.themeBtn) {
+      domRefs.themeBtn.textContent = config.theme === "light" ? "🌙" : "☀️";
+    }
+  }
+
+  function setLanguage(langCode) {
+    const nextLang = I18N[langCode] ? langCode : "si";
+    config.language = nextLang;
+    const pack = getLangPack();
+
+    if (domRefs.textInput) domRefs.textInput.placeholder = pack.placeholder;
+    if (domRefs.sendBtn) domRefs.sendBtn.textContent = pack.send;
+
+    if (domRefs.langBtns) {
+      Object.entries(domRefs.langBtns).forEach(([code, btn]) => {
+        if (btn) btn.classList.toggle("active", code === nextLang);
+      });
+    }
+  }
+
   function renderBankDetailsCard() {
     const details = [
       ["Bank", "Commercial Bank of Ceylon"],
@@ -584,36 +915,8 @@
     );
   }
 
-  function showPaymentCardsPopup() {
-    if (!domRefs.payPopupEl) return;
-    domRefs.payPopupEl.innerHTML = "";
-    domRefs.payPopupEl.style.display = "flex";
-
-    const bankBtn = document.createElement("button");
-    bankBtn.type = "button";
-    bankBtn.className = "zenix-pay-choice";
-    bankBtn.innerHTML = "🏦 Bank Transfer<br><span style='font-size:11px;opacity:0.8'>Slip Upload (Pending)</span>";
-    bankBtn.addEventListener("click", () => selectPaymentMethod("Bank Transfer"));
-
-    const codBtn = document.createElement("button");
-    codBtn.type = "button";
-    codBtn.className = "zenix-pay-choice";
-    codBtn.innerHTML = "🚚 Cash on Delivery<br><span style='font-size:11px;opacity:0.8'>Pay on Arrival (Confirmed)</span>";
-    codBtn.addEventListener("click", () => selectPaymentMethod("Cash on Delivery"));
-
-    domRefs.payPopupEl.appendChild(bankBtn);
-    domRefs.payPopupEl.appendChild(codBtn);
-  }
-
-  function hidePaymentCardsPopup() {
-    if (domRefs.payPopupEl) {
-      domRefs.payPopupEl.style.display = "none";
-      domRefs.payPopupEl.innerHTML = "";
-    }
-  }
-
   function selectPaymentMethod(method) {
-    hidePaymentCardsPopup();
+    hideChoiceCardsPopup();
     orderDraft.paymentMethod = method;
     orderDraft.step = "name";
     if (method === "Bank Transfer") {
@@ -636,7 +939,7 @@
   }
 
   function resetOrderDraft() {
-    hidePaymentCardsPopup();
+    hideChoiceCardsPopup();
     attachedSlipData = null;
     if (domRefs.slipBarEl) domRefs.slipBarEl.style.display = "none";
     if (domRefs.fileInputEl) domRefs.fileInputEl.value = "";
@@ -692,7 +995,7 @@
 
     persistOrderLocally(orderObj);
     await deductStockPremiumWebApp(orderObj);
-    await sendChatToServer(`Order captured: ${orderObj.order_id}`, orderObj);
+    await sendChatToServer(`Order captured: ${orderObj.order_id}`, orderObj, true);
 
     appendMessage(
       "bot",
@@ -737,7 +1040,7 @@
         "bot",
         `✅ මේක ගන්න පුළුවන්! ඔබ ඕඩර් කරන්න කැමති මොකෙන්ද? පහළ cards වලින් **Bank Transfer** හෝ **Cash on Delivery** තෝරන්න.`
       );
-      showPaymentCardsPopup();
+      showTwoOptionCardsPopup("payment");
       return true;
     }
 
@@ -795,13 +1098,16 @@
     );
   }
 
-  async function sendChatToServer(messageText, orderPayload) {
+  async function sendChatToServer(messageText, orderPayload, skipAiReply) {
     if (!ACTIVE_CLIENT_ID || !PLAN_IS_ACTIVE) {
       destroyWidgetIfInactive();
       return;
     }
 
-    const typingId = appendMessage("bot", "ලියමින් සිටී...");
+    const pack = getLangPack();
+    const typingId = skipAiReply ? null : appendMessage("bot", pack.typing);
+    const localizedPrompt = `[Language: ${config.language}] ${messageText}`;
+
     try {
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
@@ -813,14 +1119,14 @@
         body: JSON.stringify({
           client_id: ACTIVE_CLIENT_ID,
           session_id: sessionId,
-          message: messageText,
+          message: localizedPrompt,
           history: conversationHistory.slice(-10),
           order: orderPayload || null
         })
       });
-      removeMessageById(typingId);
+      if (typingId) removeMessageById(typingId);
       if (!res.ok) {
-        appendMessage("bot", "Server එකට සම්බන්ධ වීමට නොහැකි විය.");
+        if (!skipAiReply) appendMessage("bot", "Server එකට සම්බන්ධ වීමට නොහැකි විය.");
         return;
       }
       const data = await res.json();
@@ -828,13 +1134,14 @@
         destroyWidgetIfInactive();
         return;
       }
-      if (data.reply && !orderPayload) {
+      if (data.reply && !skipAiReply) {
         appendMessage("bot", data.reply);
         conversationHistory.push({ role: "assistant", content: data.reply });
+        showTwoOptionCardsPopup("next");
       }
     } catch (_) {
-      removeMessageById(typingId);
-      appendMessage("bot", "Server එකට සම්බන්ධ වීමට නොහැකි විය.");
+      if (typingId) removeMessageById(typingId);
+      if (!skipAiReply) appendMessage("bot", "Server එකට සම්බන්ධ වීමට නොහැකි විය.");
     }
   }
 
@@ -872,17 +1179,38 @@
     const displayMsg = text || (attachedSlipData ? `Attached: ${attachedSlipData.name}` : "");
     appendMessage("user", displayMsg);
     if (text) conversationHistory.push({ role: "user", content: text });
+    hideChoiceCardsPopup();
 
     try {
       if (orderDraft.active) {
         await handleOrderStep(text);
         return;
       }
-      if (config.orderFlowEnabled && looksLikeOrderIntent(text)) {
-        startOrderFlow("");
+
+      const pack = getLangPack();
+      if (text && isOffTopicMessage(text)) {
+        appendMessage("bot", pack.offTopicPopup);
         return;
       }
-      await sendChatToServer(text, null);
+
+      if (text && isGreetingOnly(text)) {
+        appendMessage("bot", pack.askWhatNeeded);
+        return;
+      }
+
+      if (config.orderFlowEnabled && looksLikeOrderIntent(text)) {
+        startOrderFlow(lastMentionedItem);
+        return;
+      }
+
+      const stockReply = text ? await handleStockInquiryIfApplicable(text) : null;
+      if (stockReply) {
+        appendMessage("bot", stockReply);
+        showTwoOptionCardsPopup("next");
+        return;
+      }
+
+      await sendChatToServer(text || displayMsg, null, false);
     } finally {
       isSending = false;
     }
@@ -892,6 +1220,7 @@
     createStyles();
     if (document.getElementById("zenix-chat-widget-root")) return;
 
+    const pack = getLangPack();
     const root = document.createElement("div");
     root.id = "zenix-chat-widget-root";
     root.className = "zenix-widget-root";
@@ -905,23 +1234,64 @@
 
     const title = document.createElement("div");
     title.style.fontWeight = "600";
+    title.style.fontSize = "13.5px";
+    title.style.whiteSpace = "nowrap";
+    title.style.overflow = "hidden";
+    title.style.textOverflow = "ellipsis";
     title.textContent = config.botName;
+
+    const controls = document.createElement("div");
+    controls.className = "zenix-header-controls";
+
+    const langBtns = {};
+    if (config.toggles.showLanguageSwitcher) {
+      const langGroup = document.createElement("div");
+      langGroup.className = "zenix-lang-group";
+      [
+        ["si", "සිං"],
+        ["en", "EN"],
+        ["ta", "தமிழ்"]
+      ].forEach(([code, label]) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "zenix-lang-btn" + (config.language === code ? " active" : "");
+        b.textContent = label;
+        b.addEventListener("click", () => setLanguage(code));
+        langGroup.appendChild(b);
+        langBtns[code] = b;
+      });
+      controls.appendChild(langGroup);
+    }
+
+    let themeBtn = null;
+    if (config.toggles.showThemeToggle) {
+      themeBtn = document.createElement("button");
+      themeBtn.type = "button";
+      themeBtn.className = "zenix-icon-btn";
+      themeBtn.title = "Toggle Dark / Light";
+      themeBtn.textContent = config.theme === "light" ? "🌙" : "☀️";
+      themeBtn.addEventListener("click", () => {
+        config.theme = config.theme === "dark" ? "light" : "dark";
+        applyTheme();
+      });
+      controls.appendChild(themeBtn);
+    }
 
     const closeBtn = document.createElement("button");
     closeBtn.type = "button";
     closeBtn.className = "zenix-icon-btn";
     closeBtn.textContent = "✕";
     closeBtn.addEventListener("click", () => toggleWidget(false));
+    controls.appendChild(closeBtn);
 
     header.appendChild(title);
-    header.appendChild(closeBtn);
+    header.appendChild(controls);
 
     const messagesEl = document.createElement("div");
     messagesEl.className = "zenix-messages";
 
-    const payPopupEl = document.createElement("div");
-    payPopupEl.className = "zenix-pay-popup";
-    payPopupEl.style.display = "none";
+    const choicePopupEl = document.createElement("div");
+    choicePopupEl.className = "zenix-choice-popup";
 
     const slipBarEl = document.createElement("div");
     slipBarEl.className = "zenix-slip-bar";
@@ -952,16 +1322,15 @@
 
     const attachBtn = document.createElement("button");
     attachBtn.type = "button";
-    attachBtn.className = "zenix-icon-btn";
-    attachBtn.style.padding = "9px 10px";
+    attachBtn.className = "zenix-attach-btn";
     attachBtn.title = "Attach PNG, JPG, or PDF";
-    attachBtn.textContent = "📎";
+    attachBtn.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>`;
     attachBtn.addEventListener("click", () => fileInputEl.click());
 
     const textInput = document.createElement("input");
     textInput.type = "text";
     textInput.className = "zenix-text-input";
-    textInput.placeholder = "ඔබේ පණිවිඩය මෙතන ලියන්න...";
+    textInput.placeholder = pack.placeholder;
     textInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -973,7 +1342,7 @@
     sendBtn.type = "button";
     sendBtn.className = "zenix-send-btn";
     sendBtn.style.background = config.primaryColor;
-    sendBtn.textContent = "Send";
+    sendBtn.textContent = pack.send;
     sendBtn.addEventListener("click", handleSubmit);
 
     inputArea.appendChild(fileInputEl);
@@ -983,7 +1352,7 @@
 
     win.appendChild(header);
     win.appendChild(messagesEl);
-    win.appendChild(payPopupEl);
+    win.appendChild(choicePopupEl);
     win.appendChild(slipBarEl);
     win.appendChild(inputArea);
 
@@ -1002,15 +1371,19 @@
       root,
       win,
       messagesEl,
-      payPopupEl,
+      choicePopupEl,
       slipBarEl,
       slipNameEl,
       fileInputEl,
       textInput,
       sendBtn,
+      themeBtn,
+      langBtns,
       launcherBtn
     };
-    appendMessage("bot", config.welcomeMessage);
+    setLanguage(config.language);
+    applyTheme();
+    appendMessage("bot", pack.welcome);
   }
 
   async function init() {

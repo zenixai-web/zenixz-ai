@@ -266,7 +266,7 @@
     }
 
     .card-value {
-      font-size: 23px;
+      font-size: 22px;
       font-weight: 700;
       margin-bottom: 6px;
     }
@@ -275,6 +275,7 @@
       font-size: 12px;
       color: var(--muted);
       margin-bottom: 12px;
+      line-height: 1.45;
     }
 
     .progress-track {
@@ -294,12 +295,6 @@
 
     .progress-fill.warn {
       background: var(--warn);
-    }
-
-    .quota-grid-3 {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
     }
 
     .embed-section {
@@ -326,6 +321,33 @@
       border-radius: 12px;
       padding: 14px;
       margin-bottom: 14px;
+    }
+
+    .toggle-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .toggle-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .toggle-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
     }
 
     .grid-2 {
@@ -511,9 +533,86 @@
       font-size: 14px;
       word-break: break-word;
     }
+
+    /* Last Login IP Popup Modal */
+    .ip-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 8, 20, 0.72);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 100;
+    }
+
+    .ip-modal-backdrop.show {
+      display: flex;
+    }
+
+    .ip-modal-card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    }
+
+    .ip-modal-title {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .ip-modal-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+      margin-bottom: 14px;
+    }
+
+    .ip-box {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .ip-box strong {
+      color: var(--accent);
+      font-size: 15px;
+    }
   </style>
 </head>
 <body>
+  <!-- Last Login IP Popup Modal -->
+  <div class="ip-modal-backdrop" id="lastLoginIpModal" role="dialog" aria-modal="true" aria-labelledby="ipModalTitle">
+    <div class="ip-modal-card">
+      <div class="ip-modal-title" id="ipModalTitle">Last Login IP Alert</div>
+      <div class="ip-modal-desc">
+        ඔබගේ Client Account එකට සිදු වූ Login IP විස්තරය පහත පරිදි වේ:
+      </div>
+      <div class="ip-box">
+        <div>Last Login IP: <strong id="popupLastLoginIp">-</strong></div>
+        <div id="popupPrevIpRow" style="display: none; margin-top: 4px; color: var(--muted);">
+          Previous IP: <span id="popupPrevLoginIp">-</span>
+        </div>
+        <div style="margin-top: 4px; color: var(--muted); font-size: 12px;">
+          Login Time: <span id="popupLastLoginTime">-</span>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end;">
+        <button class="btn" id="closeIpModalBtn" type="button">OK, Got It</button>
+      </div>
+    </div>
+  </div>
+
   <header class="topbar">
     <div class="store-group">
       <span class="store-title" id="storeTitle">Client Dashboard</span>
@@ -536,7 +635,7 @@
   <main class="container">
     <div class="sync-banner" id="syncBanner">
       <strong>Isolated Client Workspace:</strong>
-      Plan එක Activate කළ පසු පමණක් Embed HTML, Knowledge Base, AI Credits, Storage/Rows Limits, Stock Sync, සහ Order Tracking access ලැබේ.
+      Plan එක Activate කළ පසු පමණක් Embed HTML, Knowledge Base, AI Credits (Token/Cents), Auto Usage Limits, Stock Sync, සහ Order Tracking access ලැබේ. Usage Limits Admin / Firebase මඟින් පමණක් පාලනය වේ.
     </div>
 
     <div class="last3-warning-box" id="last3DaysBanner"></div>
@@ -550,6 +649,7 @@
     <div class="session-strip" id="sessionStrip">
       <span>Client ID: <strong id="metaClientId">-</strong></span>
       <span>Account / Email: <strong id="metaEmail">-</strong></span>
+      <span>Last Login IP: <strong id="metaLastIp">-</strong></span>
       <span>API Endpoint: <strong id="metaApiBase">-</strong></span>
       <span>Session Expires: <strong id="metaExpiry">-</strong></span>
     </div>
@@ -563,63 +663,37 @@
       <div class="card">
         <div class="card-label">Conversations / Customers</div>
         <div class="card-value" id="convVal">0 / 0</div>
-        <div class="card-sub" id="convRem">Remaining: 0</div>
+        <div class="card-sub" id="convRem">Remaining: 0 (Auto-tracked)</div>
         <div class="progress-track"><div class="progress-fill" id="convBar"></div></div>
       </div>
 
       <div class="card">
-        <div class="card-label">AI Credits</div>
-        <div class="card-value" id="creditVal">0</div>
-        <div class="card-sub" id="creditUsedSub">Used: 0</div>
+        <div class="card-label">AI Credits Balance (USD)</div>
+        <div class="card-value" id="creditVal">$0.0000</div>
+        <div class="card-sub" id="creditUsedSub">Used: $0.0000 • Tokens: 0</div>
         <div class="progress-track"><div class="progress-fill" id="creditBar"></div></div>
       </div>
 
       <div class="card">
         <div class="card-label">File Storage</div>
         <div class="card-value" id="fileVal">0 / 0 MB</div>
-        <div class="card-sub" id="fileRem">Remaining: 0 MB</div>
+        <div class="card-sub" id="fileRem">Remaining: 0 MB (Admin Locked)</div>
         <div class="progress-track"><div class="progress-fill" id="fileBar"></div></div>
       </div>
 
       <div class="card">
         <div class="card-label">Vector DB Storage</div>
         <div class="card-value" id="vecVal">0 / 0 MB</div>
-        <div class="card-sub" id="vecRem">Remaining: 0 MB</div>
+        <div class="card-sub" id="vecRem">Remaining: 0 MB (Admin Locked)</div>
         <div class="progress-track"><div class="progress-fill" id="vecBar"></div></div>
       </div>
 
       <div class="card">
         <div class="card-label">Table Rows</div>
         <div class="card-value" id="rowVal">0 / 0</div>
-        <div class="card-sub" id="rowRem">Remaining: 0</div>
+        <div class="card-sub" id="rowRem">Remaining: 0 (Admin Locked)</div>
         <div class="progress-track"><div class="progress-fill" id="rowBar"></div></div>
       </div>
-    </section>
-
-    <section class="card" id="quotaEditorSection" style="margin-bottom: 18px;">
-      <h3 style="margin-bottom: 6px; font-size: 16px;">Storage & Table Rows Limits Editor</h3>
-      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 14px;">
-        File Storage Limit (MB), Vector DB Limit (MB), සහ Table Rows Limit මෙතැනින් වෙනස් කර save කළ හැක.
-      </div>
-      <form id="quotaForm">
-        <div class="quota-grid-3">
-          <div class="field">
-            <label for="fileStorageLimitInput">File Storage Limit (MB)</label>
-            <input id="fileStorageLimitInput" type="number" min="0" step="1" value="0" />
-          </div>
-          <div class="field">
-            <label for="vectorDbLimitInput">Vector DB Storage Limit (MB)</label>
-            <input id="vectorDbLimitInput" type="number" min="0" step="1" value="0" />
-          </div>
-          <div class="field">
-            <label for="tableRowsLimitInput">Table Rows Limit</label>
-            <input id="tableRowsLimitInput" type="number" min="0" step="1" value="0" />
-          </div>
-        </div>
-        <button class="btn" id="saveQuotasBtn" type="submit">Save Storage & Rows Limits</button>
-        <div class="ok-msg" id="quotaStatus"></div>
-        <div class="err-msg" id="quotaError"></div>
-      </form>
     </section>
 
     <section class="card embed-section" id="embedSection">
@@ -649,14 +723,38 @@
     </section>
 
     <section class="card" id="knowledgeSection" style="margin-bottom: 18px;">
-      <h3 style="margin-bottom: 6px; font-size: 16px;">Private Knowledge Base, Stock Sync & Order Webhook</h3>
+      <h3 style="margin-bottom: 6px; font-size: 16px;">Private Knowledge Base, Widget Toggles, Stock Sync & Webhook</h3>
       <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 14px;">
-        මෙහි ඇතුළත් කරන Instructions / Knowledge Base එක ඔබගේ Chatbot එකට පමණක් අදාළ වන අතර වෙනත් කිසිවෙකුට නොපෙනේ.
+        මෙහි ඇතුළත් කරන Instructions / Knowledge Base එක ඔබගේ Chatbot එකට පමණක් අදාළ වන අතර Widget features මෙතනින් On/Off කළ හැක.
       </div>
       <form id="kbForm">
         <div class="field">
           <label for="kbInput">Chatbot Instructions / Knowledge Base (Products, Prices, Delivery Rules)</label>
           <textarea id="kbInput" placeholder="උදා: අපේ store එකේ delivery දින 2-3 ඇතුළත සිදු වේ. Order එකක් ගන්න customer ගේ name, phone, address, item, quantity ලබා ගන්න..."></textarea>
+        </div>
+
+        <div class="stock-mode-box">
+          <div style="font-size: 13.5px; font-weight: 700; margin-bottom: 10px;">
+            Chatbot Widget Feature Toggles (On / Off)
+          </div>
+          <div class="toggle-grid">
+            <label class="toggle-item" for="toggleLangSwitcher">
+              <span>Language Switcher (සිං / EN / தமிழ்)</span>
+              <input id="toggleLangSwitcher" type="checkbox" checked />
+            </label>
+            <label class="toggle-item" for="toggleThemeSwitch">
+              <span>Dark / Light Theme Icon</span>
+              <input id="toggleThemeSwitch" type="checkbox" checked />
+            </label>
+            <label class="toggle-item" for="toggleChoiceCards">
+              <span>2-Option Choice Cards Popup</span>
+              <input id="toggleChoiceCards" type="checkbox" checked />
+            </label>
+            <label class="toggle-item" for="toggleOffTopicGuard">
+              <span>Strict Off-Topic Guard Popup</span>
+              <input id="toggleOffTopicGuard" type="checkbox" checked />
+            </label>
+          </div>
         </div>
 
         <div class="stock-mode-box">
@@ -686,7 +784,7 @@
           <label for="outputWebhookInput">Optional Output Webhook URL (Order Variables Receiver)</label>
           <input id="outputWebhookInput" type="url" placeholder="https://your-endpoint.example.com/webhook" />
         </div>
-        <button class="btn" id="saveKbBtn" type="submit">Save Knowledge Base</button>
+        <button class="btn" id="saveKbBtn" type="submit">Save Knowledge Base & Toggles</button>
         <div class="ok-msg" id="kbStatus"></div>
         <div class="err-msg" id="kbError"></div>
       </form>
@@ -878,7 +976,7 @@
     let clientAllOrders = [];
     let shownExpiryWarningKey = null;
     let kbInitialized = false;
-    let quotaInitialized = false;
+    let ipPopupShownThisSession = false;
 
     const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -906,13 +1004,11 @@
     const orderDetailPanel = document.getElementById("orderDetailPanel");
     const orderDetailGrid = document.getElementById("orderDetailGrid");
     const orderProofContainer = document.getElementById("orderProofContainer");
-    const fileStorageLimitInput = document.getElementById("fileStorageLimitInput");
-    const vectorDbLimitInput = document.getElementById("vectorDbLimitInput");
-    const tableRowsLimitInput = document.getElementById("tableRowsLimitInput");
-    const saveQuotasBtn = document.getElementById("saveQuotasBtn");
-    const quotaStatus = document.getElementById("quotaStatus");
-    const quotaError = document.getElementById("quotaError");
     const kbInput = document.getElementById("kbInput");
+    const toggleLangSwitcher = document.getElementById("toggleLangSwitcher");
+    const toggleThemeSwitch = document.getElementById("toggleThemeSwitch");
+    const toggleChoiceCards = document.getElementById("toggleChoiceCards");
+    const toggleOffTopicGuard = document.getElementById("toggleOffTopicGuard");
     const stockCsvInput = document.getElementById("stockCsvInput");
     const stockWebappInput = document.getElementById("stockWebappInput");
     const premiumScriptBox = document.getElementById("premiumScriptBox");
@@ -925,6 +1021,37 @@
     const saveKbBtn = document.getElementById("saveKbBtn");
     const kbStatus = document.getElementById("kbStatus");
     const kbError = document.getElementById("kbError");
+    const lastLoginIpModal = document.getElementById("lastLoginIpModal");
+    const closeIpModalBtn = document.getElementById("closeIpModalBtn");
+
+    closeIpModalBtn.addEventListener("click", () => {
+      lastLoginIpModal.classList.remove("show");
+    });
+
+    function showLastLoginIpPopupIfNeeded(clientObj) {
+      const ipVal = String((clientObj && clientObj.last_login_ip) || authPass.last_login_ip || "").trim();
+      const prevIp = String((clientObj && clientObj.previous_login_ip) || "").trim();
+      const loginAt = String((clientObj && clientObj.last_login_at) || "").trim();
+
+      document.getElementById("metaLastIp").textContent = ipVal || "Not recorded";
+
+      const popupKey = "zenix_ip_popup_seen_" + ACTIVE_CLIENT_ID + "_" + String(authPass.expires_at || "");
+      if (!ipPopupShownThisSession && !sessionStorage.getItem(popupKey) && ipVal) {
+        ipPopupShownThisSession = true;
+        sessionStorage.setItem(popupKey, "1");
+        document.getElementById("popupLastLoginIp").textContent = ipVal;
+        if (prevIp && prevIp !== ipVal) {
+          document.getElementById("popupPrevLoginIp").textContent = prevIp;
+          document.getElementById("popupPrevIpRow").style.display = "block";
+        } else {
+          document.getElementById("popupPrevIpRow").style.display = "none";
+        }
+        document.getElementById("popupLastLoginTime").textContent = loginAt
+          ? new Date(loginAt).toLocaleString()
+          : new Date().toLocaleString();
+        lastLoginIpModal.classList.add("show");
+      }
+    }
 
     function buildEmbedSnippet(clientId, storeName, clientKey) {
       const safeName = String(storeName || clientId).replace(/"/g, "");
@@ -973,16 +1100,16 @@
 
       saveBotNameBtn.disabled = !active;
       botNameInput.disabled = !active;
-      saveQuotasBtn.disabled = !active;
-      fileStorageLimitInput.disabled = !active;
-      vectorDbLimitInput.disabled = !active;
-      tableRowsLimitInput.disabled = !active;
       orderTrackingBtn.disabled = !active;
       fullOrderTrackingLink.classList.toggle("disabled-link", !active);
       panelFullTrackingLink.classList.toggle("disabled-link", !active);
 
       saveKbBtn.disabled = !active;
       kbInput.disabled = !active;
+      toggleLangSwitcher.disabled = !active;
+      toggleThemeSwitch.disabled = !active;
+      toggleChoiceCards.disabled = !active;
+      toggleOffTopicGuard.disabled = !active;
       stockCsvInput.disabled = !active;
       stockWebappInput.disabled = !active;
       outputWebhookInput.disabled = !active;
@@ -1035,11 +1162,17 @@
       el.classList.toggle("warn", pct >= 80);
     }
 
+    function formatUsd(val) {
+      const num = Number(val || 0);
+      return "$" + (Number.isFinite(num) ? num.toFixed(4) : "0.0000");
+    }
+
     function renderStats(m, label) {
       const convUsed = Number(m.conversations_used || 0);
       const convLimit = Number(m.conversations_limit || 0);
-      const aiCredits = Number(m.ai_credits || 0);
-      const aiUsed = Number(m.ai_credits_used || 0);
+      const aiCreditsUsd = Number(m.ai_credits_usd ?? m.ai_credits ?? 0);
+      const aiUsedUsd = Number(m.ai_credits_used_usd ?? m.ai_credits_used ?? 0);
+      const totalTokens = Number(m.total_tokens_used || 0);
       const fileUsed = Number(m.file_storage_mb || 0);
       const fileLimit = Number(m.file_storage_limit_mb || 0);
       const vecUsed = Number(m.vector_db_mb || 0);
@@ -1049,24 +1182,25 @@
 
       document.getElementById("scopeLabel").textContent = "View: " + label + " (" + ACTIVE_CLIENT_ID + ")";
       document.getElementById("convVal").textContent = convUsed + " / " + convLimit;
-      document.getElementById("convRem").textContent = "Remaining: " + Math.max(0, convLimit - convUsed);
+      document.getElementById("convRem").textContent = "Remaining: " + Math.max(0, convLimit - convUsed) + " (Auto-tracked)";
       setBar(document.getElementById("convBar"), convUsed, convLimit);
 
-      document.getElementById("creditVal").textContent = String(aiCredits);
-      document.getElementById("creditUsedSub").textContent = "Used: " + aiUsed;
-      const creditTotal = Math.max(1, aiCredits + aiUsed);
-      setBar(document.getElementById("creditBar"), aiUsed, creditTotal);
+      document.getElementById("creditVal").textContent = formatUsd(aiCreditsUsd);
+      document.getElementById("creditUsedSub").textContent =
+        "Used: " + formatUsd(aiUsedUsd) + " • Tokens: " + totalTokens;
+      const creditTotal = Math.max(0.0001, aiCreditsUsd + aiUsedUsd);
+      setBar(document.getElementById("creditBar"), aiUsedUsd, creditTotal);
 
       document.getElementById("fileVal").textContent = fileUsed + " / " + fileLimit + " MB";
-      document.getElementById("fileRem").textContent = "Remaining: " + Math.max(0, fileLimit - fileUsed) + " MB";
+      document.getElementById("fileRem").textContent = "Remaining: " + Math.max(0, fileLimit - fileUsed) + " MB (Admin Locked)";
       setBar(document.getElementById("fileBar"), fileUsed, fileLimit);
 
       document.getElementById("vecVal").textContent = vecUsed + " / " + vecLimit + " MB";
-      document.getElementById("vecRem").textContent = "Remaining: " + Math.max(0, vecLimit - vecUsed) + " MB";
+      document.getElementById("vecRem").textContent = "Remaining: " + Math.max(0, vecLimit - vecUsed) + " MB (Admin Locked)";
       setBar(document.getElementById("vecBar"), vecUsed, vecLimit);
 
       document.getElementById("rowVal").textContent = rowUsed + " / " + rowLimit;
-      document.getElementById("rowRem").textContent = "Remaining: " + Math.max(0, rowLimit - rowUsed);
+      document.getElementById("rowRem").textContent = "Remaining: " + Math.max(0, rowLimit - rowUsed) + " (Admin Locked)";
       setBar(document.getElementById("rowBar"), rowUsed, rowLimit);
     }
 
@@ -1204,11 +1338,21 @@
       });
     }
 
+    function applyWidgetTogglesToUI(opts) {
+      const w = opts && typeof opts === "object" ? opts : {};
+      toggleLangSwitcher.checked = w.show_language_switcher !== false;
+      toggleThemeSwitch.checked = w.show_theme_toggle !== false;
+      toggleChoiceCards.checked = w.show_choice_cards !== false;
+      toggleOffTopicGuard.checked = w.strict_off_topic !== false;
+    }
+
     function renderDashboard() {
       document.getElementById("lastSyncedLabel").textContent =
         "Last Synced: " + new Date().toLocaleTimeString();
 
       const clientData = (currentDataset.clients && currentDataset.clients[ACTIVE_CLIENT_ID]) || null;
+      showLastLoginIpPopupIfNeeded(clientData);
+
       const expState = getExpiryState(clientData && clientData.expires_at);
       isPlanActive = isClientPlanActive(clientData);
       activeClientKey = (clientData && clientData.client_key) || authPass.client_key || "";
@@ -1232,24 +1376,12 @@
       clientTodayOrders = scoped.todayTop5;
       clientAllOrders = scoped.allClientOrders;
 
-      if (clientData && !quotaInitialized) {
-        if (document.activeElement !== fileStorageLimitInput) {
-          fileStorageLimitInput.value = String(Number(clientData.file_storage_limit_mb || 0));
-        }
-        if (document.activeElement !== vectorDbLimitInput) {
-          vectorDbLimitInput.value = String(Number(clientData.vector_db_limit_mb || 0));
-        }
-        if (document.activeElement !== tableRowsLimitInput) {
-          tableRowsLimitInput.value = String(Number(clientData.table_rows_limit || 0));
-        }
-        quotaInitialized = true;
-      }
-
       if (clientData && !kbInitialized) {
         kbInput.value = clientData.knowledge_base || "";
         stockCsvInput.value = clientData.stock_csv_url || "";
         stockWebappInput.value = clientData.stock_webapp_url || "";
         outputWebhookInput.value = clientData.output_webhook_url || "";
+        applyWidgetTogglesToUI(clientData.widget_options);
         kbInitialized = true;
       }
 
@@ -1262,7 +1394,10 @@
           conversations_used: 0,
           conversations_limit: 0,
           ai_credits: 0,
+          ai_credits_usd: 0,
           ai_credits_used: 0,
+          ai_credits_used_usd: 0,
+          total_tokens_used: 0,
           file_storage_mb: 0,
           file_storage_limit_mb: 0,
           vector_db_mb: 0,
@@ -1295,7 +1430,10 @@
         conversations_used: clientData.conversations_used || 0,
         conversations_limit: clientData.conversations_limit || 0,
         ai_credits: clientData.ai_credits || 0,
+        ai_credits_usd: clientData.ai_credits_usd ?? clientData.ai_credits ?? 0,
         ai_credits_used: clientData.ai_credits_used || 0,
+        ai_credits_used_usd: clientData.ai_credits_used_usd ?? clientData.ai_credits_used ?? 0,
+        total_tokens_used: clientData.total_tokens_used || 0,
         file_storage_mb: clientData.file_storage_mb || 0,
         file_storage_limit_mb: clientData.file_storage_limit_mb || 0,
         vector_db_mb: clientData.vector_db_mb || 0,
@@ -1317,10 +1455,16 @@
         store_name: authPass.store_name || (ACTIVE_CLIENT_ID + " Store"),
         plan_active: false,
         is_premium: false,
+        last_login_ip: authPass.last_login_ip || "",
+        previous_login_ip: "",
+        last_login_at: "",
         conversations_used: 0,
         conversations_limit: 0,
         ai_credits: 0,
+        ai_credits_usd: 0,
         ai_credits_used: 0,
+        ai_credits_used_usd: 0,
+        total_tokens_used: 0,
         file_storage_mb: 0,
         file_storage_limit_mb: 0,
         vector_db_mb: 0,
@@ -1328,6 +1472,12 @@
         table_rows_used: 0,
         table_rows_limit: 0,
         knowledge_base: "",
+        widget_options: {
+          show_language_switcher: true,
+          show_theme_toggle: true,
+          show_choice_cards: true,
+          strict_off_topic: true
+        },
         stock_csv_url: "",
         stock_webapp_url: "",
         premium_apps_script: "",
@@ -1351,10 +1501,16 @@
               plan_active: dashJson.plan_active === true,
               is_premium: dashJson.is_premium === true,
               expires_at: dashJson.expires_at ?? null,
+              last_login_ip: dashJson.last_login_ip || clientRecord.last_login_ip,
+              previous_login_ip: dashJson.previous_login_ip || "",
+              last_login_at: dashJson.last_login_at || "",
               conversations_used: Number(dashJson.conversations_used || 0),
               conversations_limit: Number(dashJson.conversations_limit || 0),
               ai_credits: Number(dashJson.ai_credits || 0),
+              ai_credits_usd: Number(dashJson.ai_credits_usd ?? dashJson.ai_credits ?? 0),
               ai_credits_used: Number(dashJson.ai_credits_used || 0),
+              ai_credits_used_usd: Number(dashJson.ai_credits_used_usd ?? dashJson.ai_credits_used ?? 0),
+              total_tokens_used: Number(dashJson.total_tokens_used || 0),
               file_storage_mb: Number(dashJson.file_storage_mb || 0),
               file_storage_limit_mb: Number(dashJson.file_storage_limit_mb || 0),
               vector_db_mb: Number(dashJson.vector_db_mb || 0),
@@ -1362,6 +1518,7 @@
               table_rows_used: Number(dashJson.table_rows_used || 0),
               table_rows_limit: Number(dashJson.table_rows_limit || 0),
               knowledge_base: dashJson.knowledge_base || "",
+              widget_options: dashJson.widget_options || clientRecord.widget_options,
               stock_csv_url: dashJson.stock_csv_url || "",
               stock_webapp_url: dashJson.stock_webapp_url || "",
               premium_apps_script: dashJson.premium_apps_script || "",
@@ -1391,50 +1548,6 @@
       currentDataset = { clients: { [ACTIVE_CLIENT_ID]: clientRecord } };
       renderDashboard();
     }
-
-    document.getElementById("quotaForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      quotaStatus.textContent = "";
-      quotaError.textContent = "";
-
-      if (!isPlanActive) {
-        quotaError.textContent = "Plan එක Active නොමැති බැවින් Limits update කළ නොහැක.";
-        return;
-      }
-
-      const fileLim = Math.max(0, parseInt(fileStorageLimitInput.value || "0", 10) || 0);
-      const vecLim = Math.max(0, parseInt(vectorDbLimitInput.value || "0", 10) || 0);
-      const rowLim = Math.max(0, parseInt(tableRowsLimitInput.value || "0", 10) || 0);
-
-      const token = String(authPass.token || "").trim();
-      saveQuotasBtn.disabled = true;
-      try {
-        const res = await fetch(API_BASE + "/api/client/quotas", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + token
-          },
-          body: JSON.stringify({
-            client_id: ACTIVE_CLIENT_ID,
-            file_storage_limit_mb: fileLim,
-            vector_db_limit_mb: vecLim,
-            table_rows_limit: rowLim
-          })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(data.detail || "Failed to save storage & rows limits");
-        }
-        quotaInitialized = false;
-        quotaStatus.textContent = "File Storage, Vector DB, සහ Table Rows limits update වුණා!";
-        await loadFirestoreClientData();
-      } catch (err) {
-        quotaError.textContent = err.message || "Error updating limits";
-      } finally {
-        saveQuotasBtn.disabled = !isPlanActive;
-      }
-    });
 
     saveBotNameBtn.addEventListener("click", async () => {
       botNameStatus.textContent = "";
@@ -1512,6 +1625,13 @@
         return;
       }
 
+      const widgetOpts = {
+        show_language_switcher: Boolean(toggleLangSwitcher.checked),
+        show_theme_toggle: Boolean(toggleThemeSwitch.checked),
+        show_choice_cards: Boolean(toggleChoiceCards.checked),
+        strict_off_topic: Boolean(toggleOffTopicGuard.checked)
+      };
+
       const token = String(authPass.token || "").trim();
       saveKbBtn.disabled = true;
       try {
@@ -1524,6 +1644,7 @@
           body: JSON.stringify({
             client_id: ACTIVE_CLIENT_ID,
             knowledge_base: kbInput.value.trim(),
+            widget_options: widgetOpts,
             stock_csv_url: stockCsvInput.value.trim(),
             stock_webapp_url: stockWebappInput.value.trim(),
             output_webhook_url: outputWebhookInput.value.trim()
@@ -1533,7 +1654,7 @@
         if (!res.ok) {
           throw new Error(data.detail || "Failed to save knowledge base");
         }
-        kbStatus.textContent = "Knowledge Base සාර්ථකව save වුණා (" + ACTIVE_CLIENT_ID + ").";
+        kbStatus.textContent = "Knowledge Base & Widget Toggles සාර්ථකව save වුණා (" + ACTIVE_CLIENT_ID + ").";
         await loadFirestoreClientData();
       } catch (err) {
         kbError.textContent = err.message || "Error saving knowledge base";

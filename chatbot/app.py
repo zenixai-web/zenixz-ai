@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -29,9 +29,21 @@ CLIENTS_FILE = DATA_DIR / "clients.json"
 ORDERS_FILE = DATA_DIR / "orders.json"
 SYSTEM_STATE_FILE = DATA_DIR / "system_state.json"
 
+DEFAULT_WIDGET_OPTIONS: Dict[str, bool] = {
+    "show_language_switcher": True,
+    "show_theme_toggle": True,
+    "show_choice_cards": True,
+    "strict_off_topic": True,
+}
+
 AI_API_KEY = os.environ.get("AI_API_KEY", "").strip()
 AI_API_URL = os.environ.get("AI_API_URL", "").strip()
 AI_MODEL = os.environ.get("AI_MODEL", "gemini-4-hydrogen").strip()
+
+# Token pricing per 1,000 tokens in USD (includes slight profit margin over model cost)
+INPUT_USD_PER_1K_TOKENS = float(os.environ.get("INPUT_USD_PER_1K_TOKENS", "0.00035"))
+OUTPUT_USD_PER_1K_TOKENS = float(os.environ.get("OUTPUT_USD_PER_1K_TOKENS", "0.00140"))
+MIN_CHARGE_USD = float(os.environ.get("MIN_CHARGE_USD", "0.0002"))
 
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "").strip()
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "").strip()
@@ -57,6 +69,29 @@ def _utc_now() -> datetime:
 
 def _utc_now_iso() -> str:
     return _utc_now().isoformat()
+
+
+def _normalize_widget_options(raw: Any) -> Dict[str, bool]:
+    opts = dict(DEFAULT_WIDGET_OPTIONS)
+    if isinstance(raw, dict):
+        for k in DEFAULT_WIDGET_OPTIONS:
+            if k in raw:
+                opts[k] = bool(raw[k])
+    return opts
+
+
+def _extract_client_ip(request: Optional[Request]) -> str:
+    if not request:
+        return "Unknown"
+    for h_name in ("x-forwarded-for", "x-real-ip", "cf-connecting-ip"):
+        raw = (request.headers.get(h_name) or "").strip()
+        if raw:
+            first_ip = raw.split(",")[0].strip()
+            if first_ip:
+                return first_ip
+    if request.client and request.client.host:
+        return str(request.client.host).strip()
+    return "Unknown"
 
 
 def _parse_iso_dt(val: Any) -> Optional[datetime]:
@@ -302,18 +337,37 @@ def _fs_find_by_username(db, username_val: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _get_client_quota(entry: Dict[str, Any]) -> Dict[str, int]:
+def _get_client_quota(entry: Dict[str, Any]) -> Dict[str, Any]:
     def _safe_int(val: Any, default: int = 0) -> int:
         try:
-            return max(0, int(val))
+            return max(0, int(float(val)))
         except (TypeError, ValueError):
             return default
+
+    def _safe_usd(val: Any, default: float = 0.0) -> float:
+        try:
+            return max(0.0, round(float(val), 6))
+        except (TypeError, ValueError):
+            return default
+
+    raw_usd = entry.get("ai_credits_usd")
+    if raw_usd is None:
+        raw_usd = entry.get("ai_credits", 0.0)
+    usd_balance = _safe_usd(raw_usd, 0.0)
+
+    raw_used_usd = entry.get("ai_credits_used_usd")
+    if raw_used_usd is None:
+        raw_used_usd = entry.get("ai_credits_used", 0.0)
+    usd_used = _safe_usd(raw_used_usd, 0.0)
 
     return {
         "conversations_limit": _safe_int(entry.get("conversations_limit"), 0),
         "conversations_used": _safe_int(entry.get("conversations_used"), 0),
-        "ai_credits": _safe_int(entry.get("ai_credits"), 0),
-        "ai_credits_used": _safe_int(entry.get("ai_credits_used"), 0),
+        "ai_credits": usd_balance,
+        "ai_credits_usd": usd_balance,
+        "ai_credits_used": usd_used,
+        "ai_credits_used_usd": usd_used,
+        "total_tokens_used": _safe_int(entry.get("total_tokens_used"), 0),
         "file_storage_mb": _safe_int(entry.get("file_storage_mb"), 0),
         "file_storage_limit_mb": _safe_int(entry.get("file_storage_limit_mb"), 0),
         "vector_db_mb": _safe_int(entry.get("vector_db_mb"), 0),
@@ -321,6 +375,21 @@ def _get_client_quota(entry: Dict[str, Any]) -> Dict[str, int]:
         "table_rows_used": _safe_int(entry.get("table_rows_used"), 0),
         "table_rows_limit": _safe_int(entry.get("table_rows_limit"), 0),
     }
+
+
+def _calculate_token_cost_usd(
+    prompt_tokens: int, completion_tokens: int, total_tokens: int
+) -> float:
+    p_tok = max(0, int(prompt_tokens or 0))
+    c_tok = max(0, int(completion_tokens or 0))
+    if p_tok == 0 and c_tok == 0 and total_tokens > 0:
+        p_tok = int(total_tokens * 0.7)
+        c_tok = max(0, int(total_tokens) - p_tok)
+    raw_cost = (p_tok / 1000.0) * INPUT_USD_PER_1K_TOKENS + (
+        c_tok / 1000.0
+    ) * OUTPUT_USD_PER_1K_TOKENS
+    charged = max(MIN_CHARGE_USD, raw_cost) if (p_tok + c_tok) > 0 else MIN_CHARGE_USD
+    return round(charged, 6)
 
 
 def _is_client_active(entry: Dict[str, Any]) -> tuple[bool, str, bool]:
@@ -344,6 +413,7 @@ def _save_client_record(
     global _FIRESTORE_LAST_ERROR
     clean_cid = cid.upper()
     quota = _get_client_quota(entry)
+    widget_opts = _normalize_widget_options(entry.get("widget_options"))
     embed_key = (
         str(entry.get("client_key") or "").strip() or f"zk_{secrets.token_hex(12)}"
     )
@@ -368,7 +438,11 @@ def _save_client_record(
         "plan": (entry.get("plan") or "normal").strip().lower(),
         "plan_active": bool(entry.get("plan_active", False)),
         "expires_at": entry.get("expires_at"),
+        "last_login_ip": str(entry.get("last_login_ip") or "").strip(),
+        "previous_login_ip": str(entry.get("previous_login_ip") or "").strip(),
+        "last_login_at": entry.get("last_login_at"),
         "knowledge_base": entry.get("knowledge_base") or "",
+        "widget_options": widget_opts,
         "output_webhook_url": (entry.get("output_webhook_url") or "").strip(),
         "stock_csv_url": (entry.get("stock_csv_url") or "").strip(),
         "stock_webapp_url": (entry.get("stock_webapp_url") or "").strip(),
@@ -377,8 +451,11 @@ def _save_client_record(
         ),
         "conversations_limit": quota["conversations_limit"],
         "conversations_used": quota["conversations_used"],
-        "ai_credits": quota["ai_credits"],
-        "ai_credits_used": quota["ai_credits_used"],
+        "ai_credits": quota["ai_credits_usd"],
+        "ai_credits_usd": quota["ai_credits_usd"],
+        "ai_credits_used": quota["ai_credits_used_usd"],
+        "ai_credits_used_usd": quota["ai_credits_used_usd"],
+        "total_tokens_used": quota["total_tokens_used"],
         "file_storage_mb": quota["file_storage_mb"],
         "file_storage_limit_mb": quota["file_storage_limit_mb"],
         "vector_db_mb": quota["vector_db_mb"],
@@ -393,7 +470,11 @@ def _save_client_record(
         payload["password_hash"] = entry["password_hash"]
 
     local_map = _load_json(CLIENTS_FILE, {})
-    merged_local = {**local_map.get(clean_cid, {}), **payload} if isinstance(local_map, dict) else payload
+    merged_local = (
+        {**local_map.get(clean_cid, {}), **payload}
+        if isinstance(local_map, dict)
+        else payload
+    )
     if isinstance(local_map, dict):
         local_map[clean_cid] = merged_local
         _save_json(CLIENTS_FILE, local_map)
@@ -407,6 +488,17 @@ def _save_client_record(
             _FIRESTORE_LAST_ERROR = str(exc)
 
     return merged_local
+
+
+def _record_login_ip(cid: str, entry: Dict[str, Any], ip_addr: str) -> Dict[str, Any]:
+    clean_ip = (ip_addr or "Unknown").strip()
+    prev_ip = str(entry.get("last_login_ip") or "").strip()
+    updated = dict(entry)
+    if prev_ip:
+        updated["previous_login_ip"] = prev_ip
+    updated["last_login_ip"] = clean_ip
+    updated["last_login_at"] = _utc_now_iso()
+    return _save_client_record(cid, updated)
 
 
 def _build_embed_html(
@@ -666,7 +758,9 @@ def _save_client_order(cid: str, order_obj: Dict[str, Any]) -> Dict[str, Any]:
     return record
 
 
-def _update_order_status(cid: str, order_id: str, new_status: str) -> Optional[Dict[str, Any]]:
+def _update_order_status(
+    cid: str, order_id: str, new_status: str
+) -> Optional[Dict[str, Any]]:
     clean_cid = cid.strip().upper()
     clean_oid = order_id.strip()
     orders = _cleanup_expired_orders()
@@ -719,6 +813,39 @@ def _deduct_stock_if_present(
             break
 
 
+def _apply_token_credit_deduction(
+    entry: Dict[str, Any],
+    cid: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    total_tokens: int,
+    fallback_text: str = "",
+) -> float:
+    quota = _get_client_quota(entry)
+    p_tok = max(0, int(prompt_tokens or 0))
+    c_tok = max(0, int(completion_tokens or 0))
+    t_tok = max(0, int(total_tokens or 0))
+
+    if t_tok == 0 and fallback_text:
+        t_tok = max(1, len(fallback_text) // 4)
+        p_tok = int(t_tok * 0.4)
+        c_tok = max(1, t_tok - p_tok)
+
+    cost_usd = _calculate_token_cost_usd(p_tok, c_tok, t_tok)
+    remaining_usd = quota["ai_credits_usd"]
+    charged_usd = min(remaining_usd, cost_usd)
+    new_bal_usd = round(max(0.0, remaining_usd - charged_usd), 6)
+    new_used_usd = round(quota["ai_credits_used_usd"] + charged_usd, 6)
+
+    entry["ai_credits"] = new_bal_usd
+    entry["ai_credits_usd"] = new_bal_usd
+    entry["ai_credits_used"] = new_used_usd
+    entry["ai_credits_used_usd"] = new_used_usd
+    entry["total_tokens_used"] = quota["total_tokens_used"] + t_tok
+    _save_client_record(cid, entry)
+    return charged_usd
+
+
 def _call_ai_with_credit_check(
     message: str,
     history: List[Dict[str, Any]],
@@ -726,13 +853,13 @@ def _call_ai_with_credit_check(
     cid: str,
 ) -> tuple[str, bool, str]:
     quota = _get_client_quota(entry)
-    remaining_credits = quota["ai_credits"]
+    remaining_usd = quota["ai_credits_usd"]
     kb_instruction = str(entry.get("knowledge_base") or "").strip()
     store_name = entry.get("store_name") or cid
 
-    if remaining_credits <= 0:
+    if remaining_usd <= 0:
         fallback = (
-            f"AI credits අවසන් වී ඇත. "
+            f"AI credits balance අවසන් වී ඇත. "
             + (f"({store_name} Knowledge Base: {kb_instruction})" if kb_instruction else "")
         ).strip()
         return fallback, False, "no_ai_credits"
@@ -743,9 +870,14 @@ def _call_ai_with_credit_check(
             if kb_instruction
             else f"{store_name} AI assistant ready."
         )
-        entry["ai_credits"] = max(0, remaining_credits - 1)
-        entry["ai_credits_used"] = quota["ai_credits_used"] + 1
-        _save_client_record(cid, entry)
+        _apply_token_credit_deduction(
+            entry,
+            cid,
+            prompt_tokens=max(10, len(message) // 4),
+            completion_tokens=max(10, len(reply) // 4),
+            total_tokens=max(20, (len(message) + len(reply)) // 4),
+            fallback_text=reply,
+        )
         return reply, True, ""
 
     system_prompt = (
@@ -789,14 +921,23 @@ def _call_ai_with_credit_check(
         try:
             with urllib.request.urlopen(req, timeout=25) as resp:
                 parsed = json.loads(resp.read().decode("utf-8"))
+                usage = parsed.get("usageMetadata") or {}
+                p_tok = int(usage.get("promptTokenCount") or 0)
+                c_tok = int(usage.get("candidatesTokenCount") or 0)
+                t_tok = int(usage.get("totalTokenCount") or (p_tok + c_tok))
                 cands = parsed.get("candidates") or []
                 if cands:
                     parts = ((cands[0].get("content") or {}).get("parts")) or []
                     content = "".join(str(p.get("text") or "") for p in parts).strip()
                     if content:
-                        entry["ai_credits"] = max(0, remaining_credits - 1)
-                        entry["ai_credits_used"] = quota["ai_credits_used"] + 1
-                        _save_client_record(cid, entry)
+                        _apply_token_credit_deduction(
+                            entry,
+                            cid,
+                            prompt_tokens=p_tok,
+                            completion_tokens=c_tok,
+                            total_tokens=t_tok,
+                            fallback_text=content,
+                        )
                         return content, True, ""
                 return "AI service temporarily unavailable.", False, "empty_candidates"
         except urllib.error.HTTPError as exc:
@@ -835,15 +976,24 @@ def _call_ai_with_credit_check(
     try:
         with urllib.request.urlopen(req, timeout=25) as resp:
             parsed = json.loads(resp.read().decode("utf-8"))
+            usage = parsed.get("usage") or {}
+            p_tok = int(usage.get("prompt_tokens") or 0)
+            c_tok = int(usage.get("completion_tokens") or 0)
+            t_tok = int(usage.get("total_tokens") or (p_tok + c_tok))
             choices = parsed.get("choices") or []
             if choices:
                 content = (
                     (choices[0].get("message") or {}).get("content") or ""
                 ).strip()
                 if content:
-                    entry["ai_credits"] = max(0, remaining_credits - 1)
-                    entry["ai_credits_used"] = quota["ai_credits_used"] + 1
-                    _save_client_record(cid, entry)
+                    _apply_token_credit_deduction(
+                        entry,
+                        cid,
+                        prompt_tokens=p_tok,
+                        completion_tokens=c_tok,
+                        total_tokens=t_tok,
+                        fallback_text=content,
+                    )
                     return content, True, ""
             return "AI service temporarily unavailable.", False, "empty_choices"
     except urllib.error.HTTPError as exc:
@@ -876,7 +1026,8 @@ class ClientLimitUpdate(BaseModel):
     expires_at: Optional[str] = None
     conversations_limit: Optional[int] = None
     conversations_used: Optional[int] = None
-    ai_credits: Optional[int] = None
+    ai_credits: Optional[float] = None
+    ai_credits_usd: Optional[float] = None
     file_storage_mb: Optional[int] = None
     file_storage_limit_mb: Optional[int] = None
     vector_db_mb: Optional[int] = None
@@ -899,7 +1050,7 @@ class PlanActivateIn(BaseModel):
     client_id: str = Field(..., min_length=1)
     plan: str = Field(..., min_length=1)
     conversations_limit: int = Field(default=100, ge=0)
-    ai_credits: int = Field(default=100, ge=0)
+    ai_credits: float = Field(default=10.0, ge=0)
     file_storage_limit_mb: int = Field(default=100, ge=0)
     vector_db_limit_mb: int = Field(default=100, ge=0)
     table_rows_limit: int = Field(default=1000, ge=0)
@@ -915,6 +1066,7 @@ class ClientSettingsUpdate(BaseModel):
 class KnowledgeSave(BaseModel):
     client_id: str = Field(..., min_length=1)
     knowledge_base: Optional[str] = ""
+    widget_options: Optional[Dict[str, bool]] = None
     output_webhook_url: Optional[str] = ""
     stock_csv_url: Optional[str] = ""
     stock_webapp_url: Optional[str] = ""
@@ -971,7 +1123,7 @@ class OtpVerifyIn(BaseModel):
 
 # --- App ---
 
-app = FastAPI(title="Zenix AI Client Server", version="4.5.0")
+app = FastAPI(title="Zenix AI Client Server", version="4.6.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -1039,8 +1191,14 @@ def admin_update_client(
         entry["conversations_limit"] = max(0, int(payload.conversations_limit))
     if payload.conversations_used is not None:
         entry["conversations_used"] = max(0, int(payload.conversations_used))
-    if payload.ai_credits is not None:
-        entry["ai_credits"] = max(0, int(payload.ai_credits))
+    if payload.ai_credits_usd is not None:
+        val_usd = max(0.0, round(float(payload.ai_credits_usd), 6))
+        entry["ai_credits_usd"] = val_usd
+        entry["ai_credits"] = val_usd
+    elif payload.ai_credits is not None:
+        val_usd = max(0.0, round(float(payload.ai_credits), 6))
+        entry["ai_credits_usd"] = val_usd
+        entry["ai_credits"] = val_usd
     if payload.file_storage_mb is not None:
         entry["file_storage_mb"] = max(0, int(payload.file_storage_mb))
     if payload.file_storage_limit_mb is not None:
@@ -1121,20 +1279,24 @@ def update_client_quotas(
     payload: ClientQuotasUpdate,
     authorization: Optional[str] = Header(default=None),
     x_client_token: Optional[str] = Header(default=None),
+    x_admin_secret: Optional[str] = Header(default=None),
 ):
+    is_admin = bool(ADMIN_SECRET and (x_admin_secret or "").strip() == ADMIN_SECRET)
+    if not is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Usage limits are locked and managed only via Admin / Firebase.",
+        )
+
     authed_cid = _get_authed_client_id(authorization, x_client_token)
     target_cid = payload.client_id.strip().upper()
-    if not authed_cid or authed_cid != target_cid:
+    if not is_admin and (not authed_cid or authed_cid != target_cid):
         raise HTTPException(status_code=403, detail="Unauthorized client access")
 
     db = _get_db()
     resolved_cid, rec = _resolve_client(db, client_id=target_cid)
     if not resolved_cid or not rec:
         raise HTTPException(status_code=404, detail="Client not found")
-
-    active, reason, _ = _is_client_active(rec)
-    if not active:
-        raise HTTPException(status_code=403, detail=f"Plan is {reason}")
 
     entry = dict(rec)
     if payload.file_storage_limit_mb is not None:
@@ -1178,7 +1340,9 @@ def activate_client_plan(
     entry["plan"] = payload.plan.strip().lower()
     entry["plan_active"] = True
     entry["conversations_limit"] = max(0, int(payload.conversations_limit))
-    entry["ai_credits"] = max(0, int(payload.ai_credits))
+    usd_val = max(0.0, round(float(payload.ai_credits), 6))
+    entry["ai_credits"] = usd_val
+    entry["ai_credits_usd"] = usd_val
     entry["file_storage_limit_mb"] = max(0, int(payload.file_storage_limit_mb))
     entry["vector_db_limit_mb"] = max(0, int(payload.vector_db_limit_mb))
     entry["table_rows_limit"] = max(0, int(payload.table_rows_limit))
@@ -1334,7 +1498,7 @@ def send_otp(payload: OtpSendIn):
 
 @app.post("/api/otp/verify")
 @app.post("/api/password/reset/confirm")
-def verify_otp(payload: OtpVerifyIn):
+def verify_otp(payload: OtpVerifyIn, request: Request):
     cid_in = (payload.client_id or "").strip().upper()
     usr_in = (payload.username or "").strip()
     em_in = (payload.email or payload.owner_email or "").strip().lower()
@@ -1392,16 +1556,27 @@ def verify_otp(payload: OtpVerifyIn):
     if payload.is_new_account or stored_new_acc:
         entry["plan"] = "normal"
         entry["plan_active"] = False
+        entry.setdefault("widget_options", dict(DEFAULT_WIDGET_OPTIONS))
         entry.setdefault("conversations_limit", 0)
         entry.setdefault("conversations_used", 0)
-        entry.setdefault("ai_credits", 0)
-        entry.setdefault("ai_credits_used", 0)
+        entry.setdefault("ai_credits", 0.0)
+        entry.setdefault("ai_credits_usd", 0.0)
+        entry.setdefault("ai_credits_used", 0.0)
+        entry.setdefault("ai_credits_used_usd", 0.0)
+        entry.setdefault("total_tokens_used", 0)
         entry.setdefault("file_storage_mb", 0)
         entry.setdefault("file_storage_limit_mb", 0)
         entry.setdefault("vector_db_mb", 0)
         entry.setdefault("vector_db_limit_mb", 0)
         entry.setdefault("table_rows_used", 0)
         entry.setdefault("table_rows_limit", 0)
+
+    login_ip = _extract_client_ip(request)
+    prev_ip = str(entry.get("last_login_ip") or "").strip()
+    if prev_ip:
+        entry["previous_login_ip"] = prev_ip
+    entry["last_login_ip"] = login_ip
+    entry["last_login_at"] = _utc_now_iso()
 
     raw_pw = payload.new_password or payload.password or stored_pw or ""
     pw_hash = _hash_password(raw_pw) if raw_pw else None
@@ -1418,6 +1593,9 @@ def verify_otp(payload: OtpVerifyIn):
         or default_user,
         "store_name": saved_entry.get("store_name") or final_cid,
         "email": target_email,
+        "last_login_ip": saved_entry.get("last_login_ip") or login_ip,
+        "previous_login_ip": saved_entry.get("previous_login_ip") or "",
+        "last_login_at": saved_entry.get("last_login_at") or "",
         "token": token,
         "plan": saved_entry.get("plan") or "normal",
         "plan_active": bool(saved_entry.get("plan_active", False)),
@@ -1451,8 +1629,15 @@ def save_knowledge(
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid JSON in stock_json")
 
+    merged_widget_opts = _normalize_widget_options(rec.get("widget_options"))
+    if payload.widget_options is not None:
+        merged_widget_opts = _normalize_widget_options(
+            {**merged_widget_opts, **payload.widget_options}
+        )
+
     entry = dict(rec)
     entry["knowledge_base"] = (payload.knowledge_base or "").strip()
+    entry["widget_options"] = merged_widget_opts
     entry["output_webhook_url"] = (payload.output_webhook_url or "").strip()
     if payload.stock_csv_url is not None:
         entry["stock_csv_url"] = payload.stock_csv_url.strip()
@@ -1465,6 +1650,7 @@ def save_knowledge(
         "ok": True,
         "client_id": resolved_cid,
         "knowledge_base": entry["knowledge_base"],
+        "widget_options": merged_widget_opts,
         "output_webhook_url": entry["output_webhook_url"],
         "stock_csv_url": entry["stock_csv_url"],
         "stock_webapp_url": entry["stock_webapp_url"],
@@ -1495,6 +1681,7 @@ def widget_status(client_id: str = Query(...)):
     quota = _get_client_quota(rec)
     limit = quota["conversations_limit"]
     used = quota["conversations_used"]
+    widget_opts = _normalize_widget_options(rec.get("widget_options"))
 
     if active and limit > 0 and used >= limit:
         rec["plan_active"] = False
@@ -1503,9 +1690,11 @@ def widget_status(client_id: str = Query(...)):
             "allowed": False,
             "maintenance_mode": False,
             "reason": "limit_reached",
+            "widget_options": widget_opts,
             "conversations_used": used,
             "conversations_limit": limit,
-            "ai_credits": quota["ai_credits"],
+            "ai_credits": quota["ai_credits_usd"],
+            "ai_credits_usd": quota["ai_credits_usd"],
         }
 
     return {
@@ -1516,11 +1705,13 @@ def widget_status(client_id: str = Query(...)):
         "store_name": rec.get("store_name") or resolved_cid,
         "plan": (rec.get("plan") or "normal").strip().lower(),
         "plan_active": bool(active),
+        "widget_options": widget_opts,
         "stock_csv_url": (rec.get("stock_csv_url") or "").strip(),
         "stock_webapp_url": (rec.get("stock_webapp_url") or "").strip(),
         "conversations_used": used,
         "conversations_limit": limit,
-        "ai_credits": quota["ai_credits"],
+        "ai_credits": quota["ai_credits_usd"],
+        "ai_credits_usd": quota["ai_credits_usd"],
     }
 
 
@@ -1584,7 +1775,9 @@ def chat_endpoint(payload: ChatIn):
         item_name = str(payload.order.get("item") or "").strip()
         pay_method = str(payload.order.get("payment_method") or "COD").strip()
         default_status = (
-            "Confirmed" if "cod" in pay_method.lower() or "cash" in pay_method.lower() else "Pending"
+            "Confirmed"
+            if "cod" in pay_method.lower() or "cash" in pay_method.lower()
+            else "Pending"
         )
         req_status = str(payload.order.get("status") or default_status).strip()
         if req_status not in ("Pending", "Confirmed", "Close"):
@@ -1645,13 +1838,15 @@ def chat_endpoint(payload: ChatIn):
         "credit_used": credit_used,
         "conversations_used": updated_quota["conversations_used"],
         "conversations_limit": updated_quota["conversations_limit"],
-        "ai_credits": updated_quota["ai_credits"],
+        "ai_credits": updated_quota["ai_credits_usd"],
+        "ai_credits_usd": updated_quota["ai_credits_usd"],
         "plan_active": bool(entry.get("plan_active", False)),
     }
 
 
 @app.get("/api/my/dashboard")
 def my_dashboard(
+    request: Request,
     client_id: Optional[str] = Query(default=None),
     authorization: Optional[str] = Header(default=None),
     x_client_token: Optional[str] = Header(default=None),
@@ -1666,11 +1861,16 @@ def my_dashboard(
     if not resolved_cid or not rec:
         raise HTTPException(status_code=404, detail="Client not found")
 
+    req_ip = _extract_client_ip(request)
+    if not rec.get("last_login_ip") and req_ip and req_ip != "Unknown":
+        rec = _record_login_ip(resolved_cid, rec, req_ip)
+
     active, reason, changed = _is_client_active(rec)
     if changed:
         _save_client_record(resolved_cid, rec)
 
     quota = _get_client_quota(rec)
+    widget_opts = _normalize_widget_options(rec.get("widget_options"))
     store_name = rec.get("store_name") or resolved_cid
     embed_key = str(rec.get("client_key") or "")
     secret_key = str(rec.get("sheet_secret_key") or "")
@@ -1684,6 +1884,9 @@ def my_dashboard(
         "username": rec.get("username") or resolved_cid,
         "store_name": store_name,
         "email": rec.get("email") or "",
+        "last_login_ip": rec.get("last_login_ip") or req_ip,
+        "previous_login_ip": rec.get("previous_login_ip") or "",
+        "last_login_at": rec.get("last_login_at") or "",
         "plan": plan_name,
         "plan_active": bool(active),
         "is_premium": is_premium,
@@ -1691,8 +1894,11 @@ def my_dashboard(
         "expires_at": rec.get("expires_at"),
         "conversations_used": quota["conversations_used"],
         "conversations_limit": quota["conversations_limit"],
-        "ai_credits": quota["ai_credits"],
-        "ai_credits_used": quota["ai_credits_used"],
+        "ai_credits": quota["ai_credits_usd"],
+        "ai_credits_usd": quota["ai_credits_usd"],
+        "ai_credits_used": quota["ai_credits_used_usd"],
+        "ai_credits_used_usd": quota["ai_credits_used_usd"],
+        "total_tokens_used": quota["total_tokens_used"],
         "file_storage_mb": quota["file_storage_mb"],
         "file_storage_limit_mb": quota["file_storage_limit_mb"],
         "vector_db_mb": quota["vector_db_mb"],
@@ -1700,6 +1906,7 @@ def my_dashboard(
         "table_rows_used": quota["table_rows_used"],
         "table_rows_limit": quota["table_rows_limit"],
         "knowledge_base": rec.get("knowledge_base") or "",
+        "widget_options": widget_opts,
         "output_webhook_url": rec.get("output_webhook_url") or "",
         "stock_csv_url": rec.get("stock_csv_url") or "",
         "stock_webapp_url": rec.get("stock_webapp_url") or "",
