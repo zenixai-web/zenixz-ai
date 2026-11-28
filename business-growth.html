@@ -9,8 +9,8 @@
     <!-- Google Fonts & FontAwesome Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Custom Fixes for Mobile Responsiveness & Dropdown Styling -->
+
+    <!-- Custom Fixes for Mobile Responsiveness, Dropdown Styling & Login Icon -->
     <style>
         html, body {
             overflow-x: hidden;
@@ -122,9 +122,24 @@
             display: inline-block;
         }
 
-        .dropdown-menu {
+        .nav-item.dropdown::after {
+            content: "";
             position: absolute;
             top: 100%;
+            left: 0;
+            width: 100%;
+            height: 16px;
+        }
+
+        .dropdown-link {
+            color: #e2e8f0;
+            text-decoration: none;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
             left: 0;
             min-width: 270px;
             background: rgba(10, 12, 18, 0.98);
@@ -132,22 +147,14 @@
             border-radius: 12px;
             padding: 10px;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
-            opacity: 0;
-            visibility: hidden;
-            transform: translateY(15px);
-            transition: all 0.3s ease;
-            z-index: 1000;
+            z-index: 1050;
+            flex-direction: column;
+            gap: 2px;
         }
 
-        .nav-item.dropdown:hover .dropdown-menu {
-            opacity: 1;
-            visibility: visible;
-            transform: translateY(5px);
-        }
-
-        /* Desktop Hover Arrow Rotate */
-        .nav-item.dropdown:hover #arrowIcon {
-            transform: rotate(180deg);
+        .nav-item.dropdown.open .dropdown-menu,
+        .nav-item.dropdown.active .dropdown-menu {
+            display: flex;
         }
 
         .dropdown-menu a {
@@ -159,13 +166,48 @@
             font-size: 0.88rem;
             border-radius: 8px;
             text-decoration: none;
-            transition: background 0.2s;
+            transition: background 0.2s, color 0.2s, transform 0.2s;
             white-space: nowrap;
         }
 
         .dropdown-menu a:hover {
             background: rgba(6, 182, 212, 0.12);
             color: #ffffff;
+            transform: translateX(4px);
+        }
+
+        /* Desktop Login Icon Only */
+        .nav-menu a.nav-login-btn {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 44px !important;
+            height: 44px !important;
+            padding: 0 !important;
+            border-radius: 50% !important;
+            overflow: hidden !important;
+            flex-shrink: 0 !important;
+            text-decoration: none !important;
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            transition: transform 0.2s ease;
+        }
+
+        .nav-menu a.nav-login-btn img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            display: block !important;
+            border-radius: 50% !important;
+        }
+
+        .nav-menu a.nav-login-btn:hover {
+            transform: scale(1.06);
+        }
+
+        .nav-menu a.nav-login-btn .mobile-login-label {
+            display: none !important;
         }
 
         @media (max-width: 768px) {
@@ -197,13 +239,15 @@
                 transition: right 0.4s ease;
                 z-index: 1000;
                 box-shadow: -10px 0 30px rgba(0, 0, 0, 0.8);
+                overflow-y: auto;
             }
 
             .nav-menu.active {
                 right: 0;
             }
 
-            .nav-menu a, .dropdown-link {
+            .nav-menu > a:not(.nav-login-btn),
+            .dropdown-link {
                 font-size: 1rem;
                 width: 100%;
                 padding: 0;
@@ -215,20 +259,45 @@
 
             .dropdown-menu {
                 position: static;
-                opacity: 1;
-                visibility: visible;
-                transform: none;
                 box-shadow: none;
                 border: none;
                 background: rgba(255, 255, 255, 0.03);
                 margin-top: 10px;
                 padding-left: 10px;
                 min-width: 100%;
-                display: none;
             }
 
-            .nav-item.dropdown.active .dropdown-menu {
-                display: block;
+            /* Mobile Menu: Icon on Left + "Login" Right Next to It */
+            .nav-menu a.nav-login-btn {
+                display: flex !important;
+                flex-direction: row !important;
+                align-items: center !important;
+                justify-content: flex-start !important;
+                gap: 12px !important;
+                width: 100% !important;
+                height: auto !important;
+                padding: 10px 12px !important;
+                margin-top: 6px !important;
+                border-radius: 8px !important;
+                background: rgba(6, 182, 212, 0.1) !important;
+                border: 1px solid rgba(6, 182, 212, 0.25) !important;
+                transform: none !important;
+            }
+
+            .nav-menu a.nav-login-btn img {
+                width: 30px !important;
+                height: 30px !important;
+                border-radius: 50% !important;
+                object-fit: cover !important;
+                flex-shrink: 0 !important;
+            }
+
+            .nav-menu a.nav-login-btn .mobile-login-label {
+                display: inline-block !important;
+                font-size: 1rem !important;
+                font-weight: 600 !important;
+                color: #e2e8f0 !important;
+                white-space: nowrap !important;
             }
 
             .detail-box {
@@ -254,16 +323,16 @@
             </a>
 
             <!-- Mobile Toggle Button (☰ -> ✖) -->
-            <button class="mobile-menu-toggle" id="mobileMenuBtn" aria-label="Toggle Menu">
+            <button class="mobile-menu-toggle" id="mobileMenuBtn" aria-label="Toggle Menu" aria-expanded="false">
                 <i class="fa-solid fa-bars" id="menuIcon"></i>
             </button>
 
             <nav class="nav-menu" id="navMenu">
                 <a href="index.html">Home</a>
-                
+
                 <!-- Services Dropdown -->
                 <div class="nav-item dropdown" id="servicesDropdown">
-                    <a href="javascript:void(0)" id="dropdownToggle" style="color: var(--accent-cyan); display: flex; justify-content: space-between; align-items: center;" class="dropdown-link">
+                    <a href="services.html" id="dropdownToggle" style="color: var(--accent-cyan); display: flex; justify-content: space-between; align-items: center;" class="dropdown-link">
                         Services <i class="fa-solid fa-chevron-down dropdown-icon" id="arrowIcon" style="font-size: 0.75rem; margin-left: 6px; transition: transform 0.3s ease;"></i>
                     </a>
                     <div class="dropdown-menu">
@@ -279,10 +348,13 @@
                 <a href="solutions.html">Solutions</a>
                 <a href="pricing.html">Pricing</a>
                 <a href="contact.html">Contact</a>
+
+                <a href="https://zenixai.online/chatbot/login.html" class="nav-login-btn" aria-label="Login">
+                    <img src="Login.png" alt="Login">
+                    <span class="mobile-login-label">Login</span>
+                </a>
             </nav>
         </div>
-        <script src="https://cdn.botpress.cloud/webchat/v5.0/inject.js"></script>
-        <script src="https://files.bpcontent.cloud/2026/11/08/15/20261108153622-13FZQ1WJ.js" defer></script>
     </header>
 
     <!-- Page Hero Section -->
@@ -297,7 +369,7 @@
     <!-- Detailed Content Section -->
     <section class="services-section" style="border-top: none; padding-top: 10px;">
         <div class="container" style="max-width: 950px;">
-            
+
             <div class="detail-box reveal-on-scroll visible">
                 <h2 style="color: #fff; font-size: 1.6rem; margin-bottom: 15px;">
                     <i class="fa-solid fa-chart-line" style="color: var(--accent-cyan); margin-right: 8px;"></i> Complete Digital Business Growth Framework
@@ -307,7 +379,7 @@
                 </p>
 
                 <h3 style="color: #fff; font-size: 1.3rem; margin-top: 30px; margin-bottom: 15px;">Key Growth Pillars</h3>
-                
+
                 <div class="highlight-grid">
                     <div class="highlight-card">
                         <i class="fa-solid fa-users"></i>
@@ -337,7 +409,7 @@
                 <!-- Strategic Advantages List -->
                 <div class="strategy-info-box">
                     <h4 style="color: #fff; font-size: 1rem; margin-bottom: 15px;"><i class="fa-solid fa-lightbulb" style="color: var(--accent-cyan);"></i> Why Transitioning to Digital Beats Physical Operations:</h4>
-                    
+
                     <div class="strategy-item">
                         <i class="fa-solid fa-circle-check"></i>
                         <div>
@@ -389,7 +461,7 @@
         </div>
     </footer>
 
-    <!-- JavaScript for Mobile Menu & Dynamic Icon Toggling -->
+    <!-- JavaScript for Mobile Menu, Smooth Hover/Click Dropdown & Dynamic Icon Toggling -->
     <script>
         const mobileMenuBtn = document.getElementById('mobileMenuBtn');
         const menuIcon = document.getElementById('menuIcon');
@@ -398,33 +470,89 @@
         const servicesDropdown = document.getElementById('servicesDropdown');
         const arrowIcon = document.getElementById('arrowIcon');
 
+        let dropdownCloseTimer = null;
+
+        function setServicesDropdown(isOpen) {
+            if (!servicesDropdown) return;
+            clearTimeout(dropdownCloseTimer);
+            servicesDropdown.classList.toggle('open', isOpen);
+            servicesDropdown.classList.toggle('active', isOpen);
+            if (arrowIcon) {
+                arrowIcon.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+            }
+        }
+
+        function scheduleDropdownClose(delayMs = 1500) {
+            clearTimeout(dropdownCloseTimer);
+            dropdownCloseTimer = setTimeout(() => {
+                setServicesDropdown(false);
+            }, delayMs);
+        }
+
         // Toggle Mobile Menu & Change Icon (☰ <-> ✖)
-        mobileMenuBtn.addEventListener('click', () => {
-            navMenu.classList.toggle('active');
-            
-            if (navMenu.classList.contains('active')) {
-                menuIcon.classList.remove('fa-bars');
-                menuIcon.classList.add('fa-xmark');
-            } else {
+        if (mobileMenuBtn) {
+            mobileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = navMenu.classList.toggle('active');
+                mobileMenuBtn.setAttribute('aria-expanded', String(isOpen));
+                if (isOpen) {
+                    menuIcon.classList.remove('fa-bars');
+                    menuIcon.classList.add('fa-xmark');
+                } else {
+                    menuIcon.classList.remove('fa-xmark');
+                    menuIcon.classList.add('fa-bars');
+                    setServicesDropdown(false);
+                }
+            });
+        }
+
+        // Toggle Dropdown & Rotate Arrow Icon on Mobile; hover on Desktop
+        if (dropdownToggle && servicesDropdown) {
+            dropdownToggle.addEventListener('click', (e) => {
+                if (window.innerWidth <= 768) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const willOpen = !servicesDropdown.classList.contains('open') && !servicesDropdown.classList.contains('active');
+                    setServicesDropdown(willOpen);
+                }
+            });
+
+            servicesDropdown.addEventListener('mouseenter', () => {
+                if (window.innerWidth > 768) {
+                    setServicesDropdown(true);
+                }
+            });
+
+            servicesDropdown.addEventListener('mouseleave', () => {
+                if (window.innerWidth > 768) {
+                    scheduleDropdownClose(1500);
+                }
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            if (servicesDropdown && !servicesDropdown.contains(e.target)) {
+                setServicesDropdown(false);
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768 && navMenu.classList.contains('active')) {
+                navMenu.classList.remove('active');
+                mobileMenuBtn.setAttribute('aria-expanded', 'false');
                 menuIcon.classList.remove('fa-xmark');
                 menuIcon.classList.add('fa-bars');
             }
         });
-
-        // Toggle Dropdown & Rotate Arrow Icon on Mobile
-        dropdownToggle.addEventListener('click', (e) => {
-            if (window.innerWidth <= 768) {
-                e.preventDefault();
-                servicesDropdown.classList.toggle('active');
-
-                if (servicesDropdown.classList.contains('active')) {
-                    arrowIcon.style.transform = 'rotate(180deg)';
-                } else {
-                    arrowIcon.style.transform = 'rotate(0deg)';
-                }
-            }
-        });
     </script>
     <script src="script.js"></script>
+    <script
+        src="https://zenixz-ai-1.onrender.com/chatbot/app.js"
+        data-api-base="https://zenixz-ai-1.onrender.com"
+        data-client-id="CLT-9682"
+        data-client-key="zk_23a9cb9c2c35c6eb8aa040a6"
+        data-client-name="Zenix AI"
+        defer
+    ></script>
 </body>
 </html>

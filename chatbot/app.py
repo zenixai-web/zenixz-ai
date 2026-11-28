@@ -74,6 +74,11 @@ def _utc_now_iso() -> str:
     return _utc_now().isoformat()
 
 
+def _normalize_dashboard_lang(raw: Any) -> str:
+    val = str(raw or "si").strip().lower()
+    return val if val in ("en", "si") else "si"
+
+
 def _normalize_widget_options(raw: Any) -> Dict[str, bool]:
     opts = dict(DEFAULT_WIDGET_OPTIONS)
     if isinstance(raw, dict):
@@ -417,6 +422,7 @@ def _save_client_record(
     clean_cid = cid.upper()
     quota = _get_client_quota(entry)
     widget_opts = _normalize_widget_options(entry.get("widget_options"))
+    dash_lang = _normalize_dashboard_lang(entry.get("dashboard_lang"))
     embed_key = (
         str(entry.get("client_key") or "").strip() or f"zk_{secrets.token_hex(12)}"
     )
@@ -444,6 +450,7 @@ def _save_client_record(
         "last_login_ip": str(entry.get("last_login_ip") or "").strip(),
         "previous_login_ip": str(entry.get("previous_login_ip") or "").strip(),
         "last_login_at": entry.get("last_login_at"),
+        "dashboard_lang": dash_lang,
         "knowledge_base": entry.get("knowledge_base") or "",
         "widget_options": widget_opts,
         "output_webhook_url": (entry.get("output_webhook_url") or "").strip(),
@@ -1063,7 +1070,8 @@ class PlanActivateIn(BaseModel):
 
 class ClientSettingsUpdate(BaseModel):
     client_id: str = Field(..., min_length=1)
-    store_name: str = Field(..., min_length=1, max_length=120)
+    store_name: Optional[str] = Field(default=None, max_length=120)
+    dashboard_lang: Optional[str] = Field(default=None, max_length=10)
 
 
 class KnowledgeSave(BaseModel):
@@ -1415,18 +1423,28 @@ def update_client_settings(
     if not resolved_cid or not rec:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    clean_name = payload.store_name.strip()
-    if not clean_name:
-        raise HTTPException(status_code=400, detail="Store name cannot be empty")
-
     entry = dict(rec)
-    entry["store_name"] = clean_name
-    _save_client_record(resolved_cid, entry)
+    if payload.store_name is not None:
+        clean_name = payload.store_name.strip()
+        if not clean_name:
+            raise HTTPException(status_code=400, detail="Store name cannot be empty")
+        entry["store_name"] = clean_name
+
+    if payload.dashboard_lang is not None:
+        lang_val = payload.dashboard_lang.strip().lower()
+        if lang_val not in ("en", "si"):
+            raise HTTPException(
+                status_code=400, detail="dashboard_lang must be 'en' or 'si'"
+            )
+        entry["dashboard_lang"] = lang_val
+
+    saved = _save_client_record(resolved_cid, entry)
 
     return {
         "ok": True,
         "client_id": resolved_cid,
-        "store_name": clean_name,
+        "store_name": saved.get("store_name") or resolved_cid,
+        "dashboard_lang": _normalize_dashboard_lang(saved.get("dashboard_lang")),
     }
 
 
@@ -1587,6 +1605,7 @@ def verify_otp(payload: OtpVerifyIn, request: Request):
     elif not entry.get("username"):
         entry["username"] = default_user
     entry.setdefault("generated_username", entry["username"])
+    entry.setdefault("dashboard_lang", "si")
 
     if payload.is_new_account or stored_new_acc:
         entry["plan"] = "normal"
@@ -1628,6 +1647,7 @@ def verify_otp(payload: OtpVerifyIn, request: Request):
         or default_user,
         "store_name": saved_entry.get("store_name") or final_cid,
         "email": target_email,
+        "dashboard_lang": _normalize_dashboard_lang(saved_entry.get("dashboard_lang")),
         "last_login_ip": saved_entry.get("last_login_ip") or login_ip,
         "previous_login_ip": saved_entry.get("previous_login_ip") or "",
         "last_login_at": saved_entry.get("last_login_at") or "",
@@ -1906,6 +1926,7 @@ def my_dashboard(
 
     quota = _get_client_quota(rec)
     widget_opts = _normalize_widget_options(rec.get("widget_options"))
+    dash_lang = _normalize_dashboard_lang(rec.get("dashboard_lang"))
     store_name = rec.get("store_name") or resolved_cid
     embed_key = str(rec.get("client_key") or "")
     secret_key = str(rec.get("sheet_secret_key") or "")
@@ -1919,6 +1940,7 @@ def my_dashboard(
         "username": rec.get("username") or resolved_cid,
         "store_name": store_name,
         "email": rec.get("email") or "",
+        "dashboard_lang": dash_lang,
         "last_login_ip": rec.get("last_login_ip") or req_ip,
         "previous_login_ip": rec.get("previous_login_ip") or "",
         "last_login_at": rec.get("last_login_at") or "",

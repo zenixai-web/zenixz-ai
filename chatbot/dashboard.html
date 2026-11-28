@@ -7,7 +7,7 @@
   <title>Zenix AI — Client Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@400;500;600;700&family=Noto+Sans+Sinhala:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #0b1020;
@@ -23,7 +23,7 @@
       --banner-bg: rgba(245, 158, 11, 0.12);
       --banner-border: rgba(245, 158, 11, 0.32);
       --banner-text: #fde68a;
-      --font-sans: "Google Sans", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-sans: "Google Sans", "Inter", "Noto Sans Sinhala", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     html[data-theme="light"] {
@@ -56,6 +56,7 @@
       color: var(--text);
       font-family: var(--font-sans);
       min-height: 100vh;
+      line-height: 1.45;
       transition: background-color 0.2s ease, color 0.2s ease;
     }
 
@@ -106,6 +107,33 @@
       flex-wrap: wrap;
       align-items: center;
       gap: 8px;
+    }
+
+    .lang-switch {
+      display: inline-flex;
+      align-items: center;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .lang-btn {
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      border-radius: 7px;
+      padding: 5px 10px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .lang-btn.active {
+      background: var(--accent);
+      color: #ffffff;
     }
 
     select,
@@ -595,16 +623,14 @@
   <div class="ip-modal-backdrop" id="lastLoginIpModal" role="dialog" aria-modal="true" aria-labelledby="ipModalTitle">
     <div class="ip-modal-card">
       <div class="ip-modal-title" id="ipModalTitle">Last Login IP Alert</div>
-      <div class="ip-modal-desc">
-        ඔබගේ Client Account එකට සිදු වූ Login IP විස්තරය පහත පරිදි වේ:
-      </div>
+      <div class="ip-modal-desc" id="ipModalDesc"></div>
       <div class="ip-box">
-        <div>Last Login IP: <strong id="popupLastLoginIp">-</strong></div>
+        <div><span id="lblPopupLastIp">Last Login IP</span>: <strong id="popupLastLoginIp">-</strong></div>
         <div id="popupPrevIpRow" style="display: none; margin-top: 4px; color: var(--muted);">
-          Previous IP: <span id="popupPrevLoginIp">-</span>
+          <span id="lblPopupPrevIp">Previous IP</span>: <span id="popupPrevLoginIp">-</span>
         </div>
         <div style="margin-top: 4px; color: var(--muted); font-size: 12px;">
-          Login Time: <span id="popupLastLoginTime">-</span>
+          <span id="lblPopupLoginTime">Login Time</span>: <span id="popupLastLoginTime">-</span>
         </div>
       </div>
       <div style="display: flex; justify-content: flex-end;">
@@ -622,7 +648,11 @@
     </div>
 
     <div class="controls-group">
-      <label for="agentSelect" style="font-size: 13px; color: var(--muted);">Agent:</label>
+      <div class="lang-switch" role="group" aria-label="Dashboard Language">
+        <button class="lang-btn" id="langEnBtn" type="button" data-lang="en">EN</button>
+        <button class="lang-btn" id="langSiBtn" type="button" data-lang="si">සිංහල</button>
+      </div>
+      <label for="agentSelect" id="agentSelectLabel" style="font-size: 13px; color: var(--muted);">Agent:</label>
       <select id="agentSelect"></select>
       <button class="btn-ghost" id="orderTrackingBtn" type="button">Order Tracking</button>
       <a class="btn-link btn-ghost" id="fullOrderTrackingLink" href="./order-tracking.html">Full Tracking Page</a>
@@ -633,25 +663,22 @@
   </header>
 
   <main class="container">
-    <div class="sync-banner" id="syncBanner">
-      <strong>Isolated Client Workspace:</strong>
-      Plan එක Activate කළ පසු පමණක් Embed HTML, Knowledge Base, AI Credits (Token/Cents), Auto Usage Limits, Stock Sync, සහ Order Tracking access ලැබේ. Usage Limits Admin / Firebase මඟින් පමණක් පාලනය වේ.
-    </div>
+    <div class="sync-banner" id="syncBanner"></div>
 
     <div class="last3-warning-box" id="last3DaysBanner"></div>
 
     <div class="no-plan-box" id="noPlanBox">
-      <strong>Plan / Service Not Active — Access Locked</strong>
-      ඔබගේ Plan එක තවම Activate කර නොමැති බැවින් Chatbot Embed Code, Knowledge Base, Usage Limits, සහ Order Tracking තාවකාලිකව අගුළු දමා ඇත.
-      Payment එක කර Plan එක Activate කරගැනීමට සම්බන්ධ වන්න: <strong>+94 71 795 3018</strong>
+      <strong id="noPlanTitle">Plan / Service Not Active — Access Locked</strong>
+      <span id="noPlanBody"></span>
+      <strong id="noPlanContact" style="display: inline; color: var(--text);">+94 71 795 3018</strong>
     </div>
 
     <div class="session-strip" id="sessionStrip">
-      <span>Client ID: <strong id="metaClientId">-</strong></span>
-      <span>Account / Email: <strong id="metaEmail">-</strong></span>
-      <span>Last Login IP: <strong id="metaLastIp">-</strong></span>
-      <span>API Endpoint: <strong id="metaApiBase">-</strong></span>
-      <span>Session Expires: <strong id="metaExpiry">-</strong></span>
+      <span><span id="lblMetaClientId">Client ID</span>: <strong id="metaClientId">-</strong></span>
+      <span><span id="lblMetaEmail">Account / Email</span>: <strong id="metaEmail">-</strong></span>
+      <span><span id="lblMetaLastIp">Last Login IP</span>: <strong id="metaLastIp">-</strong></span>
+      <span><span id="lblMetaApiBase">API Endpoint</span>: <strong id="metaApiBase">-</strong></span>
+      <span><span id="lblMetaExpiry">Session Expires</span>: <strong id="metaExpiry">-</strong></span>
     </div>
 
     <div class="meta-row">
@@ -661,60 +688,56 @@
 
     <section class="grid-5" id="metricsGrid">
       <div class="card">
-        <div class="card-label">Conversations / Customers</div>
+        <div class="card-label" id="cardConvLabel">Conversations / Customers</div>
         <div class="card-value" id="convVal">0 / 0</div>
-        <div class="card-sub" id="convRem">Remaining: 0 (Auto-tracked)</div>
+        <div class="card-sub" id="convRem">Remaining: 0</div>
         <div class="progress-track"><div class="progress-fill" id="convBar"></div></div>
       </div>
 
       <div class="card">
-        <div class="card-label">AI Credits Balance (USD)</div>
+        <div class="card-label" id="cardCreditLabel">AI Credits Balance (USD)</div>
         <div class="card-value" id="creditVal">$0.0000</div>
         <div class="card-sub" id="creditUsedSub">Used: $0.0000 • Tokens: 0</div>
         <div class="progress-track"><div class="progress-fill" id="creditBar"></div></div>
       </div>
 
       <div class="card">
-        <div class="card-label">File Storage</div>
+        <div class="card-label" id="cardFileLabel">File Storage</div>
         <div class="card-value" id="fileVal">0 / 0 MB</div>
-        <div class="card-sub" id="fileRem">Remaining: 0 MB (Admin Locked)</div>
+        <div class="card-sub" id="fileRem">Remaining: 0 MB</div>
         <div class="progress-track"><div class="progress-fill" id="fileBar"></div></div>
       </div>
 
       <div class="card">
-        <div class="card-label">Vector DB Storage</div>
+        <div class="card-label" id="cardVecLabel">Vector DB Storage</div>
         <div class="card-value" id="vecVal">0 / 0 MB</div>
-        <div class="card-sub" id="vecRem">Remaining: 0 MB (Admin Locked)</div>
+        <div class="card-sub" id="vecRem">Remaining: 0 MB</div>
         <div class="progress-track"><div class="progress-fill" id="vecBar"></div></div>
       </div>
 
       <div class="card">
-        <div class="card-label">Table Rows</div>
+        <div class="card-label" id="cardRowLabel">Table Rows</div>
         <div class="card-value" id="rowVal">0 / 0</div>
-        <div class="card-sub" id="rowRem">Remaining: 0 (Admin Locked)</div>
+        <div class="card-sub" id="rowRem">Remaining: 0</div>
         <div class="progress-track"><div class="progress-fill" id="rowBar"></div></div>
       </div>
     </section>
 
     <section class="card embed-section" id="embedSection">
-      <h3 style="margin-bottom: 6px; font-size: 16px;">Chatbot Name & Embed HTML (Active Plan)</h3>
-      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 12px;">
-        ඔබගේ Chatbot / Store නම වෙනස් කළ විට (උදා: <code>cloth A</code> → <code>cloth B</code>) Embed HTML එකත් ස්වයංක්‍රීයව update වේ.
-      </div>
+      <h3 style="margin-bottom: 6px; font-size: 16px;" id="embedSectionTitle">Chatbot Name & Embed HTML (Active Plan)</h3>
+      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 12px;" id="embedSectionDesc"></div>
 
       <div class="field">
-        <label for="botNameInput">Chatbot / Brand Name</label>
+        <label for="botNameInput" id="botNameLabel">Chatbot / Brand Name</label>
         <div class="inline-row">
-          <input id="botNameInput" type="text" placeholder="උදා: cloth B" />
+          <input id="botNameInput" type="text" placeholder="e.g. Cloth Store" />
           <button class="btn" id="saveBotNameBtn" type="button">Save Name</button>
         </div>
         <div class="ok-msg" id="botNameStatus"></div>
         <div class="err-msg" id="botNameError"></div>
       </div>
 
-      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 8px;">
-        Client ID: <strong id="embedClientIdLabel">-</strong> — පහත Embed HTML code එක ඔබගේ website එකට paste කරන්න:
-      </div>
+      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 8px;" id="embedSnippetPrompt"></div>
       <div class="embed-code-box" id="embedCodeBox"></div>
       <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
         <button class="btn" id="copyEmbedBtn" type="button">Copy Embed HTML</button>
@@ -723,35 +746,33 @@
     </section>
 
     <section class="card" id="knowledgeSection" style="margin-bottom: 18px;">
-      <h3 style="margin-bottom: 6px; font-size: 16px;">Private Knowledge Base, Widget Toggles, Stock Sync & Webhook</h3>
-      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 14px;">
-        මෙහි ඇතුළත් කරන Instructions / Knowledge Base එක ඔබගේ Chatbot එකට පමණක් අදාළ වන අතර Widget features මෙතනින් On/Off කළ හැක.
-      </div>
+      <h3 style="margin-bottom: 6px; font-size: 16px;" id="kbSectionTitle">Private Knowledge Base, Widget Toggles, Stock Sync & Webhook</h3>
+      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 14px;" id="kbSectionDesc"></div>
       <form id="kbForm">
         <div class="field">
-          <label for="kbInput">Chatbot Instructions / Knowledge Base (Products, Prices, Delivery Rules)</label>
-          <textarea id="kbInput" placeholder="උදා: අපේ store එකේ delivery දින 2-3 ඇතුළත සිදු වේ. Order එකක් ගන්න customer ගේ name, phone, address, item, quantity ලබා ගන්න..."></textarea>
+          <label for="kbInput" id="kbInputLabel">Chatbot Instructions / Knowledge Base (Products, Prices, Delivery Rules)</label>
+          <textarea id="kbInput" placeholder="e.g. Delivery takes 2-3 days. Collect customer name, phone, address, item, and quantity..."></textarea>
         </div>
 
         <div class="stock-mode-box">
-          <div style="font-size: 13.5px; font-weight: 700; margin-bottom: 10px;">
+          <div style="font-size: 13.5px; font-weight: 700; margin-bottom: 10px;" id="widgetTogglesTitle">
             Chatbot Widget Feature Toggles (On / Off)
           </div>
           <div class="toggle-grid">
             <label class="toggle-item" for="toggleLangSwitcher">
-              <span>Language Switcher (සිං / EN / தமிழ்)</span>
+              <span id="lblToggleLang">Language Switcher (සිං / EN / தமிழ்)</span>
               <input id="toggleLangSwitcher" type="checkbox" checked />
             </label>
             <label class="toggle-item" for="toggleThemeSwitch">
-              <span>Dark / Light Theme Icon</span>
+              <span id="lblToggleTheme">Dark / Light Theme Icon</span>
               <input id="toggleThemeSwitch" type="checkbox" checked />
             </label>
             <label class="toggle-item" for="toggleChoiceCards">
-              <span>2-Option Choice Cards Popup</span>
+              <span id="lblToggleChoice">2-Option Choice Cards Popup</span>
               <input id="toggleChoiceCards" type="checkbox" checked />
             </label>
             <label class="toggle-item" for="toggleOffTopicGuard">
-              <span>Strict Off-Topic Guard Popup</span>
+              <span id="lblToggleGuard">Strict Off-Topic Guard Popup</span>
               <input id="toggleOffTopicGuard" type="checkbox" checked />
             </label>
           </div>
@@ -762,17 +783,17 @@
             Normal Plan — Stock CSV Check
           </div>
           <div class="field" id="normalStockGroup">
-            <label for="stockCsvInput">Google Sheet Published CSV URL (Normal Plan Stock Check)</label>
+            <label for="stockCsvInput" id="stockCsvLabel">Google Sheet Published CSV URL (Normal Plan Stock Check)</label>
             <input id="stockCsvInput" type="url" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv" />
           </div>
 
           <div id="premiumStockGroup" style="display: none;">
             <div class="field">
-              <label for="stockWebappInput">Premium Stock Auto-Deduct Web App URL</label>
+              <label for="stockWebappInput" id="stockWebappLabel">Premium Stock Auto-Deduct Web App URL</label>
               <input id="stockWebappInput" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
             </div>
             <div class="field">
-              <label for="premiumScriptBox">Google Apps Script (`Code.gs`) — Copy & Deploy as Web App</label>
+              <label for="premiumScriptBox" id="premiumScriptLabel">Google Apps Script (Code.gs) — Copy & Deploy as Web App</label>
               <div class="embed-code-box" id="premiumScriptBox"></div>
               <button class="btn-ghost" id="copyScriptBtn" type="button">Copy Apps Script Code</button>
               <span class="ok-msg" id="copyScriptStatus" style="margin-left: 8px;"></span>
@@ -781,7 +802,7 @@
         </div>
 
         <div class="field">
-          <label for="outputWebhookInput">Optional Output Webhook URL (Order Variables Receiver)</label>
+          <label for="outputWebhookInput" id="webhookInputLabel">Optional Output Webhook URL (Order Variables Receiver)</label>
           <input id="outputWebhookInput" type="url" placeholder="https://your-endpoint.example.com/webhook" />
         </div>
         <button class="btn" id="saveKbBtn" type="submit">Save Knowledge Base & Toggles</button>
@@ -794,15 +815,13 @@
       <div class="tracking-head">
         <div>
           <h3 style="font-size: 16px;" id="trackingHeading">Order Tracking (Recent Orders — Max 5)</h3>
-          <div style="font-size: 12px; color: var(--muted);" id="trackingHint">
-            ඔබගේ Client Account එකට අදාළ Orders (24 hours ඇතුළත) පෙන්වයි. Status එක Pending / Confirmed / Close ලෙස වෙනස් කළ හැක.
-          </div>
+          <div style="font-size: 12px; color: var(--muted);" id="trackingHint"></div>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
           <input
             id="trackOrderIdInput"
             type="text"
-            placeholder="Order ID හෝ Phone Number (උදා: ORD-101 / 077...)"
+            placeholder="Order ID or Phone (e.g. ORD-101 / 077...)"
             style="background: var(--panel-2); color: var(--text); padding: 8px 12px; width: 260px;"
           />
           <button class="btn" id="trackSearchBtn" type="button">Search</button>
@@ -815,13 +834,13 @@
         <table>
           <thead>
             <tr>
-              <th>Order ID</th>
-              <th>Customer Name</th>
-              <th>Phone</th>
-              <th>Item</th>
-              <th>Qty</th>
-              <th>Payment Method</th>
-              <th>Status</th>
+              <th id="thOrderId">Order ID</th>
+              <th id="thCustomerName">Customer Name</th>
+              <th id="thPhone">Phone</th>
+              <th id="thItem">Item</th>
+              <th id="thQty">Qty</th>
+              <th id="thPaymentMethod">Payment Method</th>
+              <th id="thStatus">Status</th>
             </tr>
           </thead>
           <tbody id="trackingOrdersBody"></tbody>
@@ -840,55 +859,327 @@
 
     <section class="grid-2" style="margin-top: 18px;">
       <div class="card">
-        <h3 style="margin-bottom: 12px; font-size: 16px;">Personal Message to Support</h3>
+        <h3 style="margin-bottom: 12px; font-size: 16px;" id="msgSectionTitle">Personal Message to Support</h3>
         <form id="msgForm">
           <div class="field">
-            <label for="msgSub">Subject</label>
-            <input id="msgSub" type="text" placeholder="උදා: Plan Activation / Usage / Credits Inquiry" required />
+            <label for="msgSub" id="msgSubLabel">Subject</label>
+            <input id="msgSub" type="text" placeholder="e.g. Plan Activation / Usage / Credits Inquiry" required />
           </div>
           <div class="field">
-            <label for="msgText">Message</label>
-            <textarea id="msgText" placeholder="ඔබගේ පණිවිඩය ලියන්න..." required></textarea>
+            <label for="msgText" id="msgTextLabel">Message</label>
+            <textarea id="msgText" placeholder="Write your message..." required></textarea>
           </div>
-          <button class="btn" type="submit">Send Message</button>
+          <button class="btn" type="submit" id="sendMsgBtn">Send Message</button>
           <div class="ok-msg" id="msgStatus"></div>
         </form>
       </div>
 
       <div class="card">
-        <h3 style="margin-bottom: 12px; font-size: 16px;">Direct Contact Details</h3>
+        <h3 style="margin-bottom: 12px; font-size: 16px;" id="contactSectionTitle">Direct Contact Details</h3>
         <div class="contact-item">
-          <span>Provider</span>
+          <span id="lblProvider">Provider</span>
           Zenix AI (zenixai.online)
         </div>
         <div class="contact-item">
-          <span>Phone / WhatsApp</span>
+          <span id="lblPhoneSupport">Phone / WhatsApp</span>
           +94 71 795 3018
         </div>
         <div class="contact-item">
-          <span>Email</span>
+          <span id="lblEmailSupport">Email</span>
           support@zenixai.online
         </div>
         <div class="contact-item">
-          <span>Support Hours</span>
-          Mon – Sat, 9:00 AM – 8:00 PM (+05:30)
+          <span id="lblHoursSupport">Support Hours</span>
+          <span id="valHoursSupport">Mon – Sat, 9:00 AM – 8:00 PM (+05:30)</span>
         </div>
       </div>
     </section>
   </main>
 
   <script>
+    const LANG_KEY = "zenix_dashboard_lang";
     const THEME_KEY = "zenix_dashboard_theme";
+
+    const I18N = {
+      en: {
+        pageTitle: "Zenix AI — Client Dashboard",
+        badgeIdPrefix: "ID: ",
+        badgePlanChecking: "Plan: Checking",
+        badgePlanActive: "Plan: Active",
+        badgePlanInactive: "Plan: Inactive",
+        badgePlanExpired: "Plan: Expired",
+        badgeTierNormal: "Tier: Normal",
+        badgeTierPremium: "Tier: Premium",
+        agentLabel: "Agent:",
+        agentNone: "No Active Plan",
+        agentMain: "Main Order Agent",
+        orderTrackingBtn: "Order Tracking",
+        fullTrackingLink: "Full Tracking Page",
+        openFullTrackingLink: "Open Full Tracking Page",
+        themeLight: "☀️ Light",
+        themeDark: "🌙 Dark",
+        refreshBtn: "↻ Sync Now",
+        logoutBtn: "Logout",
+        syncBannerHtml: "<strong>Isolated Client Workspace:</strong> Embed HTML, Knowledge Base, AI Credits (Token/USD), Auto Usage Limits, Stock Sync, and Order Tracking are unlocked once your Plan is active. Usage limits are controlled by Admin / Firebase.",
+        noPlanTitle: "Plan / Service Not Active — Access Locked",
+        noPlanBodyPrefix: "Your Plan is not active yet, so Chatbot Embed Code, Knowledge Base, Usage Limits, and Order Tracking are temporarily locked. Contact us to activate your Plan: ",
+        lblMetaClientId: "Client ID",
+        lblMetaEmail: "Account / Email",
+        verifiedSession: "Verified Session",
+        lblMetaLastIp: "Last Login IP",
+        notRecorded: "Not recorded",
+        lblMetaApiBase: "API Endpoint",
+        lblMetaExpiry: "Session Expires",
+        viewPrefix: "View: ",
+        lastSyncedPrefix: "Last Synced: ",
+        cardConvLabel: "Conversations / Customers",
+        remainingSuffix: "Remaining: ",
+        autoTrackedTag: " (Auto-tracked)",
+        adminLockedTag: " (Admin Locked)",
+        cardCreditLabel: "AI Credits Balance (USD)",
+        creditUsedPrefix: "Used: ",
+        tokensPrefix: " • Tokens: ",
+        cardFileLabel: "File Storage",
+        cardVecLabel: "Vector DB Storage",
+        cardRowLabel: "Table Rows",
+        embedSectionTitle: "Chatbot Name & Embed HTML (Active Plan)",
+        embedSectionDescHtml: "When you update your Chatbot / Store name (e.g. <code>Cloth A</code> → <code>Cloth B</code>), the Embed HTML updates automatically.",
+        botNameLabel: "Chatbot / Brand Name",
+        botNamePlaceholder: "e.g. Cloth Store B",
+        saveBotNameBtn: "Save Name",
+        embedClientIdPrefix: "Client ID: ",
+        embedCopyPromptSuffix: " — Paste the Embed HTML snippet below into your website:",
+        copyEmbedBtn: "Copy Embed HTML",
+        copyScriptBtn: "Copy Apps Script Code",
+        copiedEmbed: "Embed HTML copied!",
+        copiedScript: "Apps Script copied!",
+        copyManual: "Select and copy manually.",
+        kbSectionTitle: "Private Knowledge Base, Widget Toggles, Stock Sync & Webhook",
+        kbSectionDesc: "Instructions and Knowledge Base saved here apply only to your Chatbot, and Widget features can be toggled On/Off below.",
+        kbInputLabel: "Chatbot Instructions / Knowledge Base (Products, Prices, Delivery Rules)",
+        kbPlaceholder: "e.g. Delivery takes 2-3 days. Collect customer name, phone, address, item, and quantity...",
+        widgetTogglesTitle: "Chatbot Widget Feature Toggles (On / Off)",
+        lblToggleLang: "Language Switcher (සිං / EN / தமிழ்)",
+        lblToggleTheme: "Dark / Light Theme Icon",
+        lblToggleChoice: "2-Option Choice Cards Popup",
+        lblToggleGuard: "Strict Off-Topic Guard Popup",
+        stockNormalTitle: "Normal Plan — Stock CSV Check",
+        stockPremiumTitle: "Premium Plan — Auto Stock Deduct & Apps Script",
+        stockCsvLabel: "Google Sheet Published CSV URL (Normal Plan Stock Check)",
+        stockWebappLabel: "Premium Stock Auto-Deduct Web App URL",
+        premiumScriptLabel: "Google Apps Script (Code.gs) — Copy & Deploy as Web App",
+        webhookInputLabel: "Optional Output Webhook URL (Order Variables Receiver)",
+        saveKbBtn: "Save Knowledge Base & Toggles",
+        trackingRecentHeadingPrefix: "Order Tracking (",
+        trackingRecentHeadingSuffix: " — Recent Orders Max 5)",
+        trackingSearchHeadingPrefix: "Order Tracking — Search Results (",
+        trackingHint: "Shows Orders for your Client Account (within 24 hours). You can update Status to Pending / Confirmed / Close.",
+        trackSearchPlaceholder: "Order ID or Phone (e.g. ORD-101 / 077...)",
+        trackSearchBtn: "Search",
+        trackResetBtn: "Reset",
+        thOrderId: "Order ID",
+        thCustomerName: "Customer Name",
+        thPhone: "Phone",
+        thItem: "Item",
+        thQty: "Qty",
+        thPaymentMethod: "Payment Method",
+        thStatus: "Status",
+        detailTitlePrefix: "Customer & Order Details — ",
+        closeDetailBtn: "✕ Close",
+        lblDetailOrderId: "Order ID",
+        lblDetailCustomerName: "Customer Name",
+        lblDetailPhone: "Phone Number",
+        lblDetailAddress: "Address",
+        lblDetailItem: "Item",
+        lblDetailQty: "Quantity",
+        lblDetailPayment: "Payment Method",
+        lblDetailStatus: "Status",
+        lblDetailProof: "Payment Proof",
+        noProofAttached: "No proof attached",
+        msgSectionTitle: "Personal Message to Support",
+        msgSubLabel: "Subject",
+        msgSubPlaceholder: "e.g. Plan Activation / Usage / Credits Inquiry",
+        msgTextLabel: "Message",
+        msgTextPlaceholder: "Write your message...",
+        sendMsgBtn: "Send Message",
+        contactSectionTitle: "Direct Contact Details",
+        lblProvider: "Provider",
+        lblPhoneSupport: "Phone / WhatsApp",
+        lblEmailSupport: "Email",
+        lblHoursSupport: "Support Hours",
+        valHoursSupport: "Mon – Sat, 9:00 AM – 8:00 PM (+05:30)",
+        ipModalTitle: "Last Login IP Alert",
+        ipModalDesc: "Login IP details for your Client Account:",
+        lblPopupLastIp: "Last Login IP",
+        lblPopupPrevIp: "Previous IP",
+        lblPopupLoginTime: "Login Time",
+        closeIpModalBtn: "OK, Got It",
+        errPlanBotName: "Cannot change name because your Plan is not active.",
+        errEmptyBotName: "Please enter a Chatbot / Store name.",
+        errBotNameUpdate: "Error updating chatbot name",
+        botNameUpdatedPrefix: "Chatbot name updated to \"",
+        botNameUpdatedSuffix: "\"!",
+        errPlanKb: "Cannot save Knowledge Base because your Plan is not active.",
+        errKbSave: "Error saving knowledge base",
+        kbSavedPrefix: "Knowledge Base & Widget Toggles saved (",
+        kbSavedSuffix: ").",
+        msgPreparedPrefix: "Message prepared for ",
+        last3Warning: function (days) {
+          return "Final " + days + " Day" + (days === 1 ? "" : "s") + ": Your Plan will expire in " + days + " day" + (days === 1 ? "" : "s") + ". Please renew your Plan.";
+        }
+      },
+      si: {
+        pageTitle: "Zenix AI — Client Dashboard",
+        badgeIdPrefix: "ID: ",
+        badgePlanChecking: "Plan: Checking",
+        badgePlanActive: "Plan: Active",
+        badgePlanInactive: "Plan: Inactive",
+        badgePlanExpired: "Plan: Expired",
+        badgeTierNormal: "Tier: Normal",
+        badgeTierPremium: "Tier: Premium",
+        agentLabel: "Agent:",
+        agentNone: "Active Plan නැත",
+        agentMain: "Main Order Agent",
+        orderTrackingBtn: "Order Tracking",
+        fullTrackingLink: "Full Tracking Page",
+        openFullTrackingLink: "Full Tracking Page විවෘත කරන්න",
+        themeLight: "☀️ Light",
+        themeDark: "🌙 Dark",
+        refreshBtn: "↻ Sync Now",
+        logoutBtn: "Logout",
+        syncBannerHtml: "<strong>Isolated Client Workspace:</strong> Plan එක Activate කළ පසු පමණක් Embed HTML, Knowledge Base, AI Credits (Token/USD), Auto Usage Limits, Stock Sync, සහ Order Tracking access ලැබේ. Usage limits Admin / Firebase මඟින් පමණක් පාලනය වේ.",
+        noPlanTitle: "Plan / Service Active නැත — Access Lock කර ඇත",
+        noPlanBodyPrefix: "ඔබගේ Plan එක තවම Activate කර නොමැති බැවින් Chatbot Embed Code, Knowledge Base, Usage Limits, සහ Order Tracking තාවකාලිකව lock කර ඇත. Plan එක Activate කරගැනීමට සම්බන්ධ වන්න: ",
+        lblMetaClientId: "Client ID",
+        lblMetaEmail: "Account / Email",
+        verifiedSession: "Verified Session",
+        lblMetaLastIp: "Last Login IP",
+        notRecorded: "Record වී නැත",
+        lblMetaApiBase: "API Endpoint",
+        lblMetaExpiry: "Session Expires",
+        viewPrefix: "View: ",
+        lastSyncedPrefix: "Last Synced: ",
+        cardConvLabel: "Conversations / Customers",
+        remainingSuffix: "ඉතිරි: ",
+        autoTrackedTag: " (Auto-tracked)",
+        adminLockedTag: " (Admin Locked)",
+        cardCreditLabel: "AI Credits Balance (USD)",
+        creditUsedPrefix: "භාවිත කළ ප්‍රමාණය: ",
+        tokensPrefix: " • Tokens: ",
+        cardFileLabel: "File Storage",
+        cardVecLabel: "Vector DB Storage",
+        cardRowLabel: "Table Rows",
+        embedSectionTitle: "Chatbot Name & Embed HTML (Active Plan)",
+        embedSectionDescHtml: "ඔබගේ Chatbot / Store නම වෙනස් කළ විට (උදා: <code>Cloth A</code> → <code>Cloth B</code>) Embed HTML එකත් automatically update වේ.",
+        botNameLabel: "Chatbot / Brand Name",
+        botNamePlaceholder: "උදා: Cloth Store B",
+        saveBotNameBtn: "Save Name",
+        embedClientIdPrefix: "Client ID: ",
+        embedCopyPromptSuffix: " — පහත Embed HTML code එක ඔබගේ website එකට paste කරන්න:",
+        copyEmbedBtn: "Copy Embed HTML",
+        copyScriptBtn: "Copy Apps Script Code",
+        copiedEmbed: "Embed HTML copy වුණා!",
+        copiedScript: "Apps Script copy වුණා!",
+        copyManual: "Select කරලා manually copy කරන්න.",
+        kbSectionTitle: "Private Knowledge Base, Widget Toggles, Stock Sync & Webhook",
+        kbSectionDesc: "මෙහි save කරන Instructions / Knowledge Base එක ඔබගේ Chatbot එකට පමණක් අදාළ වන අතර Widget features මෙතනින් On/Off කළ හැක.",
+        kbInputLabel: "Chatbot Instructions / Knowledge Base (Products, Prices, Delivery Rules)",
+        kbPlaceholder: "උදා: Delivery දින 2-3 ඇතුළත සිදු වේ. Order එකක් ගන්න customer ගේ name, phone, address, item, quantity ලබා ගන්න...",
+        widgetTogglesTitle: "Chatbot Widget Feature Toggles (On / Off)",
+        lblToggleLang: "Language Switcher (සිං / EN / தமிழ்)",
+        lblToggleTheme: "Dark / Light Theme Icon",
+        lblToggleChoice: "2-Option Choice Cards Popup",
+        lblToggleGuard: "Strict Off-Topic Guard Popup",
+        stockNormalTitle: "Normal Plan — Stock CSV Check",
+        stockPremiumTitle: "Premium Plan — Auto Stock Deduct & Apps Script",
+        stockCsvLabel: "Google Sheet Published CSV URL (Normal Plan Stock Check)",
+        stockWebappLabel: "Premium Stock Auto-Deduct Web App URL",
+        premiumScriptLabel: "Google Apps Script (Code.gs) — Copy & Deploy as Web App",
+        webhookInputLabel: "Optional Output Webhook URL (Order Variables Receiver)",
+        saveKbBtn: "Save Knowledge Base & Toggles",
+        trackingRecentHeadingPrefix: "Order Tracking (",
+        trackingRecentHeadingSuffix: " — Recent Orders Max 5)",
+        trackingSearchHeadingPrefix: "Order Tracking — Search Results (",
+        trackingHint: "ඔබගේ Client Account එකට අදාළ Orders (24 hours ඇතුළත) පෙන්වයි. Status එක Pending / Confirmed / Close ලෙස වෙනස් කළ හැක.",
+        trackSearchPlaceholder: "Order ID හෝ Phone Number (උදා: ORD-101 / 077...)",
+        trackSearchBtn: "Search",
+        trackResetBtn: "Reset",
+        thOrderId: "Order ID",
+        thCustomerName: "Customer Name",
+        thPhone: "Phone",
+        thItem: "Item",
+        thQty: "Qty",
+        thPaymentMethod: "Payment Method",
+        thStatus: "Status",
+        detailTitlePrefix: "Customer & Order Details — ",
+        closeDetailBtn: "✕ Close",
+        lblDetailOrderId: "Order ID",
+        lblDetailCustomerName: "Customer Name",
+        lblDetailPhone: "Phone Number",
+        lblDetailAddress: "Address",
+        lblDetailItem: "Item",
+        lblDetailQty: "Quantity",
+        lblDetailPayment: "Payment Method",
+        lblDetailStatus: "Status",
+        lblDetailProof: "Payment Proof",
+        noProofAttached: "Payment proof attach කර නැත",
+        msgSectionTitle: "Personal Message to Support",
+        msgSubLabel: "Subject",
+        msgSubPlaceholder: "උදා: Plan Activation / Usage / Credits Inquiry",
+        msgTextLabel: "Message",
+        msgTextPlaceholder: "ඔබගේ message එක ලියන්න...",
+        sendMsgBtn: "Send Message",
+        contactSectionTitle: "Direct Contact Details",
+        lblProvider: "Provider",
+        lblPhoneSupport: "Phone / WhatsApp",
+        lblEmailSupport: "Email",
+        lblHoursSupport: "Support Hours",
+        valHoursSupport: "Mon – Sat, 9:00 AM – 8:00 PM (+05:30)",
+        ipModalTitle: "Last Login IP Alert",
+        ipModalDesc: "ඔබගේ Client Account එකට සිදු වූ Login IP විස්තරය පහත පරිදි වේ:",
+        lblPopupLastIp: "Last Login IP",
+        lblPopupPrevIp: "Previous IP",
+        lblPopupLoginTime: "Login Time",
+        closeIpModalBtn: "OK, Got It",
+        errPlanBotName: "Plan එක Active නොමැති බැවින් නම වෙනස් කළ නොහැක.",
+        errEmptyBotName: "කරුණාකර Chatbot / Store නමක් ඇතුළත් කරන්න.",
+        errBotNameUpdate: "Chatbot name update කිරීමේදී error එකක් ආවා",
+        botNameUpdatedPrefix: "Chatbot name \"",
+        botNameUpdatedSuffix: "\" ලෙස update වුණා!",
+        errPlanKb: "Plan එක Active නොමැති බැවින් Knowledge Base save කළ නොහැක.",
+        errKbSave: "Knowledge Base save කිරීමේදී error එකක් ආවා",
+        kbSavedPrefix: "Knowledge Base & Widget Toggles සාර්ථකව save වුණා (",
+        kbSavedSuffix: ").",
+        msgPreparedPrefix: "Message prepared for ",
+        last3Warning: function (days) {
+          return "අවසන් දින 3 (Final 3 Days): ඔබගේ Plan එක expire වීමට තව දින " + days + " ක් පමණි. කරුණාකර Plan එක renew කරගන්න.";
+        }
+      }
+    };
+
+    function getCurrentLang() {
+      const saved = String(localStorage.getItem(LANG_KEY) || "").toLowerCase();
+      return saved === "en" ? "en" : "si";
+    }
+
+    let currentLang = getCurrentLang();
+
+    function tr(key) {
+      const pack = I18N[currentLang] || I18N.si;
+      return Object.prototype.hasOwnProperty.call(pack, key) ? pack[key] : I18N.en[key] || key;
+    }
+
+    const THEME_KEY_REF = THEME_KEY;
     const themeBtn = document.getElementById("themeBtn");
 
     function applyTheme(theme) {
       const next = theme === "light" ? "light" : "dark";
       document.documentElement.setAttribute("data-theme", next);
-      localStorage.setItem(THEME_KEY, next);
-      themeBtn.textContent = next === "light" ? "🌙 Dark" : "☀️ Light";
+      localStorage.setItem(THEME_KEY_REF, next);
+      themeBtn.textContent = next === "light" ? tr("themeDark") : tr("themeLight");
     }
 
-    applyTheme(localStorage.getItem(THEME_KEY) || "dark");
+    applyTheme(localStorage.getItem(THEME_KEY_REF) || "dark");
     themeBtn.addEventListener("click", () => {
       const current = document.documentElement.getAttribute("data-theme");
       applyTheme(current === "dark" ? "light" : "dark");
@@ -961,8 +1252,6 @@
     syncClientLinks();
 
     document.getElementById("metaClientId").textContent = ACTIVE_CLIENT_ID;
-    document.getElementById("metaEmail").textContent =
-      authPass.email || authPass.user_email || authPass.client_email || "Verified Session";
     document.getElementById("metaApiBase").textContent = API_BASE;
     document.getElementById("metaExpiry").textContent = authPass.expires_at
       ? new Date(Number(authPass.expires_at)).toLocaleString()
@@ -977,9 +1266,12 @@
     let shownExpiryWarningKey = null;
     let kbInitialized = false;
     let ipPopupShownThisSession = false;
+    let activeOrderDetailRef = null;
 
     const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
+    const langEnBtn = document.getElementById("langEnBtn");
+    const langSiBtn = document.getElementById("langSiBtn");
     const agentSelect = document.getElementById("agentSelect");
     const noPlanBox = document.getElementById("noPlanBox");
     const last3DaysBanner = document.getElementById("last3DaysBanner");
@@ -1024,6 +1316,111 @@
     const lastLoginIpModal = document.getElementById("lastLoginIpModal");
     const closeIpModalBtn = document.getElementById("closeIpModalBtn");
 
+    function applyStaticTranslations() {
+      document.documentElement.setAttribute("lang", currentLang);
+      document.title = tr("pageTitle");
+
+      langEnBtn.classList.toggle("active", currentLang === "en");
+      langSiBtn.classList.toggle("active", currentLang === "si");
+
+      document.getElementById("agentSelectLabel").textContent = tr("agentLabel");
+      orderTrackingBtn.textContent = tr("orderTrackingBtn");
+      fullOrderTrackingLink.textContent = tr("fullTrackingLink");
+      panelFullTrackingLink.textContent = tr("openFullTrackingLink");
+      document.getElementById("refreshBtn").textContent = tr("refreshBtn");
+      document.getElementById("logoutBtn").textContent = tr("logoutBtn");
+      applyTheme(document.documentElement.getAttribute("data-theme"));
+
+      document.getElementById("syncBanner").innerHTML = tr("syncBannerHtml");
+      document.getElementById("noPlanTitle").textContent = tr("noPlanTitle");
+      document.getElementById("noPlanBody").textContent = tr("noPlanBodyPrefix");
+
+      document.getElementById("lblMetaClientId").textContent = tr("lblMetaClientId");
+      document.getElementById("lblMetaEmail").textContent = tr("lblMetaEmail");
+      document.getElementById("metaEmail").textContent =
+        authPass.email || authPass.user_email || authPass.client_email || tr("verifiedSession");
+      document.getElementById("lblMetaLastIp").textContent = tr("lblMetaLastIp");
+      document.getElementById("lblMetaApiBase").textContent = tr("lblMetaApiBase");
+      document.getElementById("lblMetaExpiry").textContent = tr("lblMetaExpiry");
+
+      document.getElementById("cardConvLabel").textContent = tr("cardConvLabel");
+      document.getElementById("cardCreditLabel").textContent = tr("cardCreditLabel");
+      document.getElementById("cardFileLabel").textContent = tr("cardFileLabel");
+      document.getElementById("cardVecLabel").textContent = tr("cardVecLabel");
+      document.getElementById("cardRowLabel").textContent = tr("cardRowLabel");
+
+      document.getElementById("embedSectionTitle").textContent = tr("embedSectionTitle");
+      document.getElementById("embedSectionDesc").innerHTML = tr("embedSectionDescHtml");
+      document.getElementById("botNameLabel").textContent = tr("botNameLabel");
+      botNameInput.placeholder = tr("botNamePlaceholder");
+      saveBotNameBtn.textContent = tr("saveBotNameBtn");
+      copyEmbedBtn.textContent = tr("copyEmbedBtn");
+      copyScriptBtn.textContent = tr("copyScriptBtn");
+
+      document.getElementById("kbSectionTitle").textContent = tr("kbSectionTitle");
+      document.getElementById("kbSectionDesc").textContent = tr("kbSectionDesc");
+      document.getElementById("kbInputLabel").textContent = tr("kbInputLabel");
+      kbInput.placeholder = tr("kbPlaceholder");
+      document.getElementById("widgetTogglesTitle").textContent = tr("widgetTogglesTitle");
+      document.getElementById("lblToggleLang").textContent = tr("lblToggleLang");
+      document.getElementById("lblToggleTheme").textContent = tr("lblToggleTheme");
+      document.getElementById("lblToggleChoice").textContent = tr("lblToggleChoice");
+      document.getElementById("lblToggleGuard").textContent = tr("lblToggleGuard");
+      document.getElementById("stockCsvLabel").textContent = tr("stockCsvLabel");
+      document.getElementById("stockWebappLabel").textContent = tr("stockWebappLabel");
+      document.getElementById("premiumScriptLabel").textContent = tr("premiumScriptLabel");
+      document.getElementById("webhookInputLabel").textContent = tr("webhookInputLabel");
+      saveKbBtn.textContent = tr("saveKbBtn");
+
+      document.getElementById("trackingHint").textContent = tr("trackingHint");
+      trackOrderIdInput.placeholder = tr("trackSearchPlaceholder");
+      document.getElementById("trackSearchBtn").textContent = tr("trackSearchBtn");
+      document.getElementById("trackResetBtn").textContent = tr("trackResetBtn");
+      document.getElementById("thOrderId").textContent = tr("thOrderId");
+      document.getElementById("thCustomerName").textContent = tr("thCustomerName");
+      document.getElementById("thPhone").textContent = tr("thPhone");
+      document.getElementById("thItem").textContent = tr("thItem");
+      document.getElementById("thQty").textContent = tr("thQty");
+      document.getElementById("thPaymentMethod").textContent = tr("thPaymentMethod");
+      document.getElementById("thStatus").textContent = tr("thStatus");
+      document.getElementById("closeDetailBtn").textContent = tr("closeDetailBtn");
+
+      document.getElementById("msgSectionTitle").textContent = tr("msgSectionTitle");
+      document.getElementById("msgSubLabel").textContent = tr("msgSubLabel");
+      document.getElementById("msgSub").placeholder = tr("msgSubPlaceholder");
+      document.getElementById("msgTextLabel").textContent = tr("msgTextLabel");
+      document.getElementById("msgText").placeholder = tr("msgTextPlaceholder");
+      document.getElementById("sendMsgBtn").textContent = tr("sendMsgBtn");
+
+      document.getElementById("contactSectionTitle").textContent = tr("contactSectionTitle");
+      document.getElementById("lblProvider").textContent = tr("lblProvider");
+      document.getElementById("lblPhoneSupport").textContent = tr("lblPhoneSupport");
+      document.getElementById("lblEmailSupport").textContent = tr("lblEmailSupport");
+      document.getElementById("lblHoursSupport").textContent = tr("lblHoursSupport");
+      document.getElementById("valHoursSupport").textContent = tr("valHoursSupport");
+
+      document.getElementById("ipModalTitle").textContent = tr("ipModalTitle");
+      document.getElementById("ipModalDesc").textContent = tr("ipModalDesc");
+      document.getElementById("lblPopupLastIp").textContent = tr("lblPopupLastIp");
+      document.getElementById("lblPopupPrevIp").textContent = tr("lblPopupPrevIp");
+      document.getElementById("lblPopupLoginTime").textContent = tr("lblPopupLoginTime");
+      closeIpModalBtn.textContent = tr("closeIpModalBtn");
+    }
+
+    function setLanguage(nextLang) {
+      currentLang = nextLang === "en" ? "en" : "si";
+      localStorage.setItem(LANG_KEY, currentLang);
+      applyStaticTranslations();
+      renderDashboard();
+      if (orderDetailPanel.style.display === "block" && activeOrderDetailRef) {
+        showOrderDetail(activeOrderDetailRef);
+      }
+    }
+
+    langEnBtn.addEventListener("click", () => setLanguage("en"));
+    langSiBtn.addEventListener("click", () => setLanguage("si"));
+    applyStaticTranslations();
+
     closeIpModalBtn.addEventListener("click", () => {
       lastLoginIpModal.classList.remove("show");
     });
@@ -1033,7 +1430,7 @@
       const prevIp = String((clientObj && clientObj.previous_login_ip) || "").trim();
       const loginAt = String((clientObj && clientObj.last_login_at) || "").trim();
 
-      document.getElementById("metaLastIp").textContent = ipVal || "Not recorded";
+      document.getElementById("metaLastIp").textContent = ipVal || tr("notRecorded");
 
       const popupKey = "zenix_ip_popup_seen_" + ACTIVE_CLIENT_ID + "_" + String(authPass.expires_at || "");
       if (!ipPopupShownThisSession && !sessionStorage.getItem(popupKey) && ipVal) {
@@ -1072,6 +1469,12 @@
       embedSection.style.display = active ? "block" : "none";
       if (active) {
         embedClientIdLabel.textContent = ACTIVE_CLIENT_ID;
+        document.getElementById("embedSnippetPrompt").innerHTML =
+          tr("embedClientIdPrefix") +
+          '<strong id="embedClientIdLabel">' +
+          escapeHtml(ACTIVE_CLIENT_ID) +
+          "</strong>" +
+          tr("embedCopyPromptSuffix");
         embedCodeBox.textContent = buildEmbedSnippet(ACTIVE_CLIENT_ID, storeName, clientKey);
         if (document.activeElement !== botNameInput) {
           botNameInput.value = storeName || "";
@@ -1081,18 +1484,19 @@
         copyEmbedStatus.textContent = "";
         trackingPanel.style.display = "none";
         orderDetailPanel.style.display = "none";
+        activeOrderDetailRef = null;
       }
 
       isPremiumPlan = Boolean(active && premium);
-      planTierBadge.textContent = isPremiumPlan ? "Tier: Premium" : "Tier: Normal";
+      planTierBadge.textContent = isPremiumPlan ? tr("badgeTierPremium") : tr("badgeTierNormal");
 
       if (isPremiumPlan) {
-        stockModeTitle.textContent = "Premium Plan — Auto Stock Deduct & Apps Script";
+        stockModeTitle.textContent = tr("stockPremiumTitle");
         normalStockGroup.style.display = "none";
         premiumStockGroup.style.display = "block";
         premiumScriptBox.textContent = scriptCode || "";
       } else {
-        stockModeTitle.textContent = "Normal Plan — Stock CSV Check";
+        stockModeTitle.textContent = tr("stockNormalTitle");
         normalStockGroup.style.display = "block";
         premiumStockGroup.style.display = "none";
         premiumScriptBox.textContent = "";
@@ -1180,27 +1584,32 @@
       const rowUsed = Number(m.table_rows_used || 0);
       const rowLimit = Number(m.table_rows_limit || 0);
 
-      document.getElementById("scopeLabel").textContent = "View: " + label + " (" + ACTIVE_CLIENT_ID + ")";
+      document.getElementById("scopeLabel").textContent =
+        tr("viewPrefix") + label + " (" + ACTIVE_CLIENT_ID + ")";
       document.getElementById("convVal").textContent = convUsed + " / " + convLimit;
-      document.getElementById("convRem").textContent = "Remaining: " + Math.max(0, convLimit - convUsed) + " (Auto-tracked)";
+      document.getElementById("convRem").textContent =
+        tr("remainingSuffix") + Math.max(0, convLimit - convUsed) + tr("autoTrackedTag");
       setBar(document.getElementById("convBar"), convUsed, convLimit);
 
       document.getElementById("creditVal").textContent = formatUsd(aiCreditsUsd);
       document.getElementById("creditUsedSub").textContent =
-        "Used: " + formatUsd(aiUsedUsd) + " • Tokens: " + totalTokens;
+        tr("creditUsedPrefix") + formatUsd(aiUsedUsd) + tr("tokensPrefix") + totalTokens;
       const creditTotal = Math.max(0.0001, aiCreditsUsd + aiUsedUsd);
       setBar(document.getElementById("creditBar"), aiUsedUsd, creditTotal);
 
       document.getElementById("fileVal").textContent = fileUsed + " / " + fileLimit + " MB";
-      document.getElementById("fileRem").textContent = "Remaining: " + Math.max(0, fileLimit - fileUsed) + " MB (Admin Locked)";
+      document.getElementById("fileRem").textContent =
+        tr("remainingSuffix") + Math.max(0, fileLimit - fileUsed) + " MB" + tr("adminLockedTag");
       setBar(document.getElementById("fileBar"), fileUsed, fileLimit);
 
       document.getElementById("vecVal").textContent = vecUsed + " / " + vecLimit + " MB";
-      document.getElementById("vecRem").textContent = "Remaining: " + Math.max(0, vecLimit - vecUsed) + " MB (Admin Locked)";
+      document.getElementById("vecRem").textContent =
+        tr("remainingSuffix") + Math.max(0, vecLimit - vecUsed) + " MB" + tr("adminLockedTag");
       setBar(document.getElementById("vecBar"), vecUsed, vecLimit);
 
       document.getElementById("rowVal").textContent = rowUsed + " / " + rowLimit;
-      document.getElementById("rowRem").textContent = "Remaining: " + Math.max(0, rowLimit - rowUsed) + " (Admin Locked)";
+      document.getElementById("rowRem").textContent =
+        tr("remainingSuffix") + Math.max(0, rowLimit - rowUsed) + tr("adminLockedTag");
       setBar(document.getElementById("rowBar"), rowUsed, rowLimit);
     }
 
@@ -1227,11 +1636,13 @@
       const qDigits = normalizeDigits(rawQuery);
 
       if (!q) {
-        trackingHeading.textContent = "Order Tracking (" + ACTIVE_CLIENT_ID + " — Recent Orders Max 5)";
+        trackingHeading.textContent =
+          tr("trackingRecentHeadingPrefix") + ACTIVE_CLIENT_ID + tr("trackingRecentHeadingSuffix");
         return clientTodayOrders.slice(0, 5);
       }
 
-      trackingHeading.textContent = "Order Tracking — Search Results (" + ACTIVE_CLIENT_ID + ")";
+      trackingHeading.textContent =
+        tr("trackingSearchHeadingPrefix") + ACTIVE_CLIENT_ID + ")";
       return clientAllOrders.filter((o) => {
         const cid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
         if (cid && cid !== ACTIVE_CLIENT_ID) return false;
@@ -1247,28 +1658,31 @@
       const cid = String((order.client_id ?? order.clientId) || "").trim().toUpperCase();
       if (cid && cid !== ACTIVE_CLIENT_ID) return;
 
+      activeOrderDetailRef = order;
       document.getElementById("detailTitle").textContent =
-        "Customer & Order Details — " + escapeHtml(order.order_id || "-");
+        tr("detailTitlePrefix") + String(order.order_id || "-");
 
       orderDetailGrid.innerHTML =
-        '<div class="detail-box"><span>Order ID</span><strong>' + escapeHtml(order.order_id || "-") + '</strong></div>' +
-        '<div class="detail-box"><span>Customer Name</span><strong>' + escapeHtml(order.customer_name || "-") + '</strong></div>' +
-        '<div class="detail-box"><span>Phone Number</span><strong>' + escapeHtml(order.phone || "-") + '</strong></div>' +
-        '<div class="detail-box"><span>Address</span><strong>' + escapeHtml(order.address || "-") + '</strong></div>' +
-        '<div class="detail-box"><span>Item</span><strong>' + escapeHtml(order.item || "-") + '</strong></div>' +
-        '<div class="detail-box"><span>Quantity</span><strong>' + escapeHtml(order.quantity ?? 1) + '</strong></div>' +
-        '<div class="detail-box"><span>Payment Method</span><strong>' + escapeHtml(order.payment_method || "-") + '</strong></div>' +
-        '<div class="detail-box"><span>Status</span><strong>' + escapeHtml(order.status || "Pending") + '</strong></div>';
+        '<div class="detail-box"><span>' + escapeHtml(tr("lblDetailOrderId")) + '</span><strong>' + escapeHtml(order.order_id || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>' + escapeHtml(tr("lblDetailCustomerName")) + '</span><strong>' + escapeHtml(order.customer_name || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>' + escapeHtml(tr("lblDetailPhone")) + '</span><strong>' + escapeHtml(order.phone || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>' + escapeHtml(tr("lblDetailAddress")) + '</span><strong>' + escapeHtml(order.address || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>' + escapeHtml(tr("lblDetailItem")) + '</span><strong>' + escapeHtml(order.item || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>' + escapeHtml(tr("lblDetailQty")) + '</span><strong>' + escapeHtml(order.quantity ?? 1) + '</strong></div>' +
+        '<div class="detail-box"><span>' + escapeHtml(tr("lblDetailPayment")) + '</span><strong>' + escapeHtml(order.payment_method || "-") + '</strong></div>' +
+        '<div class="detail-box"><span>' + escapeHtml(tr("lblDetailStatus")) + '</span><strong>' + escapeHtml(order.status || "Pending") + '</strong></div>';
 
       const proof = String(order.payment_proof || "").trim();
       if (!proof) {
-        orderProofContainer.innerHTML = '<div class="detail-box"><span>Payment Proof</span><strong>No proof attached</strong></div>';
+        orderProofContainer.innerHTML =
+          '<div class="detail-box"><span>' + escapeHtml(tr("lblDetailProof")) + '</span><strong>' + escapeHtml(tr("noProofAttached")) + '</strong></div>';
       } else if (proof.startsWith("http://") || proof.startsWith("https://") || proof.startsWith("data:image/")) {
         const safeProof = escapeHtml(proof);
         orderProofContainer.innerHTML =
-          '<div class="detail-box"><span>Payment Proof</span><img src="' + safeProof + '" alt="Payment Proof" style="max-width:260px;border-radius:8px;" /></div>';
+          '<div class="detail-box"><span>' + escapeHtml(tr("lblDetailProof")) + '</span><img src="' + safeProof + '" alt="Payment Proof" style="max-width:260px;border-radius:8px;" /></div>';
       } else {
-        orderProofContainer.innerHTML = '<div class="detail-box"><span>Payment Proof</span><strong>' + escapeHtml(proof) + '</strong></div>';
+        orderProofContainer.innerHTML =
+          '<div class="detail-box"><span>' + escapeHtml(tr("lblDetailProof")) + '</span><strong>' + escapeHtml(proof) + '</strong></div>';
       }
 
       orderDetailPanel.style.display = "block";
@@ -1301,7 +1715,7 @@
         const cid = String((o && (o.client_id ?? o.clientId)) || "").trim().toUpperCase();
         if (cid && cid !== ACTIVE_CLIENT_ID) return;
 
-        const tr = document.createElement("tr");
+        const trEl = document.createElement("tr");
         const tdId = document.createElement("td");
         const btn = document.createElement("button");
         btn.type = "button";
@@ -1326,15 +1740,15 @@
         });
         tdStatus.appendChild(sel);
 
-        tr.appendChild(tdId);
-        tr.innerHTML +=
+        trEl.appendChild(tdId);
+        trEl.innerHTML +=
           "<td>" + escapeHtml(o.customer_name || "-") + "</td>" +
           "<td>" + escapeHtml(o.phone || "-") + "</td>" +
           "<td>" + escapeHtml(o.item || "-") + "</td>" +
           "<td>" + escapeHtml(o.quantity ?? 1) + "</td>" +
           "<td>" + escapeHtml(o.payment_method || "-") + "</td>";
-        tr.appendChild(tdStatus);
-        trackingOrdersBody.appendChild(tr);
+        trEl.appendChild(tdStatus);
+        trackingOrdersBody.appendChild(trEl);
       });
     }
 
@@ -1348,7 +1762,7 @@
 
     function renderDashboard() {
       document.getElementById("lastSyncedLabel").textContent =
-        "Last Synced: " + new Date().toLocaleTimeString();
+        tr("lastSyncedPrefix") + new Date().toLocaleTimeString();
 
       const clientData = (currentDataset.clients && currentDataset.clients[ACTIVE_CLIENT_ID]) || null;
       showLastLoginIpPopupIfNeeded(clientData);
@@ -1359,7 +1773,7 @@
 
       const storeTitleText = (clientData && clientData.store_name) || (ACTIVE_CLIENT_ID + " Store");
       document.getElementById("storeTitle").textContent = storeTitleText;
-      document.getElementById("clientBadge").textContent = "ID: " + ACTIVE_CLIENT_ID;
+      document.getElementById("clientBadge").textContent = tr("badgeIdPrefix") + ACTIVE_CLIENT_ID;
 
       applyPlanAccessLock(
         isPlanActive,
@@ -1387,9 +1801,9 @@
 
       if (!isPlanActive) {
         last3DaysBanner.style.display = "none";
-        planStatusBadge.textContent = expState.expired ? "Plan: Expired" : "Plan: Inactive";
+        planStatusBadge.textContent = expState.expired ? tr("badgePlanExpired") : tr("badgePlanInactive");
         noPlanBox.style.display = "block";
-        agentSelect.innerHTML = '<option value="__none__">No Active Plan</option>';
+        agentSelect.innerHTML = '<option value="__none__">' + escapeHtml(tr("agentNone")) + "</option>";
         renderStats({
           conversations_used: 0,
           conversations_limit: 0,
@@ -1404,16 +1818,16 @@
           vector_db_limit_mb: 0,
           table_rows_used: 0,
           table_rows_limit: 0
-        }, "No Active Plan");
+        }, tr("agentNone"));
         renderOrdersTable([]);
         return;
       }
 
-      planStatusBadge.textContent = "Plan: Active";
+      planStatusBadge.textContent = tr("badgePlanActive");
       noPlanBox.style.display = "none";
 
       if (expState.inLast3Days) {
-        const warnText = "අවසන් දින 3 (Final 3 Days): ඔබගේ Plan එක අවසන් වීමට තව දින " + expState.daysLeft + " ක් පමණි. කරුණාකර Plan එක Renew කරගන්න.";
+        const warnText = tr("last3Warning")(expState.daysLeft);
         last3DaysBanner.textContent = warnText;
         last3DaysBanner.style.display = "block";
         const warnKey = ACTIVE_CLIENT_ID + ":" + expState.daysLeft;
@@ -1425,7 +1839,7 @@
         last3DaysBanner.style.display = "none";
       }
 
-      agentSelect.innerHTML = '<option value="bot_1">Main Order Agent</option>';
+      agentSelect.innerHTML = '<option value="bot_1">' + escapeHtml(tr("agentMain")) + "</option>";
       renderStats({
         conversations_used: clientData.conversations_used || 0,
         conversations_limit: clientData.conversations_limit || 0,
@@ -1440,7 +1854,7 @@
         vector_db_limit_mb: clientData.vector_db_limit_mb || 0,
         table_rows_used: clientData.table_rows_used || 0,
         table_rows_limit: clientData.table_rows_limit || 0
-      }, "Main Order Agent");
+      }, tr("agentMain"));
 
       if (trackingPanel.style.display === "block") {
         renderOrdersTable(searchClientOrders(trackOrderIdInput.value));
@@ -1554,11 +1968,11 @@
       botNameError.textContent = "";
       const nextName = String(botNameInput.value || "").trim();
       if (!isPlanActive) {
-        botNameError.textContent = "Plan එක Active නොමැති බැවින් නම වෙනස් කළ නොහැක.";
+        botNameError.textContent = tr("errPlanBotName");
         return;
       }
       if (!nextName) {
-        botNameError.textContent = "කරුණාකර Chatbot / Store නමක් ඇතුළත් කරන්න.";
+        botNameError.textContent = tr("errEmptyBotName");
         return;
       }
 
@@ -1587,9 +2001,9 @@
         }
         document.getElementById("storeTitle").textContent = nextName;
         embedCodeBox.textContent = buildEmbedSnippet(ACTIVE_CLIENT_ID, nextName, activeClientKey);
-        botNameStatus.textContent = 'Chatbot name "' + nextName + '" ලෙස update වුණා!';
+        botNameStatus.textContent = tr("botNameUpdatedPrefix") + nextName + tr("botNameUpdatedSuffix");
       } catch (err) {
-        botNameError.textContent = err.message || "Error updating chatbot name";
+        botNameError.textContent = err.message || tr("errBotNameUpdate");
       } finally {
         saveBotNameBtn.disabled = !isPlanActive;
       }
@@ -1599,9 +2013,9 @@
       if (!isPlanActive || !embedCodeBox.textContent) return;
       try {
         await navigator.clipboard.writeText(embedCodeBox.textContent);
-        copyEmbedStatus.textContent = "Embed HTML copied!";
+        copyEmbedStatus.textContent = tr("copiedEmbed");
       } catch {
-        copyEmbedStatus.textContent = "Select and copy manually.";
+        copyEmbedStatus.textContent = tr("copyManual");
       }
     });
 
@@ -1609,9 +2023,9 @@
       if (!isPremiumPlan || !premiumScriptBox.textContent) return;
       try {
         await navigator.clipboard.writeText(premiumScriptBox.textContent);
-        copyScriptStatus.textContent = "Apps Script copied!";
+        copyScriptStatus.textContent = tr("copiedScript");
       } catch {
-        copyScriptStatus.textContent = "Select and copy manually.";
+        copyScriptStatus.textContent = tr("copyManual");
       }
     });
 
@@ -1621,7 +2035,7 @@
       kbError.textContent = "";
 
       if (!isPlanActive) {
-        kbError.textContent = "Plan එක Active නොමැති බැවින් Knowledge Base save කළ නොහැක.";
+        kbError.textContent = tr("errPlanKb");
         return;
       }
 
@@ -1654,10 +2068,10 @@
         if (!res.ok) {
           throw new Error(data.detail || "Failed to save knowledge base");
         }
-        kbStatus.textContent = "Knowledge Base & Widget Toggles සාර්ථකව save වුණා (" + ACTIVE_CLIENT_ID + ").";
+        kbStatus.textContent = tr("kbSavedPrefix") + ACTIVE_CLIENT_ID + tr("kbSavedSuffix");
         await loadFirestoreClientData();
       } catch (err) {
-        kbError.textContent = err.message || "Error saving knowledge base";
+        kbError.textContent = err.message || tr("errKbSave");
       } finally {
         saveKbBtn.disabled = !isPlanActive;
       }
@@ -1667,7 +2081,10 @@
       if (!isPlanActive) return;
       const nextOpen = trackingPanel.style.display !== "block";
       trackingPanel.style.display = nextOpen ? "block" : "none";
-      if (!nextOpen) orderDetailPanel.style.display = "none";
+      if (!nextOpen) {
+        orderDetailPanel.style.display = "none";
+        activeOrderDetailRef = null;
+      }
       renderOrdersTable(nextOpen ? searchClientOrders(trackOrderIdInput.value) : []);
     });
 
@@ -1675,6 +2092,7 @@
       if (!isPlanActive) {
         renderOrdersTable([]);
         orderDetailPanel.style.display = "none";
+        activeOrderDetailRef = null;
         return;
       }
       const matches = searchClientOrders(trackOrderIdInput.value);
@@ -1683,6 +2101,7 @@
         showOrderDetail(matches[0]);
       } else if (matches.length === 0) {
         orderDetailPanel.style.display = "none";
+        activeOrderDetailRef = null;
       }
     }
 
@@ -1697,12 +2116,15 @@
     document.getElementById("trackResetBtn").addEventListener("click", () => {
       trackOrderIdInput.value = "";
       orderDetailPanel.style.display = "none";
-      trackingHeading.textContent = "Order Tracking (" + ACTIVE_CLIENT_ID + " — Recent Orders Max 5)";
+      activeOrderDetailRef = null;
+      trackingHeading.textContent =
+        tr("trackingRecentHeadingPrefix") + ACTIVE_CLIENT_ID + tr("trackingRecentHeadingSuffix");
       renderOrdersTable(isPlanActive ? clientTodayOrders.slice(0, 5) : []);
     });
 
     document.getElementById("closeDetailBtn").addEventListener("click", () => {
       orderDetailPanel.style.display = "none";
+      activeOrderDetailRef = null;
     });
 
     document.getElementById("refreshBtn").addEventListener("click", loadFirestoreClientData);
@@ -1718,7 +2140,7 @@
       const txt = document.getElementById("msgText").value.trim();
       if (!sub || !txt) return;
       document.getElementById("msgStatus").textContent =
-        'Message prepared for ' + ACTIVE_CLIENT_ID + ': "' + sub + '"';
+        tr("msgPreparedPrefix") + ACTIVE_CLIENT_ID + ': "' + sub + '"';
       e.target.reset();
     });
 

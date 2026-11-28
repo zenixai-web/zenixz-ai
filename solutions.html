@@ -8,8 +8,8 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Custom Fixes for Background Animation, Dropdown Menu, Logo, and Detailed ROI Bar Chart -->
+
+    <!-- Custom Fixes for Background Animation, Dropdown Menu, Logo, Login Icon & Detailed ROI Bar Chart -->
     <style>
         html, body {
             overflow-x: hidden;
@@ -74,9 +74,9 @@
         .bar-fill {
             width: 100%;
             max-width: 70px;
-            background: linear-gradient(180deg, #ef4444, #f97316); /* Red/Orange for High Costs & Losses */
+            background: linear-gradient(180deg, #ef4444, #f97316);
             border-radius: 10px 10px 0 0;
-            height: 0%; 
+            height: 0%;
             will-change: height;
             transition: height 0.15s ease-out;
             position: relative;
@@ -84,12 +84,12 @@
         }
 
         .bar-fill.ai-optimized {
-            background: linear-gradient(180deg, var(--accent-cyan, #06b6d4), var(--accent-blue, #3b82f6)); /* Blue/Cyan for Savings */
+            background: linear-gradient(180deg, var(--accent-cyan, #06b6d4), var(--accent-blue, #3b82f6));
             box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
         }
 
         .bar-fill.highlight-profit {
-            background: linear-gradient(180deg, var(--accent-purple, #8b5cf6), var(--accent-cyan, #06b6d4)); /* Purple for High Net Profit */
+            background: linear-gradient(180deg, var(--accent-purple, #8b5cf6), var(--accent-cyan, #06b6d4));
             box-shadow: 0 0 25px rgba(139, 92, 246, 0.6);
         }
 
@@ -166,11 +166,22 @@
             display: inline-block;
         }
 
+        .nav-item.dropdown::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            height: 16px;
+        }
+
         .dropdown-link {
             display: flex;
             align-items: center;
             gap: 5px;
             cursor: pointer;
+            color: #e2e8f0;
+            text-decoration: none;
         }
 
         .dropdown-icon {
@@ -178,31 +189,31 @@
             transition: transform 0.3s ease;
         }
 
-        .nav-item.dropdown:hover .dropdown-icon {
+        .nav-item.dropdown.open .dropdown-icon,
+        .nav-item.dropdown.active .dropdown-icon {
             transform: rotate(180deg);
         }
 
         .dropdown-menu {
+            display: none;
             position: absolute;
-            top: 100%;
+            top: calc(100% + 8px);
             left: 50%;
-            transform: translateX(-50%) translateY(15px);
+            transform: translateX(-50%) translateY(5px);
             min-width: 270px;
             background: rgba(10, 12, 18, 0.98);
             border: 1px solid rgba(6, 182, 212, 0.3);
             border-radius: 12px;
             padding: 10px;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7), 0 0 15px rgba(6, 182, 212, 0.15);
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-            z-index: 1000;
+            z-index: 1050;
+            flex-direction: column;
+            gap: 2px;
         }
 
-        .nav-item.dropdown:hover .dropdown-menu {
-            opacity: 1;
-            visibility: visible;
-            transform: translateX(-50%) translateY(5px);
+        .nav-item.dropdown.open .dropdown-menu,
+        .nav-item.dropdown.active .dropdown-menu {
+            display: flex;
         }
 
         .dropdown-menu a {
@@ -230,6 +241,40 @@
             background: rgba(6, 182, 212, 0.12);
             color: #ffffff;
             transform: translateX(4px);
+        }
+
+        /* Desktop Login Icon Only */
+        .nav-menu a.nav-login-btn {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 44px !important;
+            height: 44px !important;
+            padding: 0 !important;
+            border-radius: 50% !important;
+            overflow: hidden !important;
+            flex-shrink: 0 !important;
+            text-decoration: none !important;
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            transition: transform 0.2s ease;
+        }
+
+        .nav-menu a.nav-login-btn img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            display: block !important;
+            border-radius: 50% !important;
+        }
+
+        .nav-menu a.nav-login-btn:hover {
+            transform: scale(1.06);
+        }
+
+        .nav-menu a.nav-login-btn .mobile-login-label {
+            display: none !important;
         }
 
         /* ==========================================
@@ -271,7 +316,8 @@
                 right: 0;
             }
 
-            .nav-menu > a, .dropdown-link {
+            .nav-menu > a:not(.nav-login-btn),
+            .dropdown-link {
                 font-size: 0.95rem;
                 width: 100%;
                 padding: 4px 0;
@@ -287,8 +333,6 @@
                 left: auto !important;
                 right: auto !important;
                 top: auto !important;
-                opacity: 1 !important;
-                visibility: visible !important;
                 transform: none !important;
                 box-shadow: none !important;
                 border: 1px solid rgba(6, 182, 212, 0.18) !important;
@@ -299,11 +343,13 @@
                 max-width: 100% !important;
                 box-sizing: border-box !important;
                 display: none;
+                flex-direction: column;
                 border-radius: 10px !important;
             }
 
-            .nav-item.dropdown.active .dropdown-menu {
-                display: block !important;
+            .nav-item.dropdown.active .dropdown-menu,
+            .nav-item.dropdown.open .dropdown-menu {
+                display: flex !important;
             }
 
             .dropdown-menu a {
@@ -330,6 +376,39 @@
             .dropdown-menu a:hover {
                 background: rgba(6, 182, 212, 0.12) !important;
                 color: #ffffff !important;
+            }
+
+            /* Mobile Menu: Icon on Left + "Login" Right Next to It */
+            .nav-menu a.nav-login-btn {
+                display: flex !important;
+                flex-direction: row !important;
+                align-items: center !important;
+                justify-content: flex-start !important;
+                gap: 12px !important;
+                width: 100% !important;
+                height: auto !important;
+                padding: 10px 12px !important;
+                margin-top: 6px !important;
+                border-radius: 8px !important;
+                background: rgba(6, 182, 212, 0.1) !important;
+                border: 1px solid rgba(6, 182, 212, 0.25) !important;
+                transform: none !important;
+            }
+
+            .nav-menu a.nav-login-btn img {
+                width: 30px !important;
+                height: 30px !important;
+                border-radius: 50% !important;
+                object-fit: cover !important;
+                flex-shrink: 0 !important;
+            }
+
+            .nav-menu a.nav-login-btn .mobile-login-label {
+                display: inline-block !important;
+                font-size: 0.95rem !important;
+                font-weight: 600 !important;
+                color: #e2e8f0 !important;
+                white-space: nowrap !important;
             }
 
             .growth-chart-container {
@@ -366,16 +445,16 @@
             </a>
 
             <!-- Mobile Toggle Button (☰ -> ✖) -->
-            <button class="mobile-menu-toggle" id="mobileMenuBtn" aria-label="Toggle Menu">
+            <button class="mobile-menu-toggle" id="mobileMenuBtn" aria-label="Toggle Menu" aria-expanded="false">
                 <i class="fa-solid fa-bars" id="menuIcon"></i>
             </button>
 
             <nav class="nav-menu" id="navMenu">
                 <a href="index.html">Home</a>
-                
+
                 <!-- Services with Dropdown -->
                 <div class="nav-item dropdown" id="servicesDropdown">
-                    <a href="javascript:void(0)" id="dropdownToggle" class="dropdown-link" style="color: var(--accent-cyan);">
+                    <a href="services.html" id="dropdownToggle" class="dropdown-link">
                         Services <i class="fa-solid fa-chevron-down dropdown-icon" id="arrowIcon"></i>
                     </a>
                     <div class="dropdown-menu">
@@ -388,13 +467,16 @@
                     </div>
                 </div>
 
-                <a href="solutions.html">Solutions</a>
+                <a href="solutions.html" style="color: var(--accent-cyan);">Solutions</a>
                 <a href="pricing.html">Pricing</a>
                 <a href="contact.html">Contact</a>
+
+                <a href="https://zenixai.online/chatbot/login.html" class="nav-login-btn" aria-label="Login">
+                    <img src="Login.png" alt="Login">
+                    <span class="mobile-login-label">Login</span>
+                </a>
             </nav>
         </div>
-        <script src="https://cdn.botpress.cloud/webchat/v5.0/inject.js"></script>
-        <script src="https://files.bpcontent.cloud/2026/11/08/15/20261108153622-13FZQ1WJ.js" defer></script>
     </header>
 
     <!-- Hero Section -->
@@ -409,7 +491,7 @@
     <section class="services-section" style="border-top: none;">
         <div class="container">
             <div class="grid-3">
-                
+
                 <!-- Solution 1: Simultaneous Multi-User Scale -->
                 <div class="feature-card reveal-on-scroll">
                     <div class="card-glow-bg"></div>
@@ -543,7 +625,7 @@
         </div>
     </footer>
 
-    <!-- JavaScript for Mobile Menu, Accordion & Scroll-Synced Bar Growth Animation -->
+    <!-- JavaScript for Mobile Menu, Smooth Hover/Click Dropdown & Scroll-Synced Bar Growth Animation -->
     <script>
         const mobileMenuBtn = document.getElementById('mobileMenuBtn');
         const menuIcon = document.getElementById('menuIcon');
@@ -552,52 +634,98 @@
         const servicesDropdown = document.getElementById('servicesDropdown');
         const arrowIcon = document.getElementById('arrowIcon');
 
+        let dropdownCloseTimer = null;
+
+        function setServicesDropdown(isOpen) {
+            if (!servicesDropdown) return;
+            clearTimeout(dropdownCloseTimer);
+            servicesDropdown.classList.toggle('open', isOpen);
+            servicesDropdown.classList.toggle('active', isOpen);
+            if (arrowIcon) {
+                arrowIcon.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+            }
+        }
+
+        function scheduleDropdownClose(delayMs = 1500) {
+            clearTimeout(dropdownCloseTimer);
+            dropdownCloseTimer = setTimeout(() => {
+                setServicesDropdown(false);
+            }, delayMs);
+        }
+
         // Toggle Mobile Menu & Change Icon (☰ <-> ✖)
         if (mobileMenuBtn) {
-            mobileMenuBtn.addEventListener('click', () => {
-                navMenu.classList.toggle('active');
-                if (navMenu.classList.contains('active')) {
+            mobileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = navMenu.classList.toggle('active');
+                mobileMenuBtn.setAttribute('aria-expanded', String(isOpen));
+                if (isOpen) {
                     menuIcon.classList.remove('fa-bars');
                     menuIcon.classList.add('fa-xmark');
                 } else {
                     menuIcon.classList.remove('fa-xmark');
                     menuIcon.classList.add('fa-bars');
+                    setServicesDropdown(false);
                 }
             });
         }
 
-        // Toggle Services Dropdown on Mobile
-        if (dropdownToggle) {
+        // Toggle Services Dropdown on Mobile; hover on Desktop
+        if (dropdownToggle && servicesDropdown) {
             dropdownToggle.addEventListener('click', (e) => {
                 if (window.innerWidth <= 768) {
                     e.preventDefault();
-                    servicesDropdown.classList.toggle('active');
-                    if (servicesDropdown.classList.contains('active')) {
-                        arrowIcon.style.transform = 'rotate(180deg)';
-                    } else {
-                        arrowIcon.style.transform = 'rotate(0deg)';
-                    }
+                    e.stopPropagation();
+                    const willOpen = !servicesDropdown.classList.contains('open') && !servicesDropdown.classList.contains('active');
+                    setServicesDropdown(willOpen);
+                }
+            });
+
+            servicesDropdown.addEventListener('mouseenter', () => {
+                if (window.innerWidth > 768) {
+                    setServicesDropdown(true);
+                }
+            });
+
+            servicesDropdown.addEventListener('mouseleave', () => {
+                if (window.innerWidth > 768) {
+                    scheduleDropdownClose(1500);
                 }
             });
         }
+
+        document.addEventListener('click', (e) => {
+            if (servicesDropdown && !servicesDropdown.contains(e.target)) {
+                setServicesDropdown(false);
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768 && navMenu.classList.contains('active')) {
+                navMenu.classList.remove('active');
+                mobileMenuBtn.setAttribute('aria-expanded', 'false');
+                menuIcon.classList.remove('fa-xmark');
+                menuIcon.classList.add('fa-bars');
+            }
+        });
 
         // Scroll-Synced Bar Chart Animation
         window.addEventListener('scroll', () => {
             const chartBox = document.getElementById('growthChartBox');
-            
+
             if (chartBox) {
                 const rect = chartBox.getBoundingClientRect();
                 const windowHeight = window.innerHeight;
-                
+
                 let scrollFraction = (windowHeight - rect.top) / (windowHeight + rect.height * 0.5);
                 scrollFraction = Math.max(0, Math.min(1, scrollFraction));
-                
+
                 const bars = chartBox.querySelectorAll('.bar-fill');
                 bars.forEach(bar => {
                     const targetHeightPercent = parseFloat(bar.getAttribute('data-height'));
                     const currentHeight = targetHeightPercent * scrollFraction;
                     bar.style.height = currentHeight + '%';
-                    
+
                     if (scrollFraction > 0.4) {
                         bar.classList.add('active-value');
                     } else {
@@ -608,5 +736,13 @@
         });
     </script>
     <script src="script.js"></script>
+    <script
+        src="https://zenixz-ai-1.onrender.com/chatbot/app.js"
+        data-api-base="https://zenixz-ai-1.onrender.com"
+        data-client-id="CLT-9682"
+        data-client-key="zk_23a9cb9c2c35c6eb8aa040a6"
+        data-client-name="Zenix AI"
+        defer
+    ></script>
 </body>
 </html>

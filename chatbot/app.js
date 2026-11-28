@@ -138,6 +138,7 @@
     "default-site";
 
   const STORAGE_SCOPE = `${SITE_ID}::${CLIENT_ID_FROM_SCRIPT || "default"}`;
+  const LANG_STORAGE_KEY = `zenix_widget_lang_${STORAGE_SCOPE}`;
 
   let ACTIVE_CLIENT_KEY = CLIENT_KEY_FROM_SCRIPT;
   let ACTIVE_CLIENT_ID = CLIENT_ID_FROM_SCRIPT;
@@ -163,6 +164,7 @@
 
   const I18N = {
     si: {
+      langLabel: "Sinhala",
       welcome:
         "ආයුබෝවන්! මම ඔබේ AI සහායකයා. ඔබට මොනවාද අවශ්‍ය කරන්නේ? නිෂ්පාදන විස්තර හෝ ඇනවුම් සඳහා අහන්න.",
       placeholder: "ඔබේ පණිවිඩය මෙතන ලියන්න...",
@@ -173,10 +175,37 @@
       cardOrderSub: "Order එකක් දාන්න",
       cardOtherItem: "📦 වෙනත් භාණ්ඩයක් ගැන",
       cardOtherItemSub: "තවත් විස්තර බලන්න",
+      bankCardTitle: "🏦 Bank Transfer",
+      bankCardSub: "Slip Upload (Pending)",
+      codCardTitle: "🚚 Cash on Delivery",
+      codCardSub: "Pay on Arrival (Confirmed)",
       offTopicPopup:
-        "මට උදව් කරන්න පුළුවන් මෙම ව්‍යාපාරයේ නිෂ්පාදන සහ ගනුදෙනු/ඇනවුම් සම්බන්ධයෙන් පමණයි. කරුණාකර ඒ සම්බන්ධ දෙයක් පමණක් මගෙන් අහන්න."
+        "මට උදව් කරන්න පුළුවන් මෙම ව්‍යාපාරයේ නිෂ්පාදන සහ ගනුදෙනු/ඇනවුම් සම්බන්ධයෙන් පමණයි. කරුණාකර ඒ සම්බන්ධ දෙයක් පමණක් මගෙන් අහන්න.",
+      serverError: "Server එකට සම්බන්ධ වීමට නොහැකි විය.",
+      invalidFile: "කරුණාකර PNG, JPG, හෝ PDF file එකක් පමණක් attach කරන්න.",
+      orderCancelled: "Order එක cancel කරන ලදී.",
+      askItemName: "හරි! ඔබට අවශ්‍ය Product / Item එකේ නම ලියන්න.",
+      askQty: (item) => `"${item}" සඳහා Quantity එක කීයද?`,
+      outOfStock: (item, avail) =>
+        `❌ සමාවන්න, "${item}" සඳහා ප්‍රමාණවත් stock නැත (Available: ${avail}). වෙනත් item එකක් හෝ quantity එකක් ලියන්න.`,
+      choosePayment:
+        "✅ මේක ගන්න පුළුවන්! ඔබ ඕඩර් කරන්න කැමති මොකෙන්ද? පහළ cards වලින් **Bank Transfer** හෝ **Cash on Delivery** තෝරන්න.",
+      codSelected:
+        "🚚 **Cash on Delivery** තෝරාගත්තා. කරුණාකර ඔබේ **සම්පූර්ණ නම** ඇතුළත් කරන්න.",
+      bankInstructions: (storeName) =>
+        `🏦 **Bank Transfer Details**\n• **Bank:** Commercial Bank of Ceylon\n• **Account Name:** ${storeName}\n• **Account No:** 8012-3456-7890\n• **Branch:** Colombo\n\nකරුණාකර ඔබේ **සම්පූර්ණ නම** ලියන්න (පසුව Phone, Address සහ Slip PNG/JPG/PDF attach කරන්න).`,
+      askPhone: "ඔබේ දුරකථන අංකය (Phone Number) ඇතුළත් කරන්න.",
+      askAddress: "Delivery Address එක ඇතුළත් කරන්න.",
+      askSlip:
+        "📎 කරුණාකර ඔබේ Payment Slip එක (`PNG`, `JPG`, හෝ `PDF`) attach කරන්න (නැත්නම් slip reference / 'done' ලියන්න).",
+      orderPlaced: (o) =>
+        `✅ **Order Placed!**\n• **Order ID:** ${o.order_id}\n• **Item:** ${o.item}\n• **Qty:** ${o.quantity}\n• **Payment Method:** ${o.payment_method}\n• **Status:** ${o.status}`,
+      stockHeader: "📦 **Stock Details**",
+      inStock: (qty) => `In Stock (${qty})`,
+      outOfStockLabel: "Out of Stock"
     },
     en: {
+      langLabel: "English",
       welcome:
         "Hello! I am your AI store assistant. What would you like help with? Ask about our products or place an order.",
       placeholder: "Type your message here...",
@@ -187,10 +216,37 @@
       cardOrderSub: "Order this item",
       cardOtherItem: "📦 Another Product",
       cardOtherItemSub: "Explore more items",
+      bankCardTitle: "🏦 Bank Transfer",
+      bankCardSub: "Slip Upload (Pending)",
+      codCardTitle: "🚚 Cash on Delivery",
+      codCardSub: "Pay on Arrival (Confirmed)",
       offTopicPopup:
-        "I can only help with this store's products and order transactions. Please ask only about products or orders."
+        "I can only help with this store's products and order transactions. Please ask only about products or orders.",
+      serverError: "Unable to connect to the server.",
+      invalidFile: "Please attach only a PNG, JPG, or PDF file.",
+      orderCancelled: "Your order has been cancelled.",
+      askItemName: "Sure! Please type the name of the Product / Item you want.",
+      askQty: (item) => `What quantity would you like for "${item}"?`,
+      outOfStock: (item, avail) =>
+        `❌ Sorry, there is not enough stock for "${item}" (Available: ${avail}). Please enter another item or quantity.`,
+      choosePayment:
+        "✅ Available! How would you like to pay? Choose **Bank Transfer** or **Cash on Delivery** from the options below.",
+      codSelected:
+        "🚚 **Cash on Delivery** selected. Please enter your **Full Name**.",
+      bankInstructions: (storeName) =>
+        `🏦 **Bank Transfer Details**\n• **Bank:** Commercial Bank of Ceylon\n• **Account Name:** ${storeName}\n• **Account No:** 8012-3456-7890\n• **Branch:** Colombo\n\nPlease enter your **Full Name** (then Phone, Address, and attach your PNG/JPG/PDF slip).`,
+      askPhone: "Please enter your **Phone Number**.",
+      askAddress: "Please enter your **Delivery Address**.",
+      askSlip:
+        "📎 Please attach your Payment Slip (`PNG`, `JPG`, or `PDF`) or type a slip reference / 'done'.",
+      orderPlaced: (o) =>
+        `✅ **Order Placed!**\n• **Order ID:** ${o.order_id}\n• **Item:** ${o.item}\n• **Qty:** ${o.quantity}\n• **Payment Method:** ${o.payment_method}\n• **Status:** ${o.status}`,
+      stockHeader: "📦 **Stock Details**",
+      inStock: (qty) => `In Stock (${qty})`,
+      outOfStockLabel: "Out of Stock"
     },
     ta: {
+      langLabel: "Tamil",
       welcome:
         "வணக்கம்! நான் உங்கள் AI உதவியாளர். உங்களுக்கு என்ன தேவை? பொருட்கள் அல்லது ஆர்டர்கள் பற்றி கேளுங்கள்.",
       placeholder: "உங்கள் செய்தியை இங்கே தட்டச்சு செய்க...",
@@ -201,17 +257,60 @@
       cardOrderSub: "ஆர்டர் பதிவு செய்க",
       cardOtherItem: "📦 வேறு பொருள் பற்றி",
       cardOtherItemSub: "மேலும் விவரம் பார்க்க",
+      bankCardTitle: "🏦 Bank Transfer",
+      bankCardSub: "Slip Upload (Pending)",
+      codCardTitle: "🚚 Cash on Delivery",
+      codCardSub: "Pay on Arrival (Confirmed)",
       offTopicPopup:
-        "இந்த வணிகத்தின் பொருட்கள் மற்றும் ஆர்டர்கள் தொடர்பாக மட்டுமே என்னால் உதவ முடியும். அது தொடர்பான கேள்விகளை மட்டும் கேளுங்கள்."
+        "இந்த வணிகத்தின் பொருட்கள் மற்றும் ஆர்டர்கள் தொடர்பாக மட்டுமே என்னால் உதவ முடியும். அது தொடர்பான கேள்விகளை மட்டும் கேளுங்கள்.",
+      serverError: "சேவையகத்துடன் இணைக்க முடியவில்லை.",
+      invalidFile: "PNG, JPG அல்லது PDF கோப்பை மட்டும் இணைக்கவும்.",
+      orderCancelled: "ஆர்டர் ரத்து செய்யப்பட்டது.",
+      askItemName: "சரி! உங்களுக்கு தேவையான பொருளின் (Product / Item) பெயரை உள்ளிடவும்.",
+      askQty: (item) => `"${item}" பொருளுக்கு எத்தனை எண்ணிக்கை (Quantity) வேண்டும்?`,
+      outOfStock: (item, avail) =>
+        `❌ மன்னிக்கவும், "${item}" பொருளுக்கு போதுமான கையிருப்பு இல்லை (உள்ளது: ${avail}). வேறு பொருள் அல்லது எண்ணிக்கையை உள்ளிடவும்.`,
+      choosePayment:
+        "✅ கிடைக்கிறது! எப்படி பணம் செலுத்த விரும்புகிறீர்கள்? கீழே உள்ள விருப்பங்களில் **Bank Transfer** அல்லது **Cash on Delivery** என்பதைத் தேர்ந்தெடுக்கவும்.",
+      codSelected:
+        "🚚 **Cash on Delivery** தேர்ந்தெடுக்கப்பட்டது. உங்கள் **முழுப் பெயரை** உள்ளிடவும்.",
+      bankInstructions: (storeName) =>
+        `🏦 **Bank Transfer Details**\n• **Bank:** Commercial Bank of Ceylon\n• **Account Name:** ${storeName}\n• **Account No:** 8012-3456-7890\n• **Branch:** Colombo\n\nஉங்கள் **முழுப் பெயரை** உள்ளிடவும் (பின்னர் Phone, Address மற்றும் PNG/JPG/PDF ரசீதை இணைக்கவும்).`,
+      askPhone: "உங்கள் **தொலைபேசி எண்ணை (Phone Number)** உள்ளிடவும்.",
+      askAddress: "உங்கள் **டெலிவரி முகவரியை (Delivery Address)** உள்ளிடவும்.",
+      askSlip:
+        "📎 உங்கள் Payment Slip (`PNG`, `JPG`, அல்லது `PDF`) இணைக்கவும் அல்லது குறிப்பு / 'done' என உள்ளிடவும்.",
+      orderPlaced: (o) =>
+        `✅ **Order Placed!**\n• **Order ID:** ${o.order_id}\n• **Item:** ${o.item}\n• **Qty:** ${o.quantity}\n• **Payment Method:** ${o.payment_method}\n• **Status:** ${o.status}`,
+      stockHeader: "📦 **Stock Details**",
+      inStock: (qty) => `In Stock (${qty})`,
+      outOfStockLabel: "Out of Stock"
     }
   };
+
+  function readSavedLang() {
+    try {
+      const saved = String(localStorage.getItem(LANG_STORAGE_KEY) || "").trim().toLowerCase();
+      return I18N[saved] ? saved : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function writeSavedLang(langCode) {
+    try {
+      if (I18N[langCode]) {
+        localStorage.setItem(LANG_STORAGE_KEY, langCode);
+      }
+    } catch (_) {}
+  }
 
   const DEFAULT_CONFIG = {
     botName: ACTIVE_CLIENT_NAME ? `${ACTIVE_CLIENT_NAME} AI Assistant` : "Zenix AI Assistant",
     primaryColor: "#2563eb",
     secondaryColor: "#1e40af",
     theme: "dark",
-    language: "si",
+    language: readSavedLang() || "si",
     orderFlowEnabled: true,
     maxOrderQty: 50,
     toggles: {
@@ -232,6 +331,8 @@
   let domRefs = {};
   let attachedSlipData = null;
   let lastMentionedItem = "";
+  let welcomeMsgId = null;
+  let activeChoiceMode = null;
 
   let orderDraft = {
     active: false,
@@ -381,8 +482,11 @@
       STOCK_CSV_URL = String(data.stock_csv_url || "").trim();
       STOCK_WEBAPP_URL = String(data.stock_webapp_url || "").trim();
 
+      const savedLocalLang = readSavedLang();
       const preferredLang = String(data.default_language || data.language || "").trim().toLowerCase();
-      if (I18N[preferredLang]) {
+      if (savedLocalLang && I18N[savedLocalLang]) {
+        config.language = savedLocalLang;
+      } else if (I18N[preferredLang]) {
         config.language = preferredLang;
       }
 
@@ -500,13 +604,14 @@
       lastMentionedItem = matched[0].name;
     }
 
+    const pack = getLangPack();
     const lines = listToShow.map((it) => {
-      const stText = it.qty > 0 ? `In Stock (${it.qty})` : "Out of Stock";
+      const stText = it.qty > 0 ? pack.inStock(it.qty) : pack.outOfStockLabel;
       const prText = it.price ? ` — ${it.price}` : "";
       return `• **${it.name}**: ${stText}${prText}`;
     });
 
-    return `📦 **Stock Details**\n${lines.join("\n")}`;
+    return `${pack.stockHeader}\n${lines.join("\n")}`;
   }
 
   function isOffTopicMessage(text) {
@@ -799,9 +904,9 @@
     (document.head || document.documentElement).appendChild(style);
   }
 
-  function appendMessage(role, text) {
+  function appendMessage(role, text, customId) {
     if (!domRefs.messagesEl) return null;
-    const id = `msg_${++messageCounter}`;
+    const id = customId || `msg_${++messageCounter}`;
     const el = document.createElement("div");
     el.id = id;
     el.className = `zenix-msg ${role === "user" ? "user" : "bot"}`;
@@ -812,12 +917,19 @@
     return id;
   }
 
+  function updateMessageText(id, text) {
+    const el = id && document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = formatRichText(text);
+  }
+
   function removeMessageById(id) {
     const el = id && document.getElementById(id);
     if (el && el.parentNode) el.parentNode.removeChild(el);
   }
 
   function hideChoiceCardsPopup() {
+    activeChoiceMode = null;
     if (domRefs.choicePopupEl) {
       domRefs.choicePopupEl.style.display = "none";
       domRefs.choicePopupEl.innerHTML = "";
@@ -826,6 +938,7 @@
 
   function showTwoOptionCardsPopup(mode) {
     if (!config.toggles.showChoiceCards || !domRefs.choicePopupEl) return;
+    activeChoiceMode = mode;
     const pack = getLangPack();
     domRefs.choicePopupEl.innerHTML = "";
     domRefs.choicePopupEl.style.display = "flex";
@@ -834,7 +947,7 @@
       const bankBtn = document.createElement("button");
       bankBtn.type = "button";
       bankBtn.className = "zenix-choice-card";
-      bankBtn.innerHTML = `🏦 Bank Transfer<span class="zenix-choice-sub">Slip Upload (Pending)</span>`;
+      bankBtn.innerHTML = `${escapeHtml(pack.bankCardTitle)}<span class="zenix-choice-sub">${escapeHtml(pack.bankCardSub)}</span>`;
       bankBtn.addEventListener("click", () => {
         hideChoiceCardsPopup();
         selectPaymentMethod("Bank Transfer");
@@ -843,7 +956,7 @@
       const codBtn = document.createElement("button");
       codBtn.type = "button";
       codBtn.className = "zenix-choice-card";
-      codBtn.innerHTML = `🚚 Cash on Delivery<span class="zenix-choice-sub">Pay on Arrival (Confirmed)</span>`;
+      codBtn.innerHTML = `${escapeHtml(pack.codCardTitle)}<span class="zenix-choice-sub">${escapeHtml(pack.codCardSub)}</span>`;
       codBtn.addEventListener("click", () => {
         hideChoiceCardsPopup();
         selectPaymentMethod("Cash on Delivery");
@@ -889,6 +1002,7 @@
   function setLanguage(langCode) {
     const nextLang = I18N[langCode] ? langCode : "si";
     config.language = nextLang;
+    writeSavedLang(nextLang);
     const pack = getLangPack();
 
     if (domRefs.textInput) domRefs.textInput.placeholder = pack.placeholder;
@@ -899,33 +1013,32 @@
         if (btn) btn.classList.toggle("active", code === nextLang);
       });
     }
+
+    // Update initial welcome message if no conversation messages have been sent yet
+    if (welcomeMsgId && conversationHistory.length === 0) {
+      updateMessageText(welcomeMsgId, pack.welcome);
+    }
+
+    // Re-render visible choice cards in the newly selected language
+    if (activeChoiceMode && domRefs.choicePopupEl && domRefs.choicePopupEl.style.display === "flex") {
+      showTwoOptionCardsPopup(activeChoiceMode);
+    }
   }
 
   function renderBankDetailsCard() {
-    const details = [
-      ["Bank", "Commercial Bank of Ceylon"],
-      ["Account Name", ACTIVE_CLIENT_NAME || "Zenix AI Store"],
-      ["Account No", "8012-3456-7890"],
-      ["Branch", "Colombo"]
-    ];
-    const lines = details.map(([k, v]) => `• **${k}:** ${v}`).join("\n");
-    appendMessage(
-      "bot",
-      `🏦 **Bank Transfer Details**\n${lines}\n\nකරුණාකර ඔබේ **සම්පූර්ණ නම** ලියන්න (පසුව Phone, Address සහ Slip PNG/JPG/PDF attach කරන්න).`
-    );
+    const pack = getLangPack();
+    appendMessage("bot", pack.bankInstructions(ACTIVE_CLIENT_NAME || "Zenix AI Store"));
   }
 
   function selectPaymentMethod(method) {
+    const pack = getLangPack();
     hideChoiceCardsPopup();
     orderDraft.paymentMethod = method;
     orderDraft.step = "name";
     if (method === "Bank Transfer") {
       renderBankDetailsCard();
     } else {
-      appendMessage(
-        "bot",
-        "🚚 **Cash on Delivery** තෝරාගත්තා. කරුණාකර ඔබේ **සම්පූර්ණ නම** ඇතුළත් කරන්න."
-      );
+      appendMessage("bot", pack.codSelected);
     }
   }
 
@@ -957,19 +1070,21 @@
   }
 
   function startOrderFlow(prefillItem) {
+    const pack = getLangPack();
     resetOrderDraft();
     orderDraft.active = true;
     if (prefillItem) {
       orderDraft.item = prefillItem;
       orderDraft.step = "quantity";
-      appendMessage("bot", `"${orderDraft.item}" සඳහා Quantity එක කීයද?`);
+      appendMessage("bot", pack.askQty(orderDraft.item));
     } else {
       orderDraft.step = "item";
-      appendMessage("bot", "හරි! ඔබට අවශ්‍ය Product / Item එකේ නම ලියන්න.");
+      appendMessage("bot", pack.askItemName);
     }
   }
 
   async function finalizeOrder() {
+    const pack = getLangPack();
     const orderId = generateOrderId();
     const isCod = /cod|cash/i.test(orderDraft.paymentMethod);
     const statusLabel = isCod ? "Confirmed" : "Pending";
@@ -997,26 +1112,24 @@
     await deductStockPremiumWebApp(orderObj);
     await sendChatToServer(`Order captured: ${orderObj.order_id}`, orderObj, true);
 
-    appendMessage(
-      "bot",
-      `✅ **Order Placed!**\n• **Order ID:** ${orderObj.order_id}\n• **Item:** ${orderObj.item}\n• **Qty:** ${orderObj.quantity}\n• **Payment Method:** ${orderObj.payment_method}\n• **Status:** ${orderObj.status}`
-    );
+    appendMessage("bot", pack.orderPlaced(orderObj));
     resetOrderDraft();
   }
 
   async function handleOrderStep(text) {
+    const pack = getLangPack();
     const t = String(text || "").trim();
     const low = t.toLowerCase();
     if (low === "cancel" || t.includes("අවලංගු")) {
       resetOrderDraft();
-      appendMessage("bot", "Order එක cancel කරන ලදී.");
+      appendMessage("bot", pack.orderCancelled);
       return true;
     }
 
     if (orderDraft.step === "item") {
       orderDraft.item = t || "Item";
       orderDraft.step = "quantity";
-      appendMessage("bot", `"${orderDraft.item}" සඳහා Quantity එක කීයද?`);
+      appendMessage("bot", pack.askQty(orderDraft.item));
       return true;
     }
 
@@ -1027,19 +1140,13 @@
 
       const stockCheck = await checkStockFromCsv(orderDraft.item, qty);
       if (stockCheck.checked && !stockCheck.available) {
-        appendMessage(
-          "bot",
-          `❌ සමාවන්න, "${orderDraft.item}" සඳහා ප්‍රමාණවත් stock නැත (Available: ${stockCheck.stockQty}). වෙනත් item එකක් හෝ quantity එකක් ලියන්න.`
-        );
+        appendMessage("bot", pack.outOfStock(orderDraft.item, stockCheck.stockQty));
         orderDraft.step = "item";
         return true;
       }
 
       orderDraft.step = "payment";
-      appendMessage(
-        "bot",
-        `✅ මේක ගන්න පුළුවන්! ඔබ ඕඩර් කරන්න කැමති මොකෙන්ද? පහළ cards වලින් **Bank Transfer** හෝ **Cash on Delivery** තෝරන්න.`
-      );
+      appendMessage("bot", pack.choosePayment);
       showTwoOptionCardsPopup("payment");
       return true;
     }
@@ -1052,14 +1159,14 @@
     if (orderDraft.step === "name") {
       orderDraft.customerName = t;
       orderDraft.step = "phone";
-      appendMessage("bot", "ඔබේ දුරකථන අංකය (Phone Number) ඇතුළත් කරන්න.");
+      appendMessage("bot", pack.askPhone);
       return true;
     }
 
     if (orderDraft.step === "phone") {
       orderDraft.phone = t;
       orderDraft.step = "address";
-      appendMessage("bot", "Delivery Address එක ඇතුළත් කරන්න.");
+      appendMessage("bot", pack.askAddress);
       return true;
     }
 
@@ -1067,10 +1174,7 @@
       orderDraft.address = t;
       if (orderDraft.paymentMethod === "Bank Transfer" && !attachedSlipData) {
         orderDraft.step = "slip";
-        appendMessage(
-          "bot",
-          "📎 කරුණාකර ඔබේ Payment Slip එක (`PNG`, `JPG`, හෝ `PDF`) attach කරන්න (නැත්නම් slip reference / 'done' ලියන්න)."
-        );
+        appendMessage("bot", pack.askSlip);
         return true;
       }
       await finalizeOrder();
@@ -1106,7 +1210,7 @@
 
     const pack = getLangPack();
     const typingId = skipAiReply ? null : appendMessage("bot", pack.typing);
-    const localizedPrompt = `[Language: ${config.language}] ${messageText}`;
+    const localizedPrompt = `[Respond strictly in ${pack.langLabel} (${config.language})] ${messageText}`;
 
     try {
       const res = await fetch(`${API_BASE}/api/chat`, {
@@ -1126,7 +1230,7 @@
       });
       if (typingId) removeMessageById(typingId);
       if (!res.ok) {
-        if (!skipAiReply) appendMessage("bot", "Server එකට සම්බන්ධ වීමට නොහැකි විය.");
+        if (!skipAiReply) appendMessage("bot", pack.serverError);
         return;
       }
       const data = await res.json();
@@ -1141,15 +1245,16 @@
       }
     } catch (_) {
       if (typingId) removeMessageById(typingId);
-      if (!skipAiReply) appendMessage("bot", "Server එකට සම්බන්ධ වීමට නොහැකි විය.");
+      if (!skipAiReply) appendMessage("bot", pack.serverError);
     }
   }
 
   function handleFileSelected(file) {
     if (!file) return;
+    const pack = getLangPack();
     const allowed = ["image/png", "image/jpeg", "application/pdf"];
     if (!allowed.includes(file.type)) {
-      appendMessage("bot", "කරුණාකර PNG, JPG, හෝ PDF file එකක් පමණක් attach කරන්න.");
+      appendMessage("bot", pack.invalidFile);
       return;
     }
     const reader = new FileReader();
@@ -1381,9 +1486,9 @@
       langBtns,
       launcherBtn
     };
+    welcomeMsgId = appendMessage("bot", pack.welcome, "zenix_welcome_msg");
     setLanguage(config.language);
     applyTheme();
-    appendMessage("bot", pack.welcome);
   }
 
   async function init() {
